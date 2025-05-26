@@ -1,0 +1,16 @@
+[wrap-git]
+directory = spirv-tools
+patch_directory = spirv-tools
+url = https://github.com/KhronosGroup/SPIRV-Tools.git
+revision = main
+depth = 1
+
+[provide]
+SPIRV-Tools = spirv_tools_dep
+SPIRV-Tools-native = spirv_tools_native_dep
+SPIRV-Tools-link = spirv_tools_link_dep
+SPIRV-Tools-link-native = spirv_tools_link_native_dep
+SPIRV-Tools-opt = spirv_tools_opt_dep
+SPIRV-Tools-opt-native = spirv_tools_opt_native_dep
+SPIRV-Tools-reduce = spirv_tools_reduce_dep
+SPIRV-Tools-reduce-native = spirv_tools_reduce_native_dep

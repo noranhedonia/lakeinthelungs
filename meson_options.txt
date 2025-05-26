@@ -1,0 +1,132 @@
+option(
+    'platforms',
+    type: 'array',
+    value: ['auto'],
+    choices: [
+        'auto', 'xcb', 'wayland', 'kms_drm', 'haiku', 'android', 'windows', 'cocoa', 'uikit', 'emscripten', 
+    ],
+    description: 'Window systems to support. If this is set to `auto`, all platforms applicable will be enabled.'
+)
+
+option(
+    'android-ndk-dir',
+    type: 'string',
+    value: '',
+    description: 'Location of the Android NDK. Default: `/opt/android-ndk`.'
+)
+
+option(
+    'android-api-version',
+    type: 'integer',
+    min: 30,
+    max: 10000,
+    value: 34,
+    description: 'Android Platform SDK version. Default: Android14 version.'
+)
+
+option(
+    'audio',
+    type: 'array',
+    value: ['auto'],
+    choices: [
+        'auto', 'pipewire', 'pulseaudio', 'jack', 'alsa', 'aaudio', 'asiosdk', 'wasapi', 'xaudio2', 'coreaudio', 'webaudio',
+    ],
+    description: 'Audio backends to support. If this is set to `auto`, all audio backends applicable will be enabled.'
+)
+
+option(
+    'graphics',
+    type: 'array',
+    value: ['auto'],
+    choices: [
+        'auto', 'vulkan', 'd3d12', 'metal', 'webgpu',
+    ],
+    description: 'Rendering backends to support. If this is set to `auto`, all rendering backends applicable will be enabled.'
+)
+
+option(
+    'xr-runtimes',
+    type: 'array',
+    value: ['auto'],
+    choices: [
+        'auto', 'openxr',
+    ],
+    description: 'XR runtimes and hardware interfaces to support. If this is set to `auto`, all runtimes applicable will be enabled.'
+)
+
+option(
+    'imgui',
+    type: 'boolean',
+    value: true,
+    description: 'Build the developer tools, will pull the Dear ImGui library.'
+)
+
+option(
+    'valgrind',
+    type: 'feature',
+    value: 'auto',
+    description: 'Enables Valgrind integration into core engine systems. By default enabled only on debug builds, if Valgrind is present in the system.'
+)
+
+option(
+    'renderdoc',
+    type: 'feature',
+    value: 'auto',
+    description: 'Enables Renderdoc app integration, built into the renderer. By default enabled only on debug builds, if Renderdoc is present in the system.'
+)
+
+option(
+    'build-main',
+    type: 'boolean',
+    value: true,
+    description: 'Build the main game application.'
+)
+
+option(
+    'build-tests',
+    type: 'feature',
+    value: 'disabled',
+    description: 'Build unit tests and included benchmark/example apps.'
+)
+
+option(
+    'build-docs',
+    type: 'feature',
+    value: 'disabled',
+    description: 'Build the HTML and LaTeX documentation, including the engine library, tools and the game application.'
+)
+
+option(
+    'build-docs-path',
+    type: 'string',
+    value: '',
+    description: 'Location to install the documentation. Default: `$datadir/docs/lakeinthelungs`.'
+)
+
+option(
+    'avx',
+    type: 'boolean',
+    value: true,
+    description: 'Use AVX flag for x86_64. Default: `true`.'
+)
+
+option(
+    'avx2',
+    type: 'boolean',
+    value: true,
+    description: 'Use AVX2 flag for x86_64. Default: `true`.'
+)
+
+option(
+    'neon',
+    type: 'boolean',
+    value: true,
+    description: 'Use Neon flag for Aarch64. Default: `true`.'
+)
+
+option(
+    'rvv',
+    type: 'boolean',
+    value: true,
+    description: 'Use Vector extension for RISC-V. Default: `true`.'
+)

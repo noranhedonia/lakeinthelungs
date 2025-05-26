@@ -1,0 +1,9 @@
+[wrap-git]
+directory = spirv-headers
+patch_directory = spirv-headers
+url = https://github.com/KhronosGroup/SPIRV-Headers.git
+revision = main
+depth = 1
+
+[provide]
+SPIRV-Headers = spirv_headers_dep

@@ -1,0 +1,8 @@
+[wrap-git]
+directory = directx-headers
+url = https://github.com/microsoft/DirectX-Headers.git
+revision = v1.615.0
+depth = 1
+
+[provide]
+DirectX-Headers = directx_headers_dep

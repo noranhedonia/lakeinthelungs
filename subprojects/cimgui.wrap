@@ -1,0 +1,10 @@
+[wrap-git]
+directory = cimgui
+patch_directory = cimgui
+url = https://github.com/cimgui/cimgui.git
+revision = docking_inter
+depth = 1
+clone-recursive = true
+
+[provide]
+cimgui = cimgui_dep

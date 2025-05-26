@@ -1,0 +1,8 @@
+.cache
+assets
+build
+build.debug
+build.release
+build.android
+build.wine
+buildir

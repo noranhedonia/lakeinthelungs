@@ -1,0 +1,9 @@
+[wrap-git]
+directory = vulkan-memory-allocator
+patch_directory = vulkan-memory-allocator
+url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+revision = master
+depth = 1
+
+[provide]
+vulkan-memory-allocator = vma_dep

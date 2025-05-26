@@ -1,0 +1,9 @@
+[wrap-git]
+directory = vulkan-headers
+patch_directory = vulkan-headers
+url = https://github.com/KhronosGroup/Vulkan-Headers
+revision = main
+depth = 1
+
+[provide]
+vulkanheaders = vulkan_headers_dep

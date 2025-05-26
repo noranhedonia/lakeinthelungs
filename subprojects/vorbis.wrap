@@ -1,0 +1,11 @@
+[wrap-git]
+directory = vorbis
+patch_directory = vorbis
+url = https://github.com/xiph/vorbis.git
+revision = master
+depth = 1
+
+[provide]
+vorbis = vorbis_dep
+vorbisfile = vorbisfile_dep
+vorbisenc = vorbisenc_dep

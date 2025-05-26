@@ -1,0 +1,9 @@
+[wrap-git]
+directory = ogg
+patch_directory = ogg
+url = https://github.com/xiph/ogg.git
+revision = master
+depth = 1
+
+[provide]
+ogg = ogg_dep

@@ -1,0 +1,12 @@
+asiosdk
+cimgui
+directx-headers
+freetype
+ogg
+slang
+spirv-headers
+spirv-tools
+vorbis
+vulkan-headers
+vulkan-memory-allocator
+!packagefiles/*
