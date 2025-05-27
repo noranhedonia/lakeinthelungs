@@ -1,22 +1,22 @@
 #pragma once
 
-#include <lake/graphics/moon.h>
+#include <lake/moon.h>
+#ifdef MOON_VULKAN
 
 FN_MOON_LIST_DEVICE_DETAILS(vulkan);
 FN_MOON_DEVICE_ASSEMBLY(vulkan);
-FN_MOON_DEVICE_ZERO_REFCNT(vulkan);
+FN_MOON_DEVICE_DESTRUCTOR(vulkan);
 FN_MOON_DEVICE_QUEUE_COUNT(vulkan);
 FN_MOON_DEVICE_QUEUE_WAIT_IDLE(vulkan);
 FN_MOON_DEVICE_WAIT_IDLE(vulkan);
 FN_MOON_DEVICE_SUBMIT_COMMANDS(vulkan);
 FN_MOON_DEVICE_PRESENT_FRAMES(vulkan);
 FN_MOON_DEVICE_DESTROY_DEFERRED(vulkan);
-
-FN_MOON_HEAP_MEMORY_ASSEMBLY(vulkan);
-FN_MOON_HEAP_MEMORY_ZERO_REFCNT(vulkan);
-FN_MOON_HEAP_MEMORY_BUFFER_REQUIREMENTS(vulkan);
-FN_MOON_HEAP_MEMORY_TEXTURE_REQUIREMENTS(vulkan);
-FN_MOON_HEAP_MEMORY_REPORT(vulkan);
+FN_MOON_DEVICE_HEAP_ASSEMBLY(vulkan);
+FN_MOON_DEVICE_HEAP_DESTRUCTOR(vulkan);
+FN_MOON_DEVICE_BUFFER_MEMORY_REQUIREMENTS(vulkan);
+FN_MOON_DEVICE_TEXTURE_MEMORY_REQUIREMENTS(vulkan);
+FN_MOON_DEVICE_MEMORY_REPORT(vulkan);
 
 FN_MOON_CREATE_BUFFER(vulkan);
 FN_MOON_CREATE_BUFFER_FROM_HEAP(vulkan);
@@ -49,23 +49,23 @@ FN_MOON_DESTROY_TLAS(vulkan);
 FN_MOON_DESTROY_BLAS(vulkan);
 
 FN_MOON_TIMELINE_QUERY_POOL_ASSEMBLY(vulkan);
-FN_MOON_TIMELINE_QUERY_POOL_ZERO_REFCNT(vulkan);
+FN_MOON_TIMELINE_QUERY_POOL_DESTRUCTOR(vulkan);
 FN_MOON_TIMELINE_SEMAPHORE_ASSEMBLY(vulkan);
-FN_MOON_TIMELINE_SEMAPHORE_ZERO_REFCNT(vulkan);
+FN_MOON_TIMELINE_SEMAPHORE_DESTRUCTOR(vulkan);
 FN_MOON_BINARY_SEMAPHORE_ASSEMBLY(vulkan);
-FN_MOON_BINARY_SEMAPHORE_ZERO_REFCNT(vulkan);
+FN_MOON_BINARY_SEMAPHORE_DESTRUCTOR(vulkan);
 
 FN_MOON_COMPUTE_PIPELINES_ASSEMBLY(vulkan);
-FN_MOON_COMPUTE_PIPELINE_ZERO_REFCNT(vulkan);
-FN_MOON_RASTER_PIPELINES_ASSEMBLY(vulkan);
-FN_MOON_RASTER_PIPELINE_ZERO_REFCNT(vulkan);
-FN_MOON_RAY_TRACING_PIPELINES_ASSEMBLY(vulkan);
-FN_MOON_RAY_TRACING_PIPELINE_ZERO_REFCNT(vulkan);
+FN_MOON_COMPUTE_PIPELINE_DESTRUCTOR(vulkan);
 FN_MOON_WORK_GRAPH_PIPELINES_ASSEMBLY(vulkan);
-FN_MOON_WORK_GRAPH_PIPELINE_ZERO_REFCNT(vulkan);
+FN_MOON_WORK_GRAPH_PIPELINE_DESTRUCTOR(vulkan);
+FN_MOON_RASTER_PIPELINES_ASSEMBLY(vulkan);
+FN_MOON_RASTER_PIPELINE_DESTRUCTOR(vulkan);
+FN_MOON_RAY_TRACING_PIPELINES_ASSEMBLY(vulkan);
+FN_MOON_RAY_TRACING_PIPELINE_DESTRUCTOR(vulkan);
 
 FN_MOON_SWAPCHAIN_ASSEMBLY(vulkan);
-FN_MOON_SWAPCHAIN_ZERO_REFCNT(vulkan);
+FN_MOON_SWAPCHAIN_DESTRUCTOR(vulkan);
 FN_MOON_SWAPCHAIN_WAIT_FOR_NEXT_FRAME(vulkan);
 FN_MOON_SWAPCHAIN_ACQUIRE_NEXT_IMAGE(vulkan);
 FN_MOON_SWAPCHAIN_CURRENT_ACQUIRE_SEMAPHORE(vulkan);
@@ -77,9 +77,9 @@ FN_MOON_SWAPCHAIN_SET_PRESENT_MODE(vulkan);
 FN_MOON_SWAPCHAIN_RESIZE(vulkan);
 
 FN_MOON_COMMAND_RECORDER_ASSEMBLY(vulkan);
-FN_MOON_COMMAND_RECORDER_ZERO_REFCNT(vulkan);
+FN_MOON_COMMAND_RECORDER_DESTRUCTOR(vulkan);
 FN_MOON_STAGED_COMMAND_LIST_ASSEMBLY(vulkan);
-FN_MOON_STAGED_COMMAND_LIST_ZERO_REFCNT(vulkan);
+FN_MOON_STAGED_COMMAND_LIST_DESTRUCTOR(vulkan);
 
 FN_MOON_CMD_COPY_BUFFER(vulkan);
 FN_MOON_CMD_COPY_BUFFER_TO_TEXTURE(vulkan);
@@ -111,8 +111,6 @@ FN_MOON_CMD_WRITE_TIMESTAMPS(vulkan);
 FN_MOON_CMD_RESOLVE_TIMESTAMPS(vulkan);
 FN_MOON_CMD_BEGIN_LABEL(vulkan);
 FN_MOON_CMD_END_LABEL(vulkan);
-FN_MOON_CMD_TRACE_RAYS(vulkan);
-FN_MOON_CMD_TRACE_RAYS_INDIRECT(vulkan);
 FN_MOON_CMD_DISPATCH(vulkan);
 FN_MOON_CMD_DISPATCH_INDIRECT(vulkan);
 FN_MOON_CMD_DISPATCH_GRAPH(vulkan);
@@ -125,55 +123,59 @@ FN_MOON_CMD_DRAW_INDIRECT_COUNT(vulkan);
 FN_MOON_CMD_DRAW_MESH_TASKS(vulkan);
 FN_MOON_CMD_DRAW_MESH_TASKS_INDIRECT(vulkan);
 FN_MOON_CMD_DRAW_MESH_TASKS_INDIRECT_COUNT(vulkan);
+FN_MOON_CMD_TRACE_RAYS(vulkan);
+FN_MOON_CMD_TRACE_RAYS_INDIRECT(vulkan);
 
 struct moon_adapter_impl {
-    u32 todo;
+    moon_interface_impl                 interface;
 };
 
 struct moon_device_impl {
-    u32 todo;
+    moon_device_header                  header;
 };
 
-struct moon_heap_memory_impl {
-    u32 todo;
+struct moon_device_heap_impl {
+    moon_device_heap_header             header;
 };
 
 struct moon_timeline_query_poop_impl {
-    u32 todo;
+    moon_timeline_query_pool_header     header;
 };
 
 struct moon_timeline_semaphore_impl {
-    u32 todo;
+    moon_timeline_semaphore_header      header;
 };
 
 struct moon_binary_semaphore_impl {
-    u32 todo;
+    moon_binary_semaphore_header        header;
 };
 
 struct moon_compute_pipeline_impl {
-    u32 todo;
-};
-
-struct moon_raster_pipeline_impl {
-    u32 todo;
-};
-
-struct moon_ray_tracing_pipeline_impl {
-    u32 todo;
+    moon_compute_pipeline_header        header;
 };
 
 struct moon_work_graph_pipeline_impl {
-    u32 todo;
+    moon_work_graph_pipeline_header     header;
 };
 
-struct moon_command_recorder_impl {
-    u32 todo;
+struct moon_raster_pipeline_impl {
+    moon_raster_pipeline_header         header;
 };
 
-struct moon_staged_command_list_impl {
-    u32 todo;
+struct moon_ray_tracing_pipeline_impl {
+    moon_ray_tracing_pipeline_header    header;
 };
 
 struct moon_swapchain_impl {
-    u32 todo;
+    moon_swapchain_header               header;
 };
+
+struct moon_command_recorder_impl {
+    moon_command_recorder_header        header;
+};
+
+struct moon_staged_command_list_impl {
+    moon_staged_command_list_header     header;
+};
+
+#endif /* MOON_VULKAN */

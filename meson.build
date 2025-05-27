@@ -8,7 +8,7 @@ project('lakeinthelungs', ['c', 'cpp'],
         'default_library=shared',
         'warning_level=3',
         'c_std=c23',
-        'cpp_std=c++17',
+        'cpp_std=c++23',
     ],
 )
 

@@ -1,0 +1,32 @@
+#pragma once
+
+#include <lake/inthelungs.h>
+
+struct a_moonlit_walk {
+    hadal_interface hadal;
+    moon_interface  moon;
+    soma_interface  soma;
+
+    u64 timer_start; /* MOVE TO BEDROCK */
+};
+
+enum pipeline_stage_hint {
+    pipeline_stage_hint_continue = 0,
+    pipeline_stage_hint_save_and_exit,
+    pipeline_stage_hint_restart_engine,
+    pipeline_stage_hint_try_recover,
+};
+
+struct pipeline_work {
+    enum pipeline_stage_hint    stage_hint;
+    u64                         timeline;
+    f64                         dt;
+    struct a_moonlit_walk      *amw;
+    struct pipeline_work const *last_work;
+    struct pipeline_work       *next_work;
+    lake_work_chain             chain;
+};
+
+extern FN_LAKE_WORK(a_moonlit_walk__gameplay, struct pipeline_work *work);
+extern FN_LAKE_WORK(a_moonlit_walk__rendering, struct pipeline_work *work);
+extern FN_LAKE_WORK(a_moonlit_walk__gpuexec, struct pipeline_work *work);

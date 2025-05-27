@@ -1,4 +1,4 @@
-if with_emscripten
+if with_platform_emscripten
     # TODO
 endif
 

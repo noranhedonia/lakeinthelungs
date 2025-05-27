@@ -1,5 +1,7 @@
 if with_platform_posix
-    #engine_sources += files()
+    engine_sources += files(
+        'posix_time.c',
+    )
     dl_dep = cc.find_library('dl', required: false)
     rt_dep = cc.find_library('rt', required: false)
 

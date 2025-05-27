@@ -1,9 +1,15 @@
-#engine_sources = files()
+engine_sources = files(
+    'bedrock.c',
+    'frame_time.c',
+    'log.c',
+    'misc.c',
+    'work.c',
+)
 
 threads_dep = dependency('threads', required: false)
 math_dep = cc.find_library('m', required: false)
 
-engine_deps = [ threads_dep + math_dep ]
+engine_deps = [ threads_dep, math_dep ]
 engine_link_args = []
 
 system_has_kms_drm = ['openbsd', 'netbsd', 'freebsd', 'gnu/kfreebsd', 'dragonfly', 'linux', 'sunos', 'android', 'managarm'].contains(host_machine.system())
@@ -87,10 +93,10 @@ if _audio.contains('auto')
 endif
 
 _graphics = get_option('graphics')
-with_vulkan = _rendering.contains('vulkan')
-with_d3d12 = _rendering.contains('d3d12')
-with_metal = _rendering.contains('metal')
-with_webgpu = _rendering.contains('webgpu')
+with_vulkan = _graphics.contains('vulkan')
+with_d3d12 = _graphics.contains('d3d12')
+with_metal = _graphics.contains('metal')
+with_webgpu = _graphics.contains('webgpu')
 
 if _graphics.contains('auto')
     with_vulkan = with_vulkan or not with_platform_emscripten
