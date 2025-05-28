@@ -9,7 +9,7 @@
  *  A strbuf is NIL terminated for convenience, but no function in this API 
  *  actually relies on the string being free of NULs.
  */
-#include <lake/bedrock/types.h>
+#include <lake/bedrock/bedrock.h>
 
 #ifdef __cplusplus
 extern "C" {

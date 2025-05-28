@@ -1,5 +1,8 @@
 if with_platform_posix
     engine_sources += files(
+        'posix_dlfcn.c',
+        'posix_mmap.c',
+        'posix_threads.c',
         'posix_time.c',
     )
     dl_dep = cc.find_library('dl', required: false)

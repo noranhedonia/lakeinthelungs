@@ -1,5 +1,11 @@
 if with_platform_windows
-    #engine_sources += files()
+    engine_sources += files(
+        'win32_dll.c',
+        'win32_proc.c',
+        'win32_threads.c',
+        'win32_time.c',
+        'win32_valloc.c',
+    )
 
     pre_args += [
         '-DLAKE_PLATFORM_WINDOWS=1', 

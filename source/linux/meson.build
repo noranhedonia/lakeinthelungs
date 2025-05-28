@@ -1,5 +1,7 @@
 if with_platform_kms_drm
-    #engine_sources += files()
+    engine_sources += files(
+        'linux_proc.c',
+    )
     udev_dep = dependency('libudev', required: _platforms.contains('kms_drm'))
     drm_dep = dependency('libdrm', required: _platforms.contains('kms_drm'))
     gbm_dep = dependency('gbm', required: _platforms.contains('kms_drm'))

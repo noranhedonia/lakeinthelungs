@@ -10,7 +10,7 @@
  *  shrink to minimum when the queue is empty, or shrink by hald when the queue is 
  *  at 20% of capacity. Operation names are in Ruby style ;3.
  */
-#include <lake/bedrock/types.h>
+#include <lake/bedrock/bedrock.h>
 
 #ifdef __cplusplus
 extern "C" {

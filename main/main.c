@@ -10,7 +10,7 @@
 #define RENDERING_STAGE_INDEX 1
 #define GPUEXEC_STAGE_INDEX   2
 
-static FN_LAKE_WORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)
+static FN_LAKE_FRAMEWORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)
 {
     f64 dt = 0.0;
     f64 const dt_freq_reciprocal = 1.0f/(f64)lake_rtc_frequency();
@@ -31,6 +31,8 @@ static FN_LAKE_WORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)
     stages[RENDERING_STAGE_INDEX].name = "main/rendering";
     stages[GPUEXEC_STAGE_INDEX].procedure = (PFN_lake_work)a_moonlit_walk__gpuexec;
     stages[GPUEXEC_STAGE_INDEX].name = "main/gpuexec";
+
+    amw->framework = framework;
 
     /* this additional loop controls engine state updates */
     do {stage_hint = pipeline_stage_hint_continue;
@@ -77,7 +79,7 @@ static FN_LAKE_WORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)
                 time_now = lake_rtc_counter();
                 dt = ((f64)(time_now - time_last) * dt_freq_reciprocal);
 
-                lake_frame_time_record(amw->timer_start, time_now, dt_freq_reciprocal);
+                lake_frame_time_record(framework->timer_start, time_now, dt_freq_reciprocal);
                 lake_frame_time_print(1000.f);
 
                 gameplay->timeline = timeline;
@@ -104,12 +106,12 @@ static FN_LAKE_WORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)
     lake_trace("Last recorded frame time: %.3f ms (%.0f FPS).", 1000.f * dt, 1.f/dt);
 }
 
-s32 lake_main(s32 argc, const char **argv)
+s32 lake_main(lake_framework *framework, s32 argc, const char **argv)
 {
     struct a_moonlit_walk amw = {0};
 
     (void)argc;
     (void)argv;
 
-    lake_abort(lake_in_the_lungs((PFN_lake_work)a_moonlit_walk__main, &amw));
+    lake_abort(lake_in_the_lungs((PFN_lake_framework)a_moonlit_walk__main, &amw, framework));
 }

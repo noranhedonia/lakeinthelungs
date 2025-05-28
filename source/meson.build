@@ -2,7 +2,7 @@ engine_sources = files(
     'bedrock.c',
     'frame_time.c',
     'log.c',
-    'misc.c',
+    'malloc.c',
     'work.c',
 )
 

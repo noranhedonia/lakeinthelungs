@@ -216,7 +216,7 @@ lake_assert_log_(
                 lake_abort_(error_code, fn, file, line);        \
             }                                                   \
         }                                                       \
-    } while(0,0)
+    } while(0)
 #endif /* LAKE_KEEP_ASSERT */
 
 /** Debug assert. Is only valid in debug mode (ignores LAKE_KEEP_ASSERT). */

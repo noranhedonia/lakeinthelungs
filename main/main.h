@@ -3,11 +3,10 @@
 #include <lake/inthelungs.h>
 
 struct a_moonlit_walk {
-    hadal_interface hadal;
-    moon_interface  moon;
-    soma_interface  soma;
-
-    u64 timer_start; /* MOVE TO BEDROCK */
+    lake_framework const   *framework;
+    hadal_interface         hadal;
+    moon_interface          moon;
+    soma_interface          soma;
 };
 
 enum pipeline_stage_hint {
