@@ -142,6 +142,7 @@ typedef struct lake_framework {
             struct T##_##PARENT##_impl   *impl;     \
             struct T##_##PARENT##_header *header;   \
         } PARENT;                                   \
+        u32                 pad0;                   \
         lake_refcnt             refcnt;             \
         T##_##IMPL##_assembly   assembly;           \
     } T##_##IMPL##_header
@@ -149,6 +150,18 @@ typedef struct lake_framework {
 /** Systems can use an atomic counter for references to itself. A reference count of 0
  *  or less means that the system can be safely destroyed, as it is no longer in use. */
 typedef atomic_s32 lake_refcnt;
+
+LAKE_FORCE_INLINE LAKE_NONNULL_ALL
+s32 lake_refcnt_inc(lake_refcnt *refcnt)
+{ return lake_atomic_add_explicit(refcnt, 1, lake_memory_model_release); }
+
+LAKE_FORCE_INLINE LAKE_NONNULL_ALL
+s32 lake_refcnt_dec(lake_refcnt *refcnt, void *self, PFN_lake_work zero_ref_callback)
+{ 
+    s32 prev = lake_atomic_sub_explicit(refcnt, 1, lake_memory_model_release); 
+    if (prev <= 1) zero_ref_callback(self);
+    return prev;
+}
 
 /** An interface header for other systems to inherit. Used to abstract over implementations. */
 LAKE_CACHELINE_ALIGNMENT

@@ -33,7 +33,11 @@ if with_platform_wayland
     xkbcommon_dep = dependency('xkbcommon', required: _platforms.contains('wayland'))
 
     if wayland_scanner.found() and wayland_client_dep.found() and wayland_cursor_dep.found() and xkbcommon_dep.found()
-        #engine_sources += files()
+        engine_sources += files(
+            'wl_display.c',
+            'wl_vulkan.c',
+            'wl_window.c',
+        )
         pre_args += ['-DHADAL_WAYLAND=1', '-DVK_USE_PLATFORM_WAYLAND_KHR']
 
         wayland_protocols_dir = '../../wayland-protocols/'
@@ -74,7 +78,7 @@ if with_platform_wayland
 endif
 
 if with_pipewire and dependency('libpipewire-0.3', required: _audio.contains('pipewire')).found()
-    #engine_sources += files()
+    engine_sources += files('pw_soma.c')
     pre_args += ['-DSOMA_PIPEWIRE=1']
 endif
 

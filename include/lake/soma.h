@@ -12,20 +12,21 @@ LAKE_DECL_HANDLE(soma_adapter);
 
 /** Interface of the audio backend. */
 typedef struct soma_interface_impl {
-    lake_interface_header                   header;
+    lake_interface_header       header;
 } soma_interface_impl;
 
 /** A view into the audio interface implementation. */
 typedef union soma_interface {
-    lake_interface_header                  *header;
-    struct soma_adapter_impl               *adapter;
-    struct soma_interface_impl             *interface;
-    void                                   *data;
+    lake_interface_header      *header;
+    struct soma_adapter_impl   *adapter;
+    struct soma_interface_impl *interface;
+    void                       *v;
 } soma_interface;
 
 /** Details needed to assemble an audio backend. */
 typedef struct soma_interface_assembly {
-    soma_interface                         *out_impl; 
+    lake_framework const       *framework;
+    soma_interface             *out_impl; 
 } soma_interface_assembly;
 
 #ifdef __cplusplus

@@ -2860,12 +2860,13 @@ typedef union moon_interface {
     lake_interface_header      *header;
     struct moon_adapter_impl   *adapter;
     struct moon_interface_impl *interface;
-    void                       *data;
+    void                       *v;
 } moon_interface;
 
 /** Header for `struct moon_device_impl`. */
 typedef struct moon_device_header {
     moon_interface              moon;
+    atomic_u32                  flags;
     lake_refcnt                 refcnt;
     moon_device_assembly        assembly;
     moon_device_details         details;
@@ -2885,6 +2886,7 @@ LAKE_DECL_HANDLE_HEADER(moon, staged_command_list, command_recorder); /** struct
 
 /** Details needed to assemble a rendering backend. */
 typedef struct moon_interface_assembly {
+    lake_framework const       *framework;
     moon_interface             *out_impl; 
 } moon_interface_assembly;
 

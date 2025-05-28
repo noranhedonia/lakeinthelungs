@@ -189,8 +189,8 @@ typedef struct lake_rect2d {
 
 #define LAKE_SMALL_STRING_CAPACITY 63u
 typedef struct lake_small_string { 
-    char data[LAKE_SMALL_STRING_CAPACITY]; 
-    u8 size; 
+    char str[LAKE_SMALL_STRING_CAPACITY]; 
+    u8   len; 
 } lake_small_string;
 
 /** Result codes for error checking. */

@@ -51,8 +51,8 @@ elif with_lake_debug
 endif
 
 # arguments for C or C++ compilers
-c_args = []
-cpp_args = []
+c_args = ['-Wno-pedantic']
+cpp_args = ['-Wno-pedantic']
 include_dir = include_directories('include')
 
 subdir('source')

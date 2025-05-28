@@ -126,6 +126,67 @@ FN_MOON_CMD_DRAW_MESH_TASKS_INDIRECT_COUNT(vulkan);
 FN_MOON_CMD_TRACE_RAYS(vulkan);
 FN_MOON_CMD_TRACE_RAYS_INDIRECT(vulkan);
 
+#ifndef VK_NO_PROTOTYPES
+    #define VK_NO_PROTOTYPES
+#endif
+#ifndef VK_ENABLE_BETA_EXTENSIONS
+    #define VK_ENABLE_BETA_EXTENSIONS
+#endif
+
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
+    /* to avoid including windows.h */
+    #ifndef UNICODE
+        #define UNICODE 1
+    #endif
+    #ifndef _UNICODE
+        #define _UNICODE 1
+    #endif
+    #ifndef VC_EXTRALEAN
+        #define VC_EXTRALEAN
+    #endif
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+    #endif
+    #ifndef NOGDI
+        #define NOGDI
+    #endif
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
+
+    #include <vulkan/vk_platform.h>
+    #include <vulkan/vulkan_core.h>
+
+    typedef unsigned long                DWORD;
+    typedef const wchar_t               *LPCWSTR;
+    typedef void                        *HANDLE;
+    typedef struct HINSTANCE__          *HINSTANCE;
+    typedef struct HWND__               *HWND;
+    typedef struct HMONITOR__           *HMONITOR;
+    typedef struct _SECURITY_ATTRIBUTES _SECURITY_ATTRIBUTES;
+    
+    #include <vulkan/vulkan_win32.h>
+#else
+    #include <vulkan/vulkan.h>
+#endif
+#if defined(VK_ENABLE_BETA_EXTENSIONS)
+    #include <vulkan/vulkan_beta.h>
+#endif
+
+#include <vk_video/vulkan_video_codec_av1std_decode.h>
+#include <vk_video/vulkan_video_codec_av1std_encode.h>
+#include <vk_video/vulkan_video_codec_h264std_decode.h>
+#include <vk_video/vulkan_video_codec_h264std_encode.h>
+#include <vk_mem_alloc.h>
+
+struct physical_device_properties {
+
+};
+
+struct physical_device_features {
+
+};
+
 struct moon_adapter_impl {
     moon_interface_impl                 interface;
 };

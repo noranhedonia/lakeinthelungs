@@ -10,6 +10,81 @@
 #define RENDERING_STAGE_INDEX 1
 #define GPUEXEC_STAGE_INDEX   2
 
+static lake_result prototype_init(struct a_moonlit_walk *amw)
+{
+    lake_result result = LAKE_SUCCESS;
+    hadal_interface_assembly hadal_assembly = {
+        .framework = amw->framework,
+        .out_impl = &amw->hadal,
+    };
+    soma_interface_assembly soma_assembly = {
+        .framework = amw->framework,
+        .out_impl = &amw->soma,
+    };
+    moon_interface_assembly moon_assembly = {
+        .framework = amw->framework,
+        .out_impl = &amw->moon,
+    };
+
+    /* for now we don't care about fallbacks to other backends */
+    lake_work_details work[3] = {
+        { /* hadal (display) */
+            .procedure = (PFN_lake_work)hadal_interface_assembly_wayland,
+            .argument = &hadal_assembly,
+            .name = "main/prototype_init/hadal",
+        },
+        { /* soma (audio) */
+            .procedure = (PFN_lake_work)soma_interface_assembly_pipewire,
+            .argument = &soma_assembly,
+            .name = "main/prototype_init/soma",
+        },
+        { /* moon (graphics) */
+            .procedure = (PFN_lake_work)moon_interface_assembly_vulkan,
+            .argument = &moon_assembly,
+            .name = "main/prototype_init/moon",
+        },
+    };
+    lake_submit_work_and_yield(3, work);
+
+    if (!amw->hadal.v || !amw->soma.v || !amw->moon.v) {
+        result = LAKE_ERROR_INITIALIZATION_FAILED;
+        if (amw->hadal.v == nullptr)
+            lake_error("Wayland prototype init failed.");
+        if (amw->soma.v == nullptr)
+            lake_error("PipeWire prototype init failed.");
+        if (amw->moon.v == nullptr)
+            lake_error("Vulkan prototype init failed.");
+        lake_exit_status(result);
+    }
+    return result;
+}
+
+static void prototype_fini(struct a_moonlit_walk *amw)
+{
+    lake_work_details work[3];
+    u32 o = 0;
+
+    if (amw->hadal.v != nullptr)
+        work[o++] = (lake_work_details){
+            .procedure = amw->hadal.interface->header.destructor,
+            .argument = amw->hadal.adapter,
+            .name = "main/prototype_fini/hadal",
+        };
+    if (amw->soma.v != nullptr)
+        work[o++] = (lake_work_details){
+            .procedure = amw->soma.interface->header.destructor,
+            .argument = amw->soma.adapter,
+            .name = "main/prototype_fini/soma",
+        };
+    if (amw->moon.v != nullptr)
+        work[o++] = (lake_work_details){
+            .procedure = amw->moon.interface->header.destructor,
+            .argument = amw->moon.adapter,
+            .name = "main/prototype_fini/moon",
+        };
+    lake_submit_work_and_yield(o, work);
+}
+
 static FN_LAKE_FRAMEWORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)
 {
     f64 dt = 0.0;
@@ -31,8 +106,9 @@ static FN_LAKE_FRAMEWORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)
     stages[RENDERING_STAGE_INDEX].name = "main/rendering";
     stages[GPUEXEC_STAGE_INDEX].procedure = (PFN_lake_work)a_moonlit_walk__gpuexec;
     stages[GPUEXEC_STAGE_INDEX].name = "main/gpuexec";
-
     amw->framework = framework;
+
+    if (prototype_init(amw) != LAKE_SUCCESS) return;
 
     /* this additional loop controls engine state updates */
     do {stage_hint = pipeline_stage_hint_continue;
@@ -100,7 +176,7 @@ static FN_LAKE_FRAMEWORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)
         lake_dbg_2("Gameloop leave on timeline: %lu.", timeline);
     } while (stage_hint == pipeline_stage_hint_restart_engine);
 
-    /* TODO destroy the game state and framework */
+    prototype_fini(amw);
 
     dt = lake_frame_time_median();
     lake_trace("Last recorded frame time: %.3f ms (%.0f FPS).", 1000.f * dt, 1.f/dt);
