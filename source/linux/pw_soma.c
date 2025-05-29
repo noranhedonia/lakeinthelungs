@@ -85,6 +85,9 @@ static FN_LAKE_WORK(soma_interface_destructor, soma_adapter soma)
 {
     if (soma == nullptr) return;
 
+    s32 refcnt = lake_atomic_read(&soma->interface.header.refcnt);
+    lake_assert(refcnt <= 0, LAKE_HANDLE_STILL_REFERENCED, nullptr);
+
     if (soma->pw_deinit != nullptr)
         soma->pw_deinit();
     if (soma->pipewire_library != nullptr)
@@ -129,7 +132,7 @@ FN_LAKE_WORK(soma_interface_assembly_pipewire, soma_interface_assembly const *as
     }
     _pw_init(nullptr, nullptr);
 
-    soma_adapter soma = (soma_adapter)__lake_malloc_t(struct soma_adapter_impl);
+    soma_adapter soma = __lake_malloc_t(struct soma_adapter_impl);
     lake_zerop(soma);
     g_soma = soma;
 
@@ -145,7 +148,6 @@ FN_LAKE_WORK(soma_interface_assembly_pipewire, soma_interface_assembly const *as
     soma->interface.header.destructor = (PFN_lake_work)soma_interface_destructor;
     soma->interface.header.name.len = lake_strlen(name) + 1;
     lake_memcpy(soma->interface.header.name.str, name, soma->interface.header.name.len);
-    lake_refcnt_inc(&soma->interface.header.refcnt);
 
     /* load pipewire symbols */
     if (lake_unlikely(!load_pipewire_symbols(soma, name))) {
@@ -155,7 +157,8 @@ FN_LAKE_WORK(soma_interface_assembly_pipewire, soma_interface_assembly const *as
 
     /* XXX there are no custom `PFN_soma` procedures for now */
 
-    assembly->out_impl->adapter = soma;
     lake_trace("Connected %s, ver. %s.", name, pipewire_version);
+    lake_refcnt_inc(&soma->interface.header.refcnt);
+    assembly->out_impl->adapter = soma;
 }
 #endif /* SOMA_PIPEWIRE */

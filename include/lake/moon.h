@@ -74,6 +74,17 @@ typedef union moon_device_or_host_address {
     void const                 *host_address;
 } moon_device_or_host_address;
 
+typedef u32 moon_sample_count;
+typedef enum moon_sample_count_bits : moon_sample_count {
+    moon_sample_count_1     = (1u << 0),   
+    moon_sample_count_2     = (1u << 1),   
+    moon_sample_count_4     = (1u << 2),   
+    moon_sample_count_8     = (1u << 3),   
+    moon_sample_count_16    = (1u << 4),   
+    moon_sample_count_32    = (1u << 5),   
+    moon_sample_count_64    = (1u << 6),   
+} moon_sample_count_bits;
+
 typedef u32 moon_pipeline_stages;
 typedef enum moon_pipeline_stage_bits : moon_pipeline_stages {
     moon_pipeline_stage_none                                = 0u,
@@ -126,32 +137,114 @@ typedef enum moon_device_type : s16 {
     moon_device_type_cpu,
 } moon_device_type;
 
+/* Is ABI compatible with Vulkan's VkPhysicalDeviceLimits. */
 typedef struct moon_device_limits {
     u32 max_texture_dimension_1d;
     u32 max_texture_dimension_2d;
     u32 max_texture_dimension_3d;
+    u32 max_texture_dimension_cube;
     u32 max_texture_array_layers;
+    u32 max_texel_buffer_elements;
     u32 max_uniform_buffer_range;
     u32 max_storage_buffer_range;
-    u32 max_root_constant_size;
-    u32 max_sampled_textures;
-    u32 max_storage_textures;
-    u32 max_samplers;
-    u32 max_uniform_buffers;
-    u32 max_storage_buffers;
-    u32 max_vertex_input_bindings;
+    u32 max_push_constants_size;
+    u32 max_memory_allocation_count;
+    u32 max_sampler_allocation_count;
+    u64 buffer_texture_granularity;
+    u64 sparse_address_space_size;
+    u32 max_bound_descriptor_sets;
+    u32 max_per_stage_descriptor_samplers;
+    u32 max_per_stage_descriptor_uniform_buffers;
+    u32 max_per_stage_descriptor_storage_buffers;
+    u32 max_per_stage_descriptor_sampled_textures;
+    u32 max_per_stage_descriptor_storage_textures;
+    u32 max_per_stage_descriptor_input_attachments;
+    u32 max_per_stage_resources;
+    u32 max_descriptor_set_samplers;
+    u32 max_descriptor_set_uniformbuffers;
+    u32 max_descriptor_set_uniform_buffers_dynamic;
+    u32 max_descriptor_set_storage_buffers;
+    u32 max_descriptor_set_storage_buffers_dynamic;
+    u32 max_descriptor_set_sampled_textures;
+    u32 max_descriptor_set_storage_textures;
+    u32 max_descriptor_set_input_attachments;
     u32 max_vertex_input_attributes;
+    u32 max_vertex_input_bindings;
+    u32 max_vertex_input_attribute_offset;
+    u32 max_vertex_input_binding_stride;
+    u32 max_vertex_output_components;
+    u32 max_tessellation_generation_level;
+    u32 max_tessellation_patch_size;
+    u32 max_tessellation_control_per_vertex_input_components;
+    u32 max_tessellation_control_per_vertex_output_components;
+    u32 max_tessellation_control_per_patch_output_components;
+    u32 max_tessellation_control_total_output_components;
+    u32 max_tessellation_evaluation_input_components;
+    u32 max_tessellation_evaluation_output_components;
+    u32 max_geometry_shader_invocations;
+    u32 max_geometry_input_components;
+    u32 max_geometry_output_components;
+    u32 max_geometry_output_vertices;
+    u32 max_geometry_total_output_components;
+    u32 max_fragment_input_components;
+    u32 max_fragment_output_attachments;
+    u32 max_fragment_dual_src_attachments;
+    u32 max_fragment_combined_output_resources;
+    u32 max_compute_shared_memory_size;
+    u32 max_compute_work_group_count[3];
+    u32 max_compute_work_group_invocations;
+    u32 max_compute_work_group_size[3];
+    u32 sub_pixel_precision_bits;
+    u32 sub_texel_precision_bits;
+    u32 mipmap_precision_bits;
+    u32 max_draw_indexed_index_value;
+    u32 max_draw_indirect_count;
+    f32 max_sampler_lod_bias;
+    f32 max_sampler_anisotropy;
     u32 max_viewports;
     u32 max_viewport_dimensions[2];
-    u32 max_scissor_dimensions[2];
-    u32 max_compute_work_group_count[3];
-    u32 max_compute_work_group_size[3];
-    u32 max_compute_work_group_invocations;
-    u32 uniform_buffer_offset_alignment;
-    u32 storage_buffer_offset_alignment;
-    u32 min_texel_buffer_offset_alignment;
-    u32 min_uniform_buffer_offset_alignment;
+    f32 viewport_bounds_range[2];
+    u32 viewport_subpixel_bits;
+    usize min_memory_map_alignment;
+    u64 min_texel_buffer_offset_alignment;
+    u64 min_uniform_buffer_offset_alignment;
+    u64 min_storage_buffer_offset_alignment;
+    s32 min_texel_offset;
+    u32 max_texel_offset;
+    s32 min_texel_gather_offset;
+    u32 max_texel_gather_offset;
+    f32 min_interpolation_offset;
+    f32 max_interpolation_offset;
+    u32 sub_pixel_interpolation_offset_bits;
+    u32 max_framebuffer_width;
+    u32 max_framebuffer_height;
+    u32 max_framebuffer_layers;
+    moon_sample_count framebuffer_color_sample_counts;
+    moon_sample_count framebuffer_depth_sample_counts;
+    moon_sample_count framebuffer_stencil_sample_counts;
+    moon_sample_count framebuffer_no_attachments_sample_counts;
     u32 max_color_attachments;
+    moon_sample_count sampled_texture_color_sample_counts;
+    moon_sample_count sampled_texture_integer_sample_counts;
+    moon_sample_count sampled_texture_depth_sample_counts;
+    moon_sample_count sampled_texture_stencil_sample_counts;
+    moon_sample_count storage_texture_sample_counts;
+    u32 max_sample_mask_words;
+    s32 timestamp_compute_and_graphics; /* bool */
+    f32 timestamp_period;
+    u32 max_clip_distances;
+    u32 max_cull_distances;
+    u32 max_combined_clip_and_cull_distances;
+    u32 discrete_queue_priorities;
+    f32 point_size_range[2];
+    f32 line_width_range[2];
+    f32 point_size_granularity;
+    f32 line_width_granularity;
+    s32 strict_lines; /* bool */
+    s32 standard_sample_locations; /* bool */
+    u64 optimal_buffer_copy_offset_alignment;
+    u64 optimal_buffer_copy_row_pitch_alignment;
+    u64 non_coherent_atom_size;
 } moon_device_limits;
 
 typedef struct moon_device_ray_tracing_pipeline_details {
@@ -163,6 +256,7 @@ typedef struct moon_device_ray_tracing_pipeline_details {
     u32 max_ray_recursion_depth;
     u32 max_ray_dispatch_invocation_count;
     u32 max_ray_hit_attribute_size;
+    u32 invocation_reorder_hint;
 } moon_device_ray_tracing_pipeline_details;
 
 typedef struct moon_device_acceleration_structure_details {
@@ -253,16 +347,15 @@ typedef enum moon_implicit_feature_bits : moon_implicit_features {
     moon_implicit_feature_ray_tracing_position_fetch                    = (1u << 4),
     moon_implicit_feature_conservative_rasterization                    = (1u << 5),
     moon_implicit_feature_work_graph                                    = (1u << 6),
-    moon_implicit_feature_work_graph_mesh_tasks                         = (1u << 7),
-    moon_implicit_feature_image_atomic64                                = (1u << 8),
-    moon_implicit_feature_shader_atomic_float                           = (1u << 9),
-    moon_implicit_feature_shader_atomic_int64                           = (1u << 10),
-    moon_implicit_feature_shader_float16                                = (1u << 11),
-    moon_implicit_feature_shader_int16                                  = (1u << 12),
-    moon_implicit_feature_shader_int8                                   = (1u << 13),
-    moon_implicit_feature_dynamic_state                                 = (1u << 14),
-    moon_implicit_feature_sparse_binding                                = (1u << 15),
-    moon_implicit_feature_swapchain                                     = (1u << 16),
+    moon_implicit_feature_image_atomic64                                = (1u << 7),
+    moon_implicit_feature_shader_atomic_float                           = (1u << 8),
+    moon_implicit_feature_shader_atomic_int64                           = (1u << 9),
+    moon_implicit_feature_shader_float16                                = (1u << 10),
+    moon_implicit_feature_shader_int16                                  = (1u << 11),
+    moon_implicit_feature_shader_int8                                   = (1u << 12),
+    moon_implicit_feature_dynamic_state                                 = (1u << 13),
+    moon_implicit_feature_sparse_binding                                = (1u << 14),
+    moon_implicit_feature_swapchain                                     = (1u << 15),
 } moon_implicit_feature_bits;
 
 /** These features must be enabled explicitly by the user. */
@@ -359,6 +452,7 @@ typedef struct moon_device_heap_type {
     u8                   heap_idx;
 } moon_device_heap_type;
 #define MOON_MAX_DEVICE_HEAP_TYPES 32
+#define MOON_MAX_DEVICE_HEAP_SIZES 16
 
 typedef struct moon_device_details {
     u32                                         api_version;
@@ -370,13 +464,15 @@ typedef struct moon_device_details {
     char                                        pipeline_cache_uuid[16];
     u16                                         heap_memory_type_count;
     moon_device_heap_type                       heap_memory_types[MOON_MAX_DEVICE_HEAP_TYPES];
+    u64                                         heap_sizes[MOON_MAX_DEVICE_HEAP_SIZES];
+    u32                                         heap_count;
+    u16                                         compute_queue_count;
+    u16                                         transfer_queue_count;
     moon_device_work_graph_details              work_graph_details;
     moon_device_mesh_shader_details             mesh_shader_details;
     moon_device_acceleration_structure_details  acceleration_structure_details;
     moon_device_ray_tracing_pipeline_details    ray_tracing_pipeline_details;
     moon_device_limits                          limits;
-    u16                                         compute_queue_count;
-    u16                                         transfer_queue_count;
     moon_missing_required_features              missing_required_features;
     moon_implicit_features                      implicit_features;
     moon_explicit_features                      explicit_features;
@@ -1153,17 +1249,6 @@ typedef enum moon_sampler_reduction_mode : s8 {
     moon_sampler_reduction_mode_max,
 } moon_sampler_reduction_mode;
 
-typedef u8 moon_sample_count;
-typedef enum moon_sample_count_bits : moon_sample_count {
-    moon_sample_count_1     = (1u << 0),   
-    moon_sample_count_2     = (1u << 1),   
-    moon_sample_count_4     = (1u << 2),   
-    moon_sample_count_8     = (1u << 3),   
-    moon_sample_count_16    = (1u << 4),   
-    moon_sample_count_32    = (1u << 5),   
-    moon_sample_count_64    = (1u << 6),   
-} moon_sample_count_bits;
-
 typedef struct moon_sampler_assembly {
     moon_filter_mode            magnification_filter;
     moon_filter_mode            minification_filter;
@@ -1740,9 +1825,8 @@ typedef struct moon_rasterizer {
     f32                             depth_bias_slope_factor;
     f32                             line_width;
     moon_conservative_rasterizer    conservative_rasterizer;
-    bool                            has_conservative_rasterizer;
-    u8                          pad0[1];
     moon_sample_count               static_state_sample_count;
+    bool                            has_conservative_rasterizer;
     bool                            has_static_state_sample_count;
 } moon_rasterizer;
 static constexpr moon_rasterizer MOON_RASTERIZER_INIT = {
@@ -2578,6 +2662,39 @@ PFN_MOON_COMMAND(dispatch_graph_indirect_count, moon_cmd_dispatch_graph_count co
 #define FN_MOON_CMD_DISPATCH_GRAPH_INDIRECT_COUNT(backend) \
     FN_MOON_COMMAND(dispatch_graph_indirect_count, backend, moon_cmd_dispatch_graph_count const *params)
 
+typedef struct moon_ray_trace {
+    u32                         width, height, depth;
+} moon_ray_trace;
+
+typedef struct moon_cmd_trace_rays {
+    u32                         raygen_shader_binding_table_offset;
+    u32                         miss_shader_binding_table_offset;
+    u32                         miss_shader_binding_table_stride;
+    u32                         hit_shader_binding_table_offset;
+    moon_shader_binding_table   shader_binding_table;
+    u32                         payload_count;
+    moon_ray_trace const       *payloads;
+} moon_cmd_trace_rays;
+static constexpr moon_cmd_trace_rays MOON_CMD_TRACE_RAYS_INIT = {
+    .payload_count = 1,
+};
+
+/** Execute ray tracing workload with direct parameters. */
+PFN_MOON_COMMAND(trace_rays, moon_cmd_trace_rays const *params);
+#define FN_MOON_CMD_TRACE_RAYS(backend) \
+    FN_MOON_COMMAND(trace_rays, backend, moon_cmd_trace_rays const *params)
+
+typedef struct moon_cmd_trace_rays_indirect {
+    moon_device_address         indirect_buffer_address;
+    moon_shader_binding_table   shader_binding_table;
+} moon_cmd_trace_rays_indirect;
+static constexpr moon_cmd_trace_rays_indirect MOON_CMD_TRACE_RAYS_INDIRECT_INIT = {0};
+
+/** Execute ray tracing workload using indirect parameters buffer. */
+PFN_MOON_COMMAND(trace_rays_indirect, moon_cmd_trace_rays_indirect const *params);
+#define FN_MOON_CMD_TRACE_RAYS_INDIRECT(backend) \
+    FN_MOON_COMMAND(trace_rays_indirect, backend, moon_cmd_trace_rays_indirect const *params)
+
 typedef struct moon_draw {
     u32                         vertex_count;
     u32                         instance_count;
@@ -2695,39 +2812,6 @@ PFN_MOON_COMMAND(draw_mesh_tasks_indirect_count, moon_cmd_draw_mesh_tasks_indire
 #define FN_MOON_CMD_DRAW_MESH_TASKS_INDIRECT_COUNT(backend) \
     FN_MOON_COMMAND(draw_mesh_tasks_indirect_count, backend, moon_cmd_draw_mesh_tasks_indirect_count const *params)
 
-typedef struct moon_ray_trace {
-    u32                         width, height, depth;
-} moon_ray_trace;
-
-typedef struct moon_cmd_trace_rays {
-    u32                         raygen_shader_binding_table_offset;
-    u32                         miss_shader_binding_table_offset;
-    u32                         miss_shader_binding_table_stride;
-    u32                         hit_shader_binding_table_offset;
-    moon_shader_binding_table   shader_binding_table;
-    u32                         payload_count;
-    moon_ray_trace const       *payloads;
-} moon_cmd_trace_rays;
-static constexpr moon_cmd_trace_rays MOON_CMD_TRACE_RAYS_INIT = {
-    .payload_count = 1,
-};
-
-/** Execute ray tracing workload with direct parameters. */
-PFN_MOON_COMMAND(trace_rays, moon_cmd_trace_rays const *params);
-#define FN_MOON_CMD_TRACE_RAYS(backend) \
-    FN_MOON_COMMAND(trace_rays, backend, moon_cmd_trace_rays const *params)
-
-typedef struct moon_cmd_trace_rays_indirect {
-    moon_device_address         indirect_buffer_address;
-    moon_shader_binding_table   shader_binding_table;
-} moon_cmd_trace_rays_indirect;
-static constexpr moon_cmd_trace_rays_indirect MOON_CMD_TRACE_RAYS_INDIRECT_INIT = {0};
-
-/** Execute ray tracing workload using indirect parameters buffer. */
-PFN_MOON_COMMAND(trace_rays_indirect, moon_cmd_trace_rays_indirect const *params);
-#define FN_MOON_CMD_TRACE_RAYS_INDIRECT(backend) \
-    FN_MOON_COMMAND(trace_rays_indirect, backend, moon_cmd_trace_rays_indirect const *params)
-
 /** Interface of the rendering backend. */
 typedef struct moon_interface_impl {
     lake_interface_header                           header;
@@ -2787,10 +2871,10 @@ typedef struct moon_interface_impl {
     PFN_moon_compute_pipeline_destructor            compute_pipeline_destructor;
     PFN_moon_work_graph_pipelines_assembly          work_graph_pipelines_assembly;
     PFN_moon_work_graph_pipeline_destructor         work_graph_pipeline_destructor;
-    PFN_moon_raster_pipelines_assembly              raster_pipelines_assembly;
-    PFN_moon_raster_pipeline_destructor             raster_pipeline_destructor;
     PFN_moon_ray_tracing_pipelines_assembly         ray_tracing_pipelines_assembly;
     PFN_moon_ray_tracing_pipeline_destructor        ray_tracing_pipeline_destructor;
+    PFN_moon_raster_pipelines_assembly              raster_pipelines_assembly;
+    PFN_moon_raster_pipeline_destructor             raster_pipeline_destructor;
 
     PFN_moon_swapchain_assembly                     swapchain_assembly;
     PFN_moon_swapchain_destructor                   swapchain_destructor;
@@ -2824,9 +2908,9 @@ typedef struct moon_interface_impl {
     PFN_moon_cmd_build_acceleration_structures      cmd_build_acceleration_structures;
     PFN_moon_cmd_root_constants                     cmd_root_constants;
     PFN_moon_cmd_set_compute_pipeline               cmd_set_compute_pipeline;
-    PFN_moon_cmd_set_raster_pipeline                cmd_set_raster_pipeline;
-    PFN_moon_cmd_set_ray_tracing_pipeline           cmd_set_ray_tracing_pipeline;
     PFN_moon_cmd_set_work_graph_pipeline            cmd_set_work_graph_pipeline;
+    PFN_moon_cmd_set_ray_tracing_pipeline           cmd_set_ray_tracing_pipeline;
+    PFN_moon_cmd_set_raster_pipeline                cmd_set_raster_pipeline;
     PFN_moon_cmd_set_viewport                       cmd_set_viewport;
     PFN_moon_cmd_set_scissor                        cmd_set_scissor;
     PFN_moon_cmd_set_rasterization_samples          cmd_set_rasterization_samples;
@@ -2844,6 +2928,8 @@ typedef struct moon_interface_impl {
     PFN_moon_cmd_dispatch_graph                     cmd_dispatch_graph;
     PFN_moon_cmd_dispatch_graph_indirect            cmd_dispatch_graph_indirect;
     PFN_moon_cmd_dispatch_graph_indirect_count      cmd_dispatch_graph_indirect_count;
+    PFN_moon_cmd_trace_rays                         cmd_trace_rays;
+    PFN_moon_cmd_trace_rays_indirect                cmd_trace_rays_indirect;
     PFN_moon_cmd_draw                               cmd_draw;
     PFN_moon_cmd_draw_indexed                       cmd_draw_indexed;
     PFN_moon_cmd_draw_indirect                      cmd_draw_indirect;
@@ -2851,8 +2937,6 @@ typedef struct moon_interface_impl {
     PFN_moon_cmd_draw_mesh_tasks                    cmd_draw_mesh_tasks;
     PFN_moon_cmd_draw_mesh_tasks_indirect           cmd_draw_mesh_tasks_indirect;
     PFN_moon_cmd_draw_mesh_tasks_indirect_count     cmd_draw_mesh_tasks_indirect_count;
-    PFN_moon_cmd_trace_rays                         cmd_trace_rays;
-    PFN_moon_cmd_trace_rays_indirect                cmd_trace_rays_indirect;
 } moon_interface_impl;
 
 /** A view into the rendering interface implementation. */
@@ -2868,8 +2952,8 @@ typedef struct moon_device_header {
     moon_interface              moon;
     atomic_u32                  flags;
     lake_refcnt                 refcnt;
+    moon_device_details const  *details;
     moon_device_assembly        assembly;
-    moon_device_details         details;
 } moon_device_header;
 
 LAKE_DECL_HANDLE_HEADER(moon, device_heap, device); /** struct moon_device_heap_impl */

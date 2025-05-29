@@ -546,6 +546,9 @@ static FN_LAKE_WORK(hadal_interface_destructor, hadal_adapter hadal)
 {
     if (hadal == nullptr) return;
 
+    s32 refcnt = lake_atomic_read(&hadal->interface.header.refcnt);
+    lake_assert(refcnt <= 0, LAKE_HANDLE_STILL_REFERENCED, nullptr);
+
 #ifdef HADAL_LIBDECOR
     if (hadal->shell.libdecor)
         libdecor_unref(hadal->shell.libdecor);
@@ -658,7 +661,7 @@ disconnect:
         goto disconnect;
     }
 
-    hadal_adapter hadal = (hadal_adapter)__lake_malloc_t(struct hadal_adapter_impl);
+    hadal_adapter hadal = __lake_malloc_t(struct hadal_adapter_impl);
     lake_zerop(hadal);
     g_hadal = hadal;
 
@@ -676,7 +679,6 @@ disconnect:
     hadal->interface.header.destructor = (PFN_lake_work)hadal_interface_destructor;
     hadal->interface.header.name.len = lake_strlen(name) + 1;
     lake_memcpy(hadal->interface.header.name.str, name, hadal->interface.header.name.len);
-    lake_refcnt_inc(&hadal->interface.header.refcnt);
 
     if (lake_unlikely(!load_wayland_symbols(hadal, name)))
         goto disconnect;
@@ -709,8 +711,10 @@ disconnect:
     hadal->interface.vulkan_presentation_support = _hadal_wayland_vulkan_presentation_support;
     hadal->interface.vulkan_create_surface = _hadal_wayland_vulkan_create_surface;
 #endif /* MOON_VULKAN */
-    assembly->out_impl->adapter = hadal;
+
     lake_trace("Connected %s.", name);
+    lake_refcnt_inc(&hadal->interface.header.refcnt);
+    assembly->out_impl->adapter = hadal;
 }
 
 #include "wayland-protocol-code.h"

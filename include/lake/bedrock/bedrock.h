@@ -52,8 +52,8 @@ __lake_malloc(
     usize size, 
     usize align);
 
-#define __lake_malloc_t(T)    __lake_malloc(sizeof(T), alignof(T))
-#define __lake_malloc_n(T, n) __lake_malloc(sizeof(T) * (n), alignof(T))
+#define __lake_malloc_t(T)    lake_reinterpret_cast(T *, __lake_malloc(sizeof(T), alignof(T)))
+#define __lake_malloc_n(T, n) lake_reinterpret_cast(T *, __lake_malloc(sizeof(T) * (n), alignof(T)))
 
 /** Reallocates memory allocated from `__lake_malloc()`. */
 LAKE_HOT_FN 
@@ -114,6 +114,9 @@ typedef struct lake_framework {
         u32         fiber_count;
         /** The job queue will be of this size: (1u << log2_job_count). If 0, default will be 10 (1024). */
         u32         log2_work_count;
+        /** Explicit debug tools will be enabled, may be limited on release/NDEBUG builds.
+         *  By default disabled, unless LAKE_SANITIZE is defined. Value -1 disables always. */
+        s32         use_debug_instruments;
     } hints;
     u64             timer_start;
 } lake_framework;

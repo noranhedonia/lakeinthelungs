@@ -48,12 +48,6 @@ static lake_result prototype_init(struct a_moonlit_walk *amw)
 
     if (!amw->hadal.v || !amw->soma.v || !amw->moon.v) {
         result = LAKE_ERROR_INITIALIZATION_FAILED;
-        if (amw->hadal.v == nullptr)
-            lake_error("Wayland prototype init failed.");
-        if (amw->soma.v == nullptr)
-            lake_error("PipeWire prototype init failed.");
-        if (amw->moon.v == nullptr)
-            lake_error("Vulkan prototype init failed.");
         lake_exit_status(result);
     }
     return result;
@@ -61,28 +55,12 @@ static lake_result prototype_init(struct a_moonlit_walk *amw)
 
 static void prototype_fini(struct a_moonlit_walk *amw)
 {
-    lake_work_details work[3];
-    u32 o = 0;
-
-    if (amw->hadal.v != nullptr)
-        work[o++] = (lake_work_details){
-            .procedure = amw->hadal.interface->header.destructor,
-            .argument = amw->hadal.adapter,
-            .name = "main/prototype_fini/hadal",
-        };
-    if (amw->soma.v != nullptr)
-        work[o++] = (lake_work_details){
-            .procedure = amw->soma.interface->header.destructor,
-            .argument = amw->soma.adapter,
-            .name = "main/prototype_fini/soma",
-        };
-    if (amw->moon.v != nullptr)
-        work[o++] = (lake_work_details){
-            .procedure = amw->moon.interface->header.destructor,
-            .argument = amw->moon.adapter,
-            .name = "main/prototype_fini/moon",
-        };
-    lake_submit_work_and_yield(o, work);
+    if (amw->moon.v)
+        lake_refcnt_dec(&amw->moon.header->refcnt, amw->moon.v, amw->moon.header->destructor);
+    if (amw->soma.v)
+        lake_refcnt_dec(&amw->soma.header->refcnt, amw->soma.v, amw->soma.header->destructor);
+    if (amw->hadal.v)
+        lake_refcnt_dec(&amw->hadal.header->refcnt, amw->hadal.v, amw->hadal.header->destructor);
 }
 
 static FN_LAKE_FRAMEWORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)
@@ -108,7 +86,16 @@ static FN_LAKE_FRAMEWORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)
     stages[GPUEXEC_STAGE_INDEX].name = "main/gpuexec";
     amw->framework = framework;
 
-    if (prototype_init(amw) != LAKE_SUCCESS) return;
+    if (prototype_init(amw) != LAKE_SUCCESS) {
+        if (amw->hadal.v == nullptr)
+            lake_error("Wayland prototype init failed.");
+        if (amw->soma.v == nullptr)
+            lake_error("PipeWire prototype init failed.");
+        if (amw->moon.v == nullptr)
+            lake_error("Vulkan prototype init failed.");
+        prototype_fini(amw);
+        return;
+    }
 
     /* this additional loop controls engine state updates */
     do {stage_hint = pipeline_stage_hint_continue;
