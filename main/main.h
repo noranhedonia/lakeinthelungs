@@ -4,8 +4,12 @@
 
 struct a_moonlit_walk {
     lake_framework const   *framework;
+
     hadal_interface         hadal;
+
     moon_interface          moon;
+    moon_device_interface   primary_device;
+
     soma_interface          soma;
 };
 

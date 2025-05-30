@@ -10,6 +10,8 @@
 #define RENDERING_STAGE_INDEX 1
 #define GPUEXEC_STAGE_INDEX   2
 
+#define MAX_MOON_DEVICES    4
+
 static lake_result prototype_init(struct a_moonlit_walk *amw)
 {
     lake_result result = LAKE_SUCCESS;
@@ -49,12 +51,36 @@ static lake_result prototype_init(struct a_moonlit_walk *amw)
     if (!amw->hadal.v || !amw->soma.v || !amw->moon.v) {
         result = LAKE_ERROR_INITIALIZATION_FAILED;
         lake_exit_status(result);
+        return result;
     }
+
+    u32 moon_device_count = 0;
+    amw->moon.interface->list_device_details(amw->moon.adapter, &moon_device_count, nullptr); 
+
+    moon_device_details const *moon_device_details[MAX_MOON_DEVICES];
+    amw->moon.interface->list_device_details(amw->moon.adapter, &moon_device_count, moon_device_details); 
+
+    moon_device_assembly moon_device_work = MOON_DEVICE_ASSEMBLY_INIT;
+    moon_device_work.name = (lake_small_string){ .str = "primary", .len = sizeof("primary"), };
+    moon_device_work.device_idx = 0; /* pick the first device as our main */
+
+    result = amw->moon.interface->device_assembly(amw->moon.adapter, &moon_device_work, &amw->primary_device.device);
+    if (result != LAKE_SUCCESS) {
+        lake_exit_status(result);
+        return result;
+    }
+
+    /* TODO:
+     * - create window
+     * - create swapchain */
+
     return result;
 }
 
 static void prototype_fini(struct a_moonlit_walk *amw)
 {
+    if (amw->primary_device.v)
+        lake_refcnt_dec(&amw->primary_device.header->refcnt, amw->primary_device.v, (PFN_lake_work)amw->moon.interface->device_destructor);
     if (amw->moon.v)
         lake_refcnt_dec(&amw->moon.header->refcnt, amw->moon.v, amw->moon.header->destructor);
     if (amw->soma.v)
@@ -107,7 +133,7 @@ static FN_LAKE_FRAMEWORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)
         struct pipeline_work *gpuexec = nullptr;
         struct pipeline_work *resolve = nullptr;
 
-        lake_dbg_2("Gameloop entry on timeline: %lu.", timeline);
+        lake_dbg_3("Gameloop entry on timeline: %lu.", timeline);
         while (gameplay || rendering || gpuexec || resolve) {
 
             if (resolve) { /* timeline N-3 */
@@ -160,7 +186,7 @@ static FN_LAKE_FRAMEWORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)
             gameplay = stage_hint == pipeline_stage_hint_continue 
                 ? &pipeline_work[(timeline++) & (PIPELINE_WORK_COUNT - 1)] : nullptr;
         }
-        lake_dbg_2("Gameloop leave on timeline: %lu.", timeline);
+        lake_dbg_3("Gameloop leave on timeline: %lu.", timeline);
     } while (stage_hint == pipeline_stage_hint_restart_engine);
 
     prototype_fini(amw);
@@ -175,7 +201,7 @@ s32 lake_main(lake_framework *framework, s32 argc, const char **argv)
 
     (void)argv;
     framework->hints.worker_thread_count = (argc > 1 ? 1 : 0);
-    framework->hints.fiber_stack_size = 96*1024; /* bo vulkan daje dupy */
+    framework->hints.fiber_stack_size = 128*1024; /* 128 KB bo vulkan daje dupy */
 
     lake_abort(lake_in_the_lungs((PFN_lake_framework)a_moonlit_walk__main, &amw, framework));
 }

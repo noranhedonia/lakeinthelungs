@@ -101,6 +101,8 @@ void *__lake_realloc(
 
 void __lake_free(void *ptr)
 {
+    if (ptr == nullptr) return;
+
     uptr inner = (uptr)ptr;
     struct malloc_allocation_header header;
 

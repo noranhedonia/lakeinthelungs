@@ -1,6 +1,48 @@
 #include "vk_moon.h"
 #ifdef MOON_VULKAN
 
+void populate_vk_image_create_info_from_assembly(
+    moon_device                  device, 
+    moon_texture_assembly const *assembly,
+    VkImageCreateInfo           *out_vk_create_info)
+{
+    lake_dbg_assert(lake_is_pow2(assembly->sample_count) && assembly->sample_count <= 8, LAKE_INVALID_PARAMETERS,
+            "Texture samples must be a power of 2 and between 1 and 64.");
+    lake_dbg_assert(assembly->extent.width > 0 && assembly->extent.height > 0 && assembly->extent.depth > 0,
+            LAKE_INVALID_PARAMETERS, "Texture (x,y,z) dimensions must be greater than 0.");
+    lake_dbg_assert(assembly->array_layer_count > 0, LAKE_INVALID_PARAMETERS, "Texture array layer count must be greater than 0.");
+    lake_dbg_assert(assembly->mip_level_count > 0, LAKE_INVALID_PARAMETERS, "Texture mip level count must be greater than 0.");
+
+    VkImageType const vk_image_type = (VkImageType)assembly->dimensions - 1;
+    VkImageCreateFlags vk_image_create_flags = (VkImageCreateFlags)assembly->flags;
+
+    *out_vk_create_info = (VkImageCreateInfo){
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = vk_image_create_flags,
+        .imageType = vk_image_type,
+        .format = (VkFormat)assembly->format,
+        .extent = {
+            .width = assembly->extent.width,
+            .height = assembly->extent.height,
+            .depth = assembly->extent.depth,
+        },
+        .mipLevels = assembly->mip_level_count,
+        .arrayLayers = assembly->array_layer_count,
+        .samples = (VkSampleCountFlagBits)assembly->sample_count,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = (VkImageUsageFlags)assembly->usage,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 1,
+        .pQueueFamilyIndices = &get_device_queue_impl(device, MOON_QUEUE_MAIN)->vk_queue_family_idx,
+    };
+    if (assembly->sharing_mode == moon_sharing_mode_concurrent) {
+        out_vk_create_info->sharingMode = VK_SHARING_MODE_CONCURRENT;
+        out_vk_create_info->queueFamilyIndexCount = device->physical_device->unique_queue_family_count;
+        out_vk_create_info->pQueueFamilyIndices = device->physical_device->unique_queue_family_indices;
+    }
+}
+
 FN_MOON_CREATE_BUFFER(vulkan)
 {
     (void)device;

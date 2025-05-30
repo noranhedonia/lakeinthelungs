@@ -386,8 +386,8 @@ typedef enum moon_explicit_feature_bits : moon_explicit_features {
 #define MOON_QUEUE_INDEX_COUNT                  (MOON_QUEUE_VIDEO_ENCODE_BEGIN_INDEX + MOON_MAX_VIDEO_ENCODE_QUEUE_COUNT)
 
 /** Queue types used for scheduling different type of GPU work. */
-typedef enum moon_queue_type : s8  {
-    moon_queue_type_none            = 0u,
+typedef s8 moon_queue_mask;
+typedef enum moon_queue_type : moon_queue_mask {
     moon_queue_type_main,
     moon_queue_type_compute,
     moon_queue_type_transfer,
@@ -395,6 +395,7 @@ typedef enum moon_queue_type : s8  {
     moon_queue_type_video_decode,
     moon_queue_type_video_encode,
     moon_queue_type_count,
+    moon_queue_type_none = -1,
 } moon_queue_type;
 
 typedef struct moon_queue {
@@ -518,19 +519,19 @@ PFN_LAKE_HANDLE_DESTRUCTOR(moon, device);
     FN_LAKE_HANDLE_DESTRUCTOR(backend, moon, device)
 
 /** Retrieve the number of queues available for a given queue type. Writes 0 if the command queue is unavailable. */
-typedef u32 (LAKECALL *PFN_moon_device_queue_count)(moon_device device, moon_queue_type queue_type);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_queue_count)(moon_device device, moon_queue_type queue_type, u32 *out_queue_count);
 #define FN_MOON_DEVICE_QUEUE_COUNT(backend) \
-    u32 LAKECALL _moon_##backend##_device_queue_count(moon_device device, moon_queue_type queue_type)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_queue_count(moon_device device, moon_queue_type queue_type, u32 *out_queue_count)
 
 /** Wait until GPU work on a given command queue is done. */
-typedef void (LAKECALL *PFN_moon_device_queue_wait_idle)(moon_device device, moon_queue queue);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_queue_wait_idle)(moon_device device, moon_queue queue);
 #define FN_MOON_DEVICE_QUEUE_WAIT_IDLE(backend) \
-    void LAKECALL _moon_##backend##_device_queue_wait_idle(moon_device device, moon_queue queue)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_queue_wait_idle(moon_device device, moon_queue queue)
 
 /** Wait until all GPU work is done. */
-PFN_LAKE_WORK(PFN_moon_device_wait_idle, moon_device device);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_wait_idle)(moon_device device);
 #define FN_MOON_DEVICE_WAIT_IDLE(backend) \
-    FN_LAKE_WORK(_moon_##backend##_device_wait_idle, moon_device device)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_wait_idle(moon_device device)
 
 /** Describes a submit. */
 typedef struct moon_device_submit {
@@ -2956,6 +2957,13 @@ typedef struct moon_device_header {
     moon_device_assembly        assembly;
 } moon_device_header;
 
+typedef union moon_device_interface {
+    moon_interface             *moon;
+    moon_device_header         *header;
+    struct moon_device_impl    *device;
+    void                       *v;
+} moon_device_interface;
+
 LAKE_DECL_HANDLE_HEADER(moon, device_heap, device); /** struct moon_device_heap_impl */
 LAKE_DECL_HANDLE_HEADER(moon, timeline_query_pool, device); /** struct moon_timeline_query_pool_impl */
 LAKE_DECL_HANDLE_HEADER(moon, timeline_semaphore, device); /** struct moon_timeline_semaphore_impl */
@@ -2981,6 +2989,10 @@ extern "C" {
 #ifdef MOON_VULKAN
 LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly const *assembly);
 #endif /* MOON_VULKAN */
+
+LAKEAPI u32 LAKECALL moon_calculate_score_from_device_details(moon_device_details const *details);
+
+LAKEAPI char const *LAKECALL moon_queue_type_to_string(moon_queue_type type);
 
 #ifdef __cplusplus
 }

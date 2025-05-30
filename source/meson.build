@@ -3,6 +3,7 @@ engine_sources = files(
     'frame_time.c',
     'log.c',
     'malloc.c',
+    'moon.c',
     'work.c',
 )
 

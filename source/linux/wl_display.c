@@ -713,7 +713,7 @@ disconnect:
     hadal->interface.vulkan_create_surface = _hadal_wayland_vulkan_create_surface;
 #endif /* MOON_VULKAN */
 
-    lake_trace("Connected to %s, displays available: %d.", name, hadal->displays.da.size);
+    lake_trace("Connected to %s, %d displays available.", name, hadal->displays.da.size);
     lake_refcnt_inc(&hadal->interface.header.refcnt);
     assembly->out_impl->adapter = hadal;
 }

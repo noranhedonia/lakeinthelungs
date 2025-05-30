@@ -188,8 +188,8 @@ struct queue_family {
 
 struct queue_impl {
     moon_queue_type     queue_type;
-    s16                 queue_idx;
-    s32                 vk_queue_family_idx;
+    s8                  queue_idx;
+    u32                 vk_queue_family_idx;
     VkQueue             vk_queue;
     VkSemaphore         gpu_local_timeline;
     atomic_u64          latest_pending_submit_timeline_value;
@@ -277,8 +277,8 @@ struct physical_device_features {
     VkPhysicalDeviceMaintenance5Features                            maintenance5;
     VkPhysicalDeviceMaintenance4Features                            maintenance4;
     VkPhysicalDeviceFeatures2                                       features2;
-    bool has_swapchain, has_conservative_rasterization; 
-    bool has_video_decode_queue, has_video_encode_queue;
+    VkBool32 has_swapchain, has_conservative_rasterization; 
+    VkBool32 has_video_decode_queue, has_video_encode_queue;
 };
 
 struct physical_device {
@@ -287,9 +287,10 @@ struct physical_device {
     u64                                     extension_bits;
 
     struct queue_family                     queue_families[moon_queue_type_count];
-    s32                                     valid_queue_family_indices[moon_queue_type_count];
+    u32                                     unique_queue_family_indices[moon_queue_type_count];
+    u32                                     unique_queue_family_count;
+    u32                                     unique_queue_family_mask; /* moon_queue_mask */
     VkQueueFlags                            main_queue_command_support;
-    u32                                     found_queue_families;
 
     struct physical_device_properties       vk_properties;
     struct physical_device_features         vk_features;
@@ -613,14 +614,6 @@ struct moon_adapter_impl {
     PFN_vkGetPhysicalDeviceSurfacePresentModesKHR               vkGetPhysicalDeviceSurfacePresentModesKHR;
 
     /* debug utils */
-    PFN_vkSetDebugUtilsObjectNameEXT                            vkSetDebugUtilsObjectNameEXT;
-    PFN_vkSetDebugUtilsObjectTagEXT                             vkSetDebugUtilsObjectTagEXT;
-    PFN_vkQueueBeginDebugUtilsLabelEXT                          vkQueueBeginDebugUtilsLabelEXT;
-    PFN_vkQueueEndDebugUtilsLabelEXT                            vkQueueEndDebugUtilsLabelEXT;
-    PFN_vkQueueInsertDebugUtilsLabelEXT                         vkQueueInsertDebugUtilsLabelEXT;
-    PFN_vkCmdBeginDebugUtilsLabelEXT                            vkCmdBeginDebugUtilsLabelEXT;
-    PFN_vkCmdEndDebugUtilsLabelEXT                              vkCmdEndDebugUtilsLabelEXT;
-    PFN_vkCmdInsertDebugUtilsLabelEXT                           vkCmdInsertDebugUtilsLabelEXT;
     PFN_vkCreateDebugUtilsMessengerEXT                          vkCreateDebugUtilsMessengerEXT;
     PFN_vkDestroyDebugUtilsMessengerEXT                         vkDestroyDebugUtilsMessengerEXT;
     PFN_vkSubmitDebugUtilsMessageEXT                            vkSubmitDebugUtilsMessageEXT;
@@ -638,9 +631,9 @@ struct moon_device_impl {
     /** The details of the physical device used to construct this rendering device. */
     struct physical_device const           *physical_device;
     /** Points into the allocation callbacks in the adapter structure. */
-    VkAllocationCallbacks const            *host_allocator;
+    VkAllocationCallbacks const            *vk_allocator;
     /** GPU allocator from the VulkanMemoryAllocator library. */
-    VmaAllocator                            gpu_allocator;
+    VmaAllocator                            vma_allocator;
     
     /** Device address buffer for a bindless descriptor set design. */
     VkBuffer                                device_address_buffer;
@@ -654,12 +647,12 @@ struct moon_device_impl {
      *  we overwrite them with 'NULL' descriptors that just contain some debug value (e.g. pink 
      *  0xFF00FFFF). This in particular prevents device hang in the case of a use after free if 
      *  the device does not encounter a race condition on the descriptor update before. */
-    VkBuffer                                null_buffer;
-    VkImage                                 null_image;
-    VkImageView                             null_image_view;
-    VkSampler                               null_sampler;
-    VmaAllocation                           null_buffer_allocation;
-    VmaAllocation                           null_image_allocation;
+    VkBuffer                                vk_null_buffer;
+    VkImage                                 vk_null_image;
+    VkImageView                             vk_null_image_view;
+    VkSampler                               vk_null_sampler;
+    VmaAllocation                           vk_null_buffer_allocation;
+    VmaAllocation                           vk_null_image_allocation;
 
     /** Every submit to any queue increments the global submit timeline.
      *  Each queue stores a mapping between local submit index and global submit index for each 
@@ -940,9 +933,33 @@ struct moon_device_impl {
     PFN_vkCreateExecutionGraphPipelinesAMDX                     vkCreateExecutionGraphPipelinesAMDX;
     PFN_vkGetExecutionGraphPipelineNodeIndexAMDX                vkGetExecutionGraphPipelineNodeIndexAMDX;
     PFN_vkGetExecutionGraphPipelineScratchSizeAMDX              vkGetExecutionGraphPipelineScratchSizeAMDX;
+
+    /* debug utils */
+    PFN_vkSetDebugUtilsObjectNameEXT                            vkSetDebugUtilsObjectNameEXT;
+    PFN_vkSetDebugUtilsObjectTagEXT                             vkSetDebugUtilsObjectTagEXT;
+    PFN_vkQueueBeginDebugUtilsLabelEXT                          vkQueueBeginDebugUtilsLabelEXT;
+    PFN_vkQueueEndDebugUtilsLabelEXT                            vkQueueEndDebugUtilsLabelEXT;
+    PFN_vkQueueInsertDebugUtilsLabelEXT                         vkQueueInsertDebugUtilsLabelEXT;
+    PFN_vkCmdBeginDebugUtilsLabelEXT                            vkCmdBeginDebugUtilsLabelEXT;
+    PFN_vkCmdEndDebugUtilsLabelEXT                              vkCmdEndDebugUtilsLabelEXT;
+    PFN_vkCmdInsertDebugUtilsLabelEXT                           vkCmdInsertDebugUtilsLabelEXT;
 };
 
-extern LAKE_CONST_FN char const *LAKECALL vk_result_string(VkResult result);
+static constexpr u32 DEVICE_QUEUE_IMPL_OFFSETS[moon_queue_type_count] = {
+    MOON_QUEUE_MAIN_BEGIN_INDEX,
+    MOON_QUEUE_COMPUTE_BEGIN_INDEX,
+    MOON_QUEUE_TRANSFER_BEGIN_INDEX,
+    MOON_QUEUE_SPARSE_BINDING_BEGIN_INDEX,
+    MOON_QUEUE_VIDEO_DECODE_BEGIN_INDEX,
+    MOON_QUEUE_VIDEO_ENCODE_BEGIN_INDEX,
+};
+
+/** Returns a message for a Vulkan result code. */
+extern LAKE_CONST_FN char const *LAKECALL 
+vk_result_string(VkResult result);
+
+extern LAKE_CONST_FN LAKE_HOT_FN lake_result LAKECALL 
+vk_result_translate(VkResult result);
 
 #ifndef LAKE_NDEBUG
     #define VERIFY_VK_ERROR(x) do { \
@@ -952,5 +969,39 @@ extern LAKE_CONST_FN char const *LAKECALL vk_result_string(VkResult result);
 #else
     #define VERIFY_VK_ERROR(x) (void)(x)
 #endif
+
+/** A helper defined in `vk_drivers.c` to create the VkDevice using details from a physical device. */
+extern VkResult LAKECALL create_vk_device_from_physical_device(
+    moon_device                     device, 
+    struct physical_device const   *pd, 
+    moon_explicit_features          explicit_features);
+
+LAKE_FORCE_INLINE bool is_device_queue_valid(moon_device const device, moon_queue queue) 
+{ return queue.type < moon_queue_type_count && queue.idx < device->physical_device->queue_families[queue.type].queue_count; }
+
+LAKE_FORCE_INLINE struct queue_impl *get_device_queue_impl(moon_device device, moon_queue queue)
+{ return &device->queues[DEVICE_QUEUE_IMPL_OFFSETS[queue.type] + queue.idx]; }
+
+LAKE_FORCE_INLINE VkBufferUsageFlags create_buffer_usage_flags(moon_device device)
+{
+    VkBufferUsageFlags result = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+                                VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                                VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+                                VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
+    if (device->header.details->implicit_features & moon_implicit_feature_basic_ray_tracing) {
+        result |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+                  VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
+                  VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR;
+    }
+    return result;
+}
+
+LAKE_NONNULL_ALL
+extern void LAKECALL populate_vk_image_create_info_from_assembly(
+    moon_device                  device, 
+    moon_texture_assembly const *assembly,
+    VkImageCreateInfo           *out_vk_create_info);
 
 #endif /* MOON_VULKAN */

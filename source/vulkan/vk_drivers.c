@@ -112,7 +112,8 @@ static char const *g_device_extension_names[device_extension_count_1_3_fallback]
     VK_KHR_MAINTENANCE_4_EXTENSION_NAME,
 };
 
-LAKE_CONST_FN char const *LAKECALL vk_result_string(VkResult result)
+LAKE_CONST_FN char const *LAKECALL 
+vk_result_string(VkResult result)
 {
     switch (result) {
 		case VK_ERROR_OUT_OF_HOST_MEMORY:
@@ -191,6 +192,47 @@ LAKE_CONST_FN char const *LAKECALL vk_result_string(VkResult result)
             return "success";
         default:
             return "an unknown error has occured";
+    }
+}
+
+LAKE_CONST_FN LAKE_HOT_FN lake_result LAKECALL 
+vk_result_translate(VkResult result)
+{
+    switch (result) {
+		case VK_ERROR_OUT_OF_HOST_MEMORY: return LAKE_ERROR_OUT_OF_HOST_MEMORY;
+		case VK_ERROR_OUT_OF_DEVICE_MEMORY: return LAKE_ERROR_OUT_OF_DEVICE_MEMORY;
+		case VK_ERROR_INITIALIZATION_FAILED: return LAKE_ERROR_INITIALIZATION_FAILED;
+		case VK_ERROR_DEVICE_LOST: return LAKE_ERROR_DEVICE_LOST;
+		case VK_ERROR_MEMORY_MAP_FAILED: return LAKE_ERROR_MEMORY_MAP_FAILED;
+		case VK_ERROR_LAYER_NOT_PRESENT: return LAKE_ERROR_LAYER_NOT_PRESENT;
+		case VK_ERROR_EXTENSION_NOT_PRESENT: return LAKE_ERROR_EXTENSION_NOT_PRESENT;
+		case VK_ERROR_FEATURE_NOT_PRESENT: return LAKE_ERROR_FEATURE_NOT_PRESENT;
+		case VK_ERROR_INCOMPATIBLE_DRIVER: return LAKE_ERROR_INCOMPATIBLE_DRIVER;
+		case VK_ERROR_TOO_MANY_OBJECTS: return LAKE_ERROR_TOO_MANY_OBJECTS;
+		case VK_ERROR_FORMAT_NOT_SUPPORTED: return LAKE_ERROR_FORMAT_NOT_SUPPORTED;
+		case VK_ERROR_FRAGMENTED_POOL: return LAKE_ERROR_FRAGMENTED_POOL;
+		case VK_ERROR_OUT_OF_POOL_MEMORY: return LAKE_ERROR_OUT_OF_POOL_MEMORY;
+		case VK_ERROR_INVALID_EXTERNAL_HANDLE: return LAKE_ERROR_INVALID_EXTERNAL_HANDLE;
+		case VK_ERROR_FRAGMENTATION: return LAKE_FRAGMENTATION;
+		case VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS: return LAKE_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS;
+		case VK_PIPELINE_COMPILE_REQUIRED: return LAKE_COMPILATION_REQUIRED;
+		case VK_ERROR_SURFACE_LOST_KHR: return LAKE_ERROR_SURFACE_LOST;
+		case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: return LAKE_ERROR_NATIVE_WINDOW_IN_USE;
+		case VK_SUBOPTIMAL_KHR: return LAKE_SUBOPTIMAL;
+		case VK_ERROR_OUT_OF_DATE_KHR: return LAKE_ERROR_OUT_OF_DATE;
+		case VK_ERROR_INCOMPATIBLE_DISPLAY_KHR: return LAKE_ERROR_INCOMPATIBLE_DISPLAY;
+		case VK_ERROR_VALIDATION_FAILED_EXT: return LAKE_VALIDATION_FAILED;
+		case VK_ERROR_INVALID_SHADER_NV: return LAKE_ERROR_INVALID_SHADER;
+		case VK_ERROR_NOT_PERMITTED_KHR: return LAKE_ERROR_NOT_PERMITTED;
+		case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT: return LAKE_ERROR_FULLSCREEN_EXCLUSIVE_MODE_LOST;
+		case VK_THREAD_IDLE_KHR: return LAKE_THREAD_IDLE;
+		case VK_THREAD_DONE_KHR: return LAKE_THREAD_DONE;
+		case VK_OPERATION_DEFERRED_KHR: return LAKE_OPERATION_DEFERRED;
+		case VK_OPERATION_NOT_DEFERRED_KHR: return LAKE_OPERATION_NOT_DEFERRED;
+		case VK_ERROR_COMPRESSION_EXHAUSTED_EXT: return LAKE_ERROR_COMPRESSION_EXHAUSTED;
+        case VK_INCOMPLETE: return LAKE_INCOMPLETE;
+        case VK_SUCCESS: return LAKE_SUCCESS;
+        default: return LAKE_ERROR_UNKNOWN;
     }
 }
 
@@ -375,22 +417,6 @@ static bool load_vk_instance_symbols(moon_adapter moon, u32 extension_bits)
 
     /* VK_EXT_debug_utils */
     if (extension_bits & instance_extension_ext_debug_utils) {
-        moon->vkSetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)
-            get_vk_instance_proc_address(moon, "vkSetDebugUtilsObjectNameEXT");
-        moon->vkSetDebugUtilsObjectTagEXT = (PFN_vkSetDebugUtilsObjectTagEXT)
-            get_vk_instance_proc_address(moon, "vkSetDebugUtilsObjectTagEXT");
-        moon->vkQueueBeginDebugUtilsLabelEXT = (PFN_vkQueueBeginDebugUtilsLabelEXT)
-            get_vk_instance_proc_address(moon, "vkQueueBeginDebugUtilsLabelEXT");
-        moon->vkQueueEndDebugUtilsLabelEXT = (PFN_vkQueueEndDebugUtilsLabelEXT)
-            get_vk_instance_proc_address(moon, "vkQueueEndDebugUtilsLabelEXT");
-        moon->vkQueueInsertDebugUtilsLabelEXT = (PFN_vkQueueInsertDebugUtilsLabelEXT)
-            get_vk_instance_proc_address(moon, "vkQueueInsertDebugUtilsLabelEXT");
-        moon->vkCmdBeginDebugUtilsLabelEXT = (PFN_vkCmdBeginDebugUtilsLabelEXT)
-            get_vk_instance_proc_address(moon, "vkCmdBeginDebugUtilsLabelEXT");
-        moon->vkCmdEndDebugUtilsLabelEXT = (PFN_vkCmdEndDebugUtilsLabelEXT)
-            get_vk_instance_proc_address(moon, "vkCmdEndDebugUtilsLabelEXT");
-        moon->vkCmdInsertDebugUtilsLabelEXT = (PFN_vkCmdInsertDebugUtilsLabelEXT)
-            get_vk_instance_proc_address(moon, "vkCmdInsertDebugUtilsLabelEXT");
         moon->vkCreateDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT)
             get_vk_instance_proc_address(moon, "vkCreateDebugUtilsMessengerEXT");
         moon->vkDestroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)
@@ -398,15 +424,7 @@ static bool load_vk_instance_symbols(moon_adapter moon, u32 extension_bits)
         moon->vkSubmitDebugUtilsMessageEXT = (PFN_vkSubmitDebugUtilsMessageEXT)
             get_vk_instance_proc_address(moon, "vkSubmitDebugUtilsMessageEXT");
 
-        if (!moon->vkSetDebugUtilsObjectNameEXT ||
-            !moon->vkSetDebugUtilsObjectTagEXT ||
-            !moon->vkQueueBeginDebugUtilsLabelEXT ||
-            !moon->vkQueueEndDebugUtilsLabelEXT ||
-            !moon->vkQueueInsertDebugUtilsLabelEXT ||
-            !moon->vkCmdBeginDebugUtilsLabelEXT ||
-            !moon->vkCmdEndDebugUtilsLabelEXT ||
-            !moon->vkCmdInsertDebugUtilsLabelEXT ||
-            !moon->vkCreateDebugUtilsMessengerEXT ||
+        if (!moon->vkCreateDebugUtilsMessengerEXT ||
             !moon->vkDestroyDebugUtilsMessengerEXT ||
             !moon->vkSubmitDebugUtilsMessageEXT)
             return false;
@@ -1251,15 +1269,42 @@ static bool load_vk_device_symbols(moon_device device, u64 extension_bits)
             !device->vkGetExecutionGraphPipelineScratchSizeAMDX)
             return false;
     }
+    if (device->header.moon.adapter->vk_debug_messenger != VK_NULL_HANDLE) {
+        device->vkSetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)
+            get_vk_device_proc_address(device, "vkSetDebugUtilsObjectNameEXT");
+        device->vkSetDebugUtilsObjectTagEXT = (PFN_vkSetDebugUtilsObjectTagEXT)
+            get_vk_device_proc_address(device, "vkSetDebugUtilsObjectTagEXT");
+        device->vkQueueBeginDebugUtilsLabelEXT = (PFN_vkQueueBeginDebugUtilsLabelEXT)
+            get_vk_device_proc_address(device, "vkQueueBeginDebugUtilsLabelEXT");
+        device->vkQueueEndDebugUtilsLabelEXT = (PFN_vkQueueEndDebugUtilsLabelEXT)
+            get_vk_device_proc_address(device, "vkQueueEndDebugUtilsLabelEXT");
+        device->vkQueueInsertDebugUtilsLabelEXT = (PFN_vkQueueInsertDebugUtilsLabelEXT)
+            get_vk_device_proc_address(device, "vkQueueInsertDebugUtilsLabelEXT");
+        device->vkCmdBeginDebugUtilsLabelEXT = (PFN_vkCmdBeginDebugUtilsLabelEXT)
+            get_vk_device_proc_address(device, "vkCmdBeginDebugUtilsLabelEXT");
+        device->vkCmdEndDebugUtilsLabelEXT = (PFN_vkCmdEndDebugUtilsLabelEXT)
+            get_vk_device_proc_address(device, "vkCmdEndDebugUtilsLabelEXT");
+        device->vkCmdInsertDebugUtilsLabelEXT = (PFN_vkCmdInsertDebugUtilsLabelEXT)
+            get_vk_device_proc_address(device, "vkCmdInsertDebugUtilsLabelEXT");
+        if (!device->vkSetDebugUtilsObjectNameEXT ||
+            !device->vkSetDebugUtilsObjectTagEXT ||
+            !device->vkQueueBeginDebugUtilsLabelEXT ||
+            !device->vkQueueEndDebugUtilsLabelEXT ||
+            !device->vkQueueInsertDebugUtilsLabelEXT ||
+            !device->vkCmdBeginDebugUtilsLabelEXT ||
+            !device->vkCmdEndDebugUtilsLabelEXT ||
+            !device->vkCmdInsertDebugUtilsLabelEXT)
+            return false;
+    }
     return true;
 }
 
 struct device_feature {
-    u32 const  *vk_feature_offsets;
-    u32         offsets_count;
-    u32         feature_bit;
+    usize const *vk_feature_offsets;
+    u32          offsets_count;
+    u32          feature_bit;
 };
-static constexpr u32 g_required_feature__descriptor_indexing_features[] = {
+static constexpr usize g_required_feature__descriptor_indexing_features[] = {
     lake_offsetof(struct physical_device_features, descriptor_indexing.shaderSampledImageArrayNonUniformIndexing),
     lake_offsetof(struct physical_device_features, descriptor_indexing.shaderStorageBufferArrayNonUniformIndexing),
     lake_offsetof(struct physical_device_features, descriptor_indexing.shaderStorageImageArrayNonUniformIndexing),
@@ -1270,63 +1315,61 @@ static constexpr u32 g_required_feature__descriptor_indexing_features[] = {
     lake_offsetof(struct physical_device_features, descriptor_indexing.descriptorBindingPartiallyBound),
     lake_offsetof(struct physical_device_features, descriptor_indexing.runtimeDescriptorArray),
 };
-static constexpr u32 g_required_feature__buffer_device_address_features[] = {
+static constexpr usize g_required_feature__buffer_device_address_features[] = {
     lake_offsetof(struct physical_device_features, buffer_device_address.bufferDeviceAddress),
-    lake_offsetof(struct physical_device_features, buffer_device_address.bufferDeviceAddressCaptureReplay),
-    lake_offsetof(struct physical_device_features, buffer_device_address.bufferDeviceAddressMultiDevice),
 };
-static constexpr u32 g_required_feature__multi_draw_indirect_features[] = {
+static constexpr usize g_required_feature__multi_draw_indirect_features[] = {
     lake_offsetof(struct physical_device_features, features2.features.multiDrawIndirect),
 };
-static constexpr u32 g_required_feature__tessellation_shader_features[] = {
+static constexpr usize g_required_feature__tessellation_shader_features[] = {
     lake_offsetof(struct physical_device_features, features2.features.tessellationShader),
 };
-static constexpr u32 g_required_feature__depth_clamp_features[] = {
+static constexpr usize g_required_feature__depth_clamp_features[] = {
     lake_offsetof(struct physical_device_features, features2.features.depthClamp),
 };
-static constexpr u32 g_required_feature__sampler_anisotrophy_features[] = {
+static constexpr usize g_required_feature__sampler_anisotrophy_features[] = {
     lake_offsetof(struct physical_device_features, features2.features.samplerAnisotropy),
 };
-static constexpr u32 g_required_feature__framebuffer_local_dependencies_features[] = {
+static constexpr usize g_required_feature__framebuffer_local_dependencies_features[] = {
     lake_offsetof(struct physical_device_features, dynamic_rendering.dynamicRendering),
     lake_offsetof(struct physical_device_features, dynamic_rendering_local_read.dynamicRenderingLocalRead),
 };
-static constexpr u32 g_required_feature__timeline_semaphore_features[] = {
+static constexpr usize g_required_feature__timeline_semaphore_features[] = {
     lake_offsetof(struct physical_device_features, synchronization2.synchronization2),
     lake_offsetof(struct physical_device_features, timeline_semaphore.timelineSemaphore),
 };
-static constexpr u32 g_required_feature__fragment_stores_and_atomics_features[] = {
+static constexpr usize g_required_feature__fragment_stores_and_atomics_features[] = {
     lake_offsetof(struct physical_device_features, features2.features.fragmentStoresAndAtomics),
 };
-static constexpr u32 g_required_feature__texture_cube_array_features[] = {
+static constexpr usize g_required_feature__texture_cube_array_features[] = {
     lake_offsetof(struct physical_device_features, features2.features.imageCubeArray),
 };
-static constexpr u32 g_required_feature__shader_storage_texture_features[] = {
+static constexpr usize g_required_feature__shader_storage_texture_features[] = {
     lake_offsetof(struct physical_device_features, features2.features.shaderStorageImageMultisample),
     lake_offsetof(struct physical_device_features, features2.features.shaderStorageImageReadWithoutFormat),
     lake_offsetof(struct physical_device_features, features2.features.shaderStorageImageWriteWithoutFormat),
 };
-static constexpr u32 g_required_feature__shader_int64_features[] = {
+static constexpr usize g_required_feature__shader_int64_features[] = {
     lake_offsetof(struct physical_device_features, features2.features.shaderInt64),
 };
-static constexpr u32 g_required_feature__fill_mode_wireframe_features[] = {
+static constexpr usize g_required_feature__fill_mode_wireframe_features[] = {
     lake_offsetof(struct physical_device_features, features2.features.fillModeNonSolid),
     lake_offsetof(struct physical_device_features, features2.features.wideLines),
 };
-static constexpr u32 g_required_feature__resolve_host_query_data_features[] = {
+static constexpr usize g_required_feature__resolve_host_query_data_features[] = {
     lake_offsetof(struct physical_device_features, host_query_reset.hostQueryReset),
 };
-static constexpr u32 g_required_feature__subgroup_size_control_features[] = {
+static constexpr usize g_required_feature__subgroup_size_control_features[] = {
     lake_offsetof(struct physical_device_features, subgroup_size_control.subgroupSizeControl),
     lake_offsetof(struct physical_device_features, subgroup_size_control.computeFullSubgroups),
 };
-static constexpr u32 g_required_feature__scalar_block_layout_features[] = {
+static constexpr usize g_required_feature__scalar_block_layout_features[] = {
     lake_offsetof(struct physical_device_features, scalar_block_layout.scalarBlockLayout),
 };
-static constexpr u32 g_required_feature__independent_blend_features[] = {
+static constexpr usize g_required_feature__independent_blend_features[] = {
     lake_offsetof(struct physical_device_features, features2.features.independentBlend),
 };
-static constexpr u32 g_required_feature__variable_pointers_features[] = {
+static constexpr usize g_required_feature__variable_pointers_features[] = {
     lake_offsetof(struct physical_device_features, variable_pointer.variablePointers),
     lake_offsetof(struct physical_device_features, variable_pointer.variablePointersStorageBuffer),
 };
@@ -1350,16 +1393,16 @@ static constexpr struct device_feature g_required_features[] = {
     (struct device_feature){ g_required_feature__independent_blend_features, lake_arraysize(g_required_feature__independent_blend_features), moon_missing_required_feature_independent_blend },
     (struct device_feature){ g_required_feature__variable_pointers_features, lake_arraysize(g_required_feature__variable_pointers_features), moon_missing_required_feature_variable_pointers },
 };
-static constexpr u32 g_implicit_feature__mesh_shader_features[] = {
+static constexpr usize g_implicit_feature__mesh_shader_features[] = {
     lake_offsetof(struct physical_device_features, mesh_shader.meshShader),
     lake_offsetof(struct physical_device_features, mesh_shader.taskShader),
 };
-static constexpr u32 g_implicit_feature__basic_ray_tracing_features[] = {
+static constexpr usize g_implicit_feature__basic_ray_tracing_features[] = {
     lake_offsetof(struct physical_device_features, acceleration_structure.accelerationStructure),
     lake_offsetof(struct physical_device_features, acceleration_structure.descriptorBindingAccelerationStructureUpdateAfterBind),
     lake_offsetof(struct physical_device_features, ray_query.rayQuery),
 };
-static constexpr u32 g_implicit_feature__ray_tracing_pipeline_features[] = {
+static constexpr usize g_implicit_feature__ray_tracing_pipeline_features[] = {
     lake_offsetof(struct physical_device_features, acceleration_structure.accelerationStructure),
     lake_offsetof(struct physical_device_features, acceleration_structure.descriptorBindingAccelerationStructureUpdateAfterBind),
     lake_offsetof(struct physical_device_features, ray_query.rayQuery),
@@ -1367,32 +1410,32 @@ static constexpr u32 g_implicit_feature__ray_tracing_pipeline_features[] = {
     lake_offsetof(struct physical_device_features, ray_tracing_pipeline.rayTracingPipelineTraceRaysIndirect),
     lake_offsetof(struct physical_device_features, ray_tracing_pipeline.rayTraversalPrimitiveCulling),
 };
-static constexpr u32 g_implicit_feature__ray_tracing_invocation_reorder_features[] = {
+static constexpr usize g_implicit_feature__ray_tracing_invocation_reorder_features[] = {
     lake_offsetof(struct physical_device_features, acceleration_structure.accelerationStructure),
     lake_offsetof(struct physical_device_features, acceleration_structure.descriptorBindingAccelerationStructureUpdateAfterBind),
     lake_offsetof(struct physical_device_features, ray_query.rayQuery),
     lake_offsetof(struct physical_device_features, ray_tracing_invocation_reorder.rayTracingInvocationReorder),
 };
-static constexpr u32 g_implicit_feature__ray_tracing_position_fetch_features[] = {
+static constexpr usize g_implicit_feature__ray_tracing_position_fetch_features[] = {
     lake_offsetof(struct physical_device_features, acceleration_structure.accelerationStructure),
     lake_offsetof(struct physical_device_features, acceleration_structure.descriptorBindingAccelerationStructureUpdateAfterBind),
     lake_offsetof(struct physical_device_features, ray_query.rayQuery),
     lake_offsetof(struct physical_device_features, ray_tracing_position_fetch.rayTracingPositionFetch),
 };
-static constexpr u32 g_implicit_feature__conservative_rasterization_features[] = {
+static constexpr usize g_implicit_feature__conservative_rasterization_features[] = {
     lake_offsetof(struct physical_device_features, has_conservative_rasterization),
 };
-static constexpr u32 g_implicit_feature__work_graph_features[] = {
+static constexpr usize g_implicit_feature__work_graph_features[] = {
     lake_offsetof(struct physical_device_features, mesh_shader.meshShader),
     lake_offsetof(struct physical_device_features, mesh_shader.taskShader),
     lake_offsetof(struct physical_device_features, maintenance5.maintenance5),
     lake_offsetof(struct physical_device_features, shader_enqueue.shaderEnqueue),
     lake_offsetof(struct physical_device_features, shader_enqueue.shaderMeshEnqueue),
 };
-static constexpr u32 g_implicit_feature__image_atomic64_features[] = {
+static constexpr usize g_implicit_feature__image_atomic64_features[] = {
     lake_offsetof(struct physical_device_features, shader_image_atomic_int64.shaderImageInt64Atomics),
 };
-static constexpr u32 g_implicit_feature__shader_atomic_float_features[] = {
+static constexpr usize g_implicit_feature__shader_atomic_float_features[] = {
     lake_offsetof(struct physical_device_features, shader_atomic_float.shaderBufferFloat32Atomics),
     lake_offsetof(struct physical_device_features, shader_atomic_float.shaderBufferFloat32AtomicAdd),
     lake_offsetof(struct physical_device_features, shader_atomic_float.shaderSharedFloat32Atomics),
@@ -1400,35 +1443,35 @@ static constexpr u32 g_implicit_feature__shader_atomic_float_features[] = {
     lake_offsetof(struct physical_device_features, shader_atomic_float.shaderImageFloat32Atomics),
     lake_offsetof(struct physical_device_features, shader_atomic_float.shaderImageFloat32AtomicAdd),
 };
-static constexpr u32 g_implicit_feature__shader_atomic_int64_features[] = {
+static constexpr usize g_implicit_feature__shader_atomic_int64_features[] = {
     lake_offsetof(struct physical_device_features, shader_atomic_int64.shaderBufferInt64Atomics),
     lake_offsetof(struct physical_device_features, shader_atomic_int64.shaderSharedInt64Atomics),
 };
-static constexpr u32 g_implicit_feature__shader_float16_features[] = {
+static constexpr usize g_implicit_feature__shader_float16_features[] = {
     lake_offsetof(struct physical_device_features, shader_float16_int8.shaderFloat16),
 };
-static constexpr u32 g_implicit_feature__shader_int16_features[] = {
+static constexpr usize g_implicit_feature__shader_int16_features[] = {
     lake_offsetof(struct physical_device_features, features2.features.shaderInt16),
     lake_offsetof(struct physical_device_features, bit16_storage.storageBuffer16BitAccess),
     lake_offsetof(struct physical_device_features, bit16_storage.uniformAndStorageBuffer16BitAccess),
     lake_offsetof(struct physical_device_features, bit16_storage.storagePushConstant16),
 };
-static constexpr u32 g_implicit_feature__shader_int8_features[] = {
+static constexpr usize g_implicit_feature__shader_int8_features[] = {
     lake_offsetof(struct physical_device_features, shader_float16_int8.shaderInt8),
     lake_offsetof(struct physical_device_features, bit8_storage.storageBuffer8BitAccess),
     lake_offsetof(struct physical_device_features, bit8_storage.uniformAndStorageBuffer8BitAccess),
     lake_offsetof(struct physical_device_features, bit8_storage.storagePushConstant8),
 };
-static constexpr u32 g_implicit_feature__dynamic_state_features[] = {
+static constexpr usize g_implicit_feature__dynamic_state_features[] = {
     lake_offsetof(struct physical_device_features, extended_dynamic_state3.extendedDynamicState3RasterizationSamples),
 };
-static constexpr u32 g_implicit_feature__sparse_binding_features[] = {
+static constexpr usize g_implicit_feature__sparse_binding_features[] = {
     lake_offsetof(struct physical_device_features, features2.features.sparseBinding),
     lake_offsetof(struct physical_device_features, features2.features.sparseResidencyBuffer),
     lake_offsetof(struct physical_device_features, features2.features.sparseResidencyImage2D),
     lake_offsetof(struct physical_device_features, features2.features.sparseResidencyAliased),
 };
-static constexpr u32 g_implicit_feature__swapchain_features[] = {
+static constexpr usize g_implicit_feature__swapchain_features[] = {
     lake_offsetof(struct physical_device_features, has_swapchain),
 };
 static constexpr struct device_feature g_implicit_features[] = {
@@ -1449,31 +1492,31 @@ static constexpr struct device_feature g_implicit_features[] = {
     (struct device_feature){ g_implicit_feature__sparse_binding_features, lake_arraysize(g_implicit_feature__sparse_binding_features), moon_implicit_feature_sparse_binding},
     (struct device_feature){ g_implicit_feature__swapchain_features, lake_arraysize(g_implicit_feature__swapchain_features), moon_implicit_feature_swapchain},
 };
-static constexpr u32 g_explicit_feature__buffer_device_address_capture_replay_features[] = {
+static constexpr usize g_explicit_feature__buffer_device_address_capture_replay_features[] = {
     lake_offsetof(struct physical_device_features, buffer_device_address.bufferDeviceAddressCaptureReplay),
 };
-static constexpr u32 g_explicit_feature__acceleration_structure_capture_replay_features[] = {
+static constexpr usize g_explicit_feature__acceleration_structure_capture_replay_features[] = {
     lake_offsetof(struct physical_device_features, acceleration_structure.accelerationStructure),
     lake_offsetof(struct physical_device_features, acceleration_structure.accelerationStructureCaptureReplay),
     lake_offsetof(struct physical_device_features, acceleration_structure.descriptorBindingAccelerationStructureUpdateAfterBind),
     lake_offsetof(struct physical_device_features, ray_query.rayQuery),
 };
-static constexpr u32 g_explicit_feature__vulkan_memory_model_features[] = {
+static constexpr usize g_explicit_feature__vulkan_memory_model_features[] = {
     lake_offsetof(struct physical_device_features, vulkan_memory_model.vulkanMemoryModel),
     lake_offsetof(struct physical_device_features, vulkan_memory_model.vulkanMemoryModelDeviceScope),
 };
-static constexpr u32 g_explicit_feature__robust_access_features[] = {
+static constexpr usize g_explicit_feature__robust_access_features[] = {
     lake_offsetof(struct physical_device_features, robustness2.robustBufferAccess2),
     lake_offsetof(struct physical_device_features, robustness2.robustImageAccess2),
     lake_offsetof(struct physical_device_features, features2.features.robustBufferAccess),
 };
-static constexpr u32 g_explicit_feature__video_decode_queue_features[] = {
+static constexpr usize g_explicit_feature__video_decode_queue_features[] = {
     lake_offsetof(struct physical_device_features, has_video_decode_queue),
 };
-static constexpr u32 g_explicit_feature__video_encode_queue_features[] = {
+static constexpr usize g_explicit_feature__video_encode_queue_features[] = {
     lake_offsetof(struct physical_device_features, has_video_encode_queue),
 };
-static constexpr u32 g_explicit_feature__multiview_xr_features[] = {
+static constexpr usize g_explicit_feature__multiview_xr_features[] = {
     lake_offsetof(struct physical_device_features, multiview.multiview),
     lake_offsetof(struct physical_device_features, multiview.multiviewTessellationShader),
     lake_offsetof(struct physical_device_features, features2.features.multiViewport),
@@ -1491,7 +1534,7 @@ static constexpr struct device_feature g_explicit_features[] = {
 
 static void query_physical_device_properties(struct physical_device_properties *properties, u64 extension_bits)
 {
-    void *chain = NULL;
+    void *chain = nullptr;
     if (extension_bits & device_extension_amdx_shader_enqueue) {
         properties->shader_enqueue.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ENQUEUE_PROPERTIES_AMDX;
         properties->shader_enqueue.pNext = chain;
@@ -1557,7 +1600,7 @@ static void query_physical_device_properties(struct physical_device_properties *
     properties->properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
     properties->properties2.pNext = chain;
 
-    chain = NULL;
+    chain = nullptr;
     if (extension_bits & device_extension_ext_memory_budget) {
         properties->memory_budget.pNext = chain;
         properties->memory_budget.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
@@ -1569,7 +1612,7 @@ static void query_physical_device_properties(struct physical_device_properties *
 
 static void query_physical_device_features(struct physical_device_features *features, u64 extension_bits)
 {
-    void *chain = NULL;
+    void *chain = nullptr;
     if (extension_bits & device_extension_amdx_shader_enqueue) {
         features->shader_enqueue.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ENQUEUE_FEATURES_AMDX;
         features->shader_enqueue.pNext = chain;
@@ -1691,37 +1734,33 @@ static void query_physical_device_features(struct physical_device_features *feat
         features->dynamic_rendering_unused_attachments.pNext = chain;
         chain = &features->dynamic_rendering_unused_attachments;
     }
-    if (extension_bits & device_extension_khr_dynamic_rendering_local_read) {
-        features->dynamic_rendering_local_read.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_LOCAL_READ_FEATURES;
-        features->dynamic_rendering_local_read.pNext = chain;
-        chain = &features->dynamic_rendering_local_read;
-    }
+    features->dynamic_rendering_local_read.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_LOCAL_READ_FEATURES;
+    features->dynamic_rendering_local_read.pNext = chain;
+    chain = &features->dynamic_rendering_local_read;
+
     features->dynamic_rendering.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
     features->dynamic_rendering.pNext = chain;
     chain = &features->dynamic_rendering;
 
-    if (extension_bits & device_extension_khr_maintenance6) {
-        features->maintenance6.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_6_PROPERTIES;
-        features->maintenance6.pNext = chain;
-        chain = &features->maintenance6;
-    }
-    if (extension_bits & device_extension_khr_maintenance5) {
-        features->maintenance5.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_PROPERTIES;
-        features->maintenance5.pNext = chain;
-        chain = &features->maintenance5;
-    }
-    if (extension_bits & device_extension_khr_maintenance4) {
-        features->maintenance4.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_PROPERTIES;
-        features->maintenance4.pNext = chain;
-        chain = &features->maintenance4;
-    }
+    features->maintenance6.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_6_PROPERTIES;
+    features->maintenance6.pNext = chain;
+    chain = &features->maintenance6;
+
+    features->maintenance5.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_PROPERTIES;
+    features->maintenance5.pNext = chain;
+    chain = &features->maintenance5;
+    
+    features->maintenance4.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_PROPERTIES;
+    features->maintenance4.pNext = chain;
+    chain = &features->maintenance4;
+
     features->features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     features->features2.pNext = chain;
 
-    features->has_swapchain = (extension_bits & device_extension_khr_swapchain) ? VK_TRUE : VK_FALSE;
-    features->has_conservative_rasterization = (extension_bits & device_extension_ext_conservative_rasterization) ? VK_TRUE : VK_FALSE;
-    features->has_video_decode_queue = (extension_bits & device_extension_khr_video_decode_queue) ? VK_TRUE : VK_FALSE;
-    features->has_video_encode_queue = (extension_bits & device_extension_khr_video_encode_queue) ? VK_TRUE : VK_FALSE;
+    features->has_swapchain = (extension_bits & device_extension_khr_swapchain) != 0;
+    features->has_conservative_rasterization = (extension_bits & device_extension_ext_conservative_rasterization) != 0;
+    features->has_video_decode_queue = (extension_bits & device_extension_khr_video_decode_queue) != 0;
+    features->has_video_encode_queue = (extension_bits & device_extension_khr_video_encode_queue) != 0;
 }
 
 static void query_physical_device_details(
@@ -1730,22 +1769,23 @@ static void query_physical_device_details(
 {
     struct physical_device_properties const *p = &pd->vk_properties;
     struct physical_device_features const *f = &pd->vk_features;
-    u8 const *raw = (u8 const *)&f;
+    u8 const *raw = (u8 const *)f;
 
 #define QUERY_FEATURES_ARRAY(T, g_array, compare) \
     for (u32 i = 0; i < lake_arraysize(g_array); i++) { \
         struct device_feature const *feat = &g_array[i]; \
-        bool all_set = true; \
+        VkBool32 all_set = VK_TRUE; \
         for (u32 j = 0; j < feat->offsets_count; j++) { \
-            u8 const value = *(raw + feat->vk_feature_offsets[j]); \
+            VkBool32 const value = *(VkBool32 const *)(raw + feat->vk_feature_offsets[j]); \
             all_set = all_set && (value == VK_TRUE); \
         } \
-        if (compare) write->T##s |= (moon_##T##_bits)feat->feature_bit; \
+        if (compare) write->T##s = (moon_##T##s)(write->T##s | (moon_##T##_bits)feat->feature_bit); \
     }
     QUERY_FEATURES_ARRAY(missing_required_feature, g_required_features, !all_set);
     QUERY_FEATURES_ARRAY(implicit_feature, g_implicit_features, all_set);
     QUERY_FEATURES_ARRAY(explicit_feature, g_explicit_features, all_set);
 #undef QUERY_FEATURES_ARRAY
+    lake_trace("%b, %b, %b", write->missing_required_features, write->implicit_features, write->explicit_features);
 
     write->api_version = p->properties2.properties.apiVersion;
     write->driver_version = p->properties2.properties.driverVersion;
@@ -1857,17 +1897,7 @@ static void query_physical_device_details(
         o->max_ray_hit_attribute_size = p->ray_tracing_pipeline.maxRayHitAttributeSize;
         o->invocation_reorder_hint = p->ray_tracing_invocation_reorder.rayTracingInvocationReorderReorderingHint;
     }
-
-    /* TODO calculate a detailed score i guess */
-    write->total_score = 5;
-    if (write->device_type == moon_device_type_discrete_gpu)
-        write->total_score = 10000;
-    else if (write->device_type == moon_device_type_integrated_gpu)
-        write->total_score = 5000;
-    else if (write->device_type == moon_device_type_cpu)
-        write->total_score = 500;
-    else if (write->device_type == moon_device_type_virtual_gpu)
-        write->total_score = 50;
+    write->total_score = moon_calculate_score_from_device_details(write);
 }
 
 struct query_physical_device_work {
@@ -1944,19 +1974,23 @@ static FN_LAKE_WORK(query_physical_device, struct query_physical_device_work *wo
         write->queue_families[i].vk_index = -1;
     }
     moon->vkGetPhysicalDeviceQueueFamilyProperties2(write->vk_physical_device, &queue_family_count, queue_family_properties2);
+    VERIFY_VK_ERROR(moon->vkEnumerateDeviceExtensionProperties(write->vk_physical_device, nullptr, &extension_count, extension_properties));
 
     u32 found_queue_families = 0u;
+    u32 valid_queue_family_count = 0u;
     /* search for specialized command queue families */
     for (u32 i = 0; i < queue_family_count; i++) {
         VkQueueFlags flags = queue_family_properties2[i].queueFamilyProperties.queueFlags;
         u32 queue_count = queue_family_properties2[i].queueFamilyProperties.queueCount;
         if (queue_count == 0) continue;
 
+        u32 unique_type = ~UINT32_MAX;
         /* don't be picky about the main queue */
         if (!(found_queue_families & (1u << moon_queue_type_main)) && flags & VK_QUEUE_GRAPHICS_BIT) {
             write->queue_families[moon_queue_type_main].queue_count = queue_count;
             write->queue_families[moon_queue_type_main].vk_index = i;
             write->main_queue_command_support = flags;
+            if (flags & VK_QUEUE_COMPUTE_BIT)
             found_queue_families |= (1u << moon_queue_type_main);
 
         /* try for an async compute family */
@@ -1966,6 +2000,7 @@ static FN_LAKE_WORK(query_physical_device, struct query_physical_device_work *wo
             write->queue_families[moon_queue_type_compute].queue_count = queue_count;
             write->queue_families[moon_queue_type_compute].vk_index = i;
             found_queue_families |= (1u << moon_queue_type_compute);
+            unique_type = moon_queue_type_compute;
 
         /* try for an async transfer family */
         } else if (!(found_queue_families & (1u << moon_queue_type_transfer)) && VK_QUEUE_TRANSFER_BIT
@@ -1974,6 +2009,7 @@ static FN_LAKE_WORK(query_physical_device, struct query_physical_device_work *wo
             write->queue_families[moon_queue_type_transfer].queue_count = queue_count;
             write->queue_families[moon_queue_type_transfer].vk_index = i;
             found_queue_families |= (1u << moon_queue_type_transfer);
+            unique_type = moon_queue_type_transfer;
 
         /* try for an async sparse binding family */
         } else if (!(found_queue_families & (1u << moon_queue_type_sparse_binding)) && VK_QUEUE_SPARSE_BINDING_BIT
@@ -1982,6 +2018,7 @@ static FN_LAKE_WORK(query_physical_device, struct query_physical_device_work *wo
             write->queue_families[moon_queue_type_sparse_binding].queue_count = queue_count;
             write->queue_families[moon_queue_type_sparse_binding].vk_index = i;
             found_queue_families |= (1u << moon_queue_type_sparse_binding);
+            unique_type = moon_queue_type_sparse_binding;
 
         /* try for an async video decode queue */
         } else if (!(found_queue_families & (1u << moon_queue_type_video_decode)) && VK_QUEUE_VIDEO_DECODE_BIT_KHR
@@ -1990,6 +2027,7 @@ static FN_LAKE_WORK(query_physical_device, struct query_physical_device_work *wo
             write->queue_families[moon_queue_type_video_decode].queue_count = queue_count;
             write->queue_families[moon_queue_type_video_decode].vk_index = i;
             found_queue_families |= (1u << moon_queue_type_video_decode);
+            unique_type = moon_queue_type_video_decode;
 
         /* try for an async video encode queue */
         } else if (!(found_queue_families & (1u << moon_queue_type_video_encode)) && VK_QUEUE_VIDEO_ENCODE_BIT_KHR
@@ -1998,13 +2036,16 @@ static FN_LAKE_WORK(query_physical_device, struct query_physical_device_work *wo
             write->queue_families[moon_queue_type_video_encode].queue_count = queue_count;
             write->queue_families[moon_queue_type_video_encode].vk_index = i;
             found_queue_families |= (1u << moon_queue_type_video_encode);
+            unique_type = moon_queue_type_video_encode;
         }
+        if (unique_type != UINT32_MAX) write->unique_queue_family_indices[valid_queue_family_count++] = unique_type;
     }
     if (!(found_queue_families & (1u << moon_queue_type_main))) {
         lake_dbg_2("%s: DISMISSED physical device (%u of %u) `%s` has no graphics command support.", name, work->idx, work->pd_count, pd_name);
         return;
     }
-    write->found_queue_families = found_queue_families;
+    write->unique_queue_family_count = valid_queue_family_count;
+    write->unique_queue_family_mask = found_queue_families;
 
     /* resolve device extensions */
     for (u32 i = 0; i < device_extension_count; i++)
@@ -2036,26 +2077,109 @@ static FN_LAKE_WORK(query_physical_device, struct query_physical_device_work *wo
 FN_MOON_LIST_DEVICE_DETAILS(vulkan)
 {
     lake_dbg_assert(moon && out_device_count, LAKE_INVALID_PARAMETERS, nullptr);
-    s32 const pd_count = moon->physical_devices.da.size;
+    u32 const pd_count = moon->physical_devices.da.size;
 
     if (out_details) {
-        lake_san_assert(*out_device_count >= moon->physical_devices.da.size, LAKE_INVALID_PARAMETERS, 
-            "The count query from user is smaller than the internal device count.");
-        for (s32 i = 0; i < pd_count; i++)
+        for (u32 i = 0; i < lake_min(pd_count, *out_device_count); i++)
             out_details[i] = &moon->physical_devices.v[i].details;
     }
     *out_device_count = pd_count;
+}
+
+VkResult create_vk_device_from_physical_device(
+    moon_device                     device, 
+    struct physical_device const   *pd, 
+    moon_explicit_features          explicit_features)
+{
+    moon_adapter moon = device->header.moon.adapter;
+
+    /* enable features */
+    struct physical_device_features vk_features = {0};
+    query_physical_device_features(&vk_features, pd->extension_bits);
+    u8 *raw = (u8 *)&vk_features;
+
+    for (u32 i = 0; i < lake_arraysize(g_required_features); i++)
+        for (u32 j = 0; j < g_required_features[i].offsets_count; j++)
+            raw[g_required_features[i].vk_feature_offsets[j]] = VK_TRUE;
+
+    for (u32 i = 0; i < lake_arraysize(g_implicit_features); i++)
+        if ((pd->details.implicit_features & (1u << i)) != 0)
+            for (u32 j = 0; j < g_implicit_features[i].offsets_count; j++)
+                raw[g_implicit_features[i].vk_feature_offsets[j]] = VK_TRUE;
+
+    for (u32 i = 0; i < lake_arraysize(g_explicit_features); i++)
+        if ((pd->details.explicit_features & (1u << i) & explicit_features) != 0)
+            for (u32 j = 0; j < g_explicit_features[i].offsets_count; j++)
+                raw[g_explicit_features[i].vk_feature_offsets[j]] = VK_TRUE;
+
+    /* enable extensions */
+    char const *extensions[device_extension_count_1_3_fallback];
+    u32 extension_count = 0;
+
+    for (u32 i = 0; i < device_extension_count; i++)
+        if ((pd->extension_bits & (1llu << i)) != 0)
+            extensions[extension_count++] = g_device_extension_names[i];
+
+    if (pd->details.api_version < VK_API_VERSION_1_4)
+        for (u32 i = device_extension_count; i < device_extension_count_1_4_fallback; i++)
+            if ((pd->extension_bits & (1llu << i)) != 0)
+                extensions[extension_count++] = g_device_extension_names[i];
+
+    if (pd->details.api_version < VK_API_VERSION_1_3)
+        for (u32 i = device_extension_count_1_4_fallback; i < device_extension_count_1_3_fallback; i++)
+            if ((pd->extension_bits & (1llu << i)) != 0)
+                extensions[extension_count++] = g_device_extension_names[i];
+
+    /* TODO video */
+
+    /* prepare command queues */
+    VkDeviceQueueCreateInfo vk_device_queue_create_info[moon_queue_type_count];
+    u8 queue_count_limits[moon_queue_type_count] = { 1, 8, 2, 1, 1, 1 };
+    f32 queue_priorities[8] = { 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f };
+
+    for (u32 i = 0; i < pd->unique_queue_family_count; i++) {
+        moon_queue_type type = pd->unique_queue_family_indices[i];
+        struct queue_family family = pd->queue_families[type];
+
+        vk_device_queue_create_info[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        vk_device_queue_create_info[i].pNext = nullptr;
+        vk_device_queue_create_info[i].flags = 0;
+        vk_device_queue_create_info[i].pQueuePriorities = queue_priorities;
+        vk_device_queue_create_info[i].queueFamilyIndex = family.vk_index;
+        vk_device_queue_create_info[i].queueCount = lake_min(family.queue_count, queue_count_limits[type]);
+    }
+
+    /* create the vulkan device */
+    VkDeviceCreateInfo const vk_device_create_info = {
+        .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+        .pNext = (void const *)&vk_features.features2,
+        .flags = 0,
+        .queueCreateInfoCount = pd->unique_queue_family_count,
+        .pQueueCreateInfos = vk_device_queue_create_info,
+        .enabledLayerCount = 0,
+        .ppEnabledLayerNames = nullptr,
+        .enabledExtensionCount = extension_count,
+        .ppEnabledExtensionNames = (char const * const *)extensions,
+        .pEnabledFeatures = nullptr,
+    };
+    VkResult result = moon->vkCreateDevice(pd->vk_physical_device, &vk_device_create_info, device->vk_allocator, &device->vk_device);
+
+    if (result == VK_SUCCESS && !load_vk_device_symbols(device, pd->extension_bits)) {
+        device->vkDestroyDevice(device->vk_device, device->vk_allocator);
+        result = VK_ERROR_INCOMPATIBLE_DRIVER;
+    }
+    return result;
 }
 
 static moon_adapter g_moon = nullptr;
 
 static FN_LAKE_WORK(moon_interface_destructor, moon_adapter moon)
 {
-    if (moon == nullptr)
-        return;
-
-    s32 refcnt = lake_atomic_read(&moon->interface.header.refcnt);
-    lake_assert(refcnt <= 0, LAKE_HANDLE_STILL_REFERENCED, nullptr);
+#ifndef LAKE_NDEBUG
+    lake_dbg_assert(moon != nullptr, LAKE_INVALID_PARAMETERS, nullptr);
+    s32 const refcnt = lake_atomic_read(&moon->interface.header.refcnt);
+    lake_assert(refcnt <= 0, LAKE_HANDLE_STILL_REFERENCED, "Adapter %s reference count is %d.", moon->interface.header.name.str, refcnt);
+#endif /* LAKE_NDEBUG */
 
     if (moon->physical_devices.v)
         __lake_free(moon->physical_devices.v); /* TODO darray */
@@ -2123,20 +2247,20 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
     }
 
     char const *vkGetInstanceProcAddr_name = "vkGetInstanceProcAddr";
-    PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)lake_get_proc_address(vulkan_library, vkGetInstanceProcAddr_name);
+    PFN_vkGetInstanceProcAddr const vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)lake_get_proc_address(vulkan_library, vkGetInstanceProcAddr_name);
     if (vkGetInstanceProcAddr == nullptr) {
         lake_dbg_1("%s: can't get the address of %s from Vulkan drivers.", name, vkGetInstanceProcAddr_name);
         lake_close_library(vulkan_library);
         return;
     }
 
-    PFN_vkCreateInstance vkCreateInstance = (PFN_vkCreateInstance)
+    PFN_vkCreateInstance const vkCreateInstance = (PFN_vkCreateInstance)
         vkGetInstanceProcAddr(nullptr, "vkCreateInstance");
-    PFN_vkEnumerateInstanceVersion vkEnumerateInstanceVersion = (PFN_vkEnumerateInstanceVersion)
+    PFN_vkEnumerateInstanceVersion const vkEnumerateInstanceVersion = (PFN_vkEnumerateInstanceVersion)
         vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceVersion");
-    PFN_vkEnumerateInstanceExtensionProperties vkEnumerateInstanceExtensionProperties = (PFN_vkEnumerateInstanceExtensionProperties)
+    PFN_vkEnumerateInstanceExtensionProperties const vkEnumerateInstanceExtensionProperties = (PFN_vkEnumerateInstanceExtensionProperties)
         vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceExtensionProperties");
-    PFN_vkEnumerateInstanceLayerProperties vkEnumerateInstanceLayerProperties = (PFN_vkEnumerateInstanceLayerProperties)
+    PFN_vkEnumerateInstanceLayerProperties const vkEnumerateInstanceLayerProperties = (PFN_vkEnumerateInstanceLayerProperties)
         vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceLayerProperties");
     if (!vkCreateInstance || 
         !vkEnumerateInstanceVersion || 
@@ -2187,7 +2311,7 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
         if (extension_bits & (1u << i)) 
             extensions[extension_count++] = g_instance_extension_names[i];
 
-    VkApplicationInfo vk_app_info = {
+    VkApplicationInfo const vk_app_info = {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
         .pNext = nullptr,
         .pApplicationName = assembly->framework->app_name,
@@ -2207,12 +2331,12 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
         .ppEnabledExtensionNames = (char const * const *)extensions,
     };
 #ifndef LAKE_NDEBUG
-    VkValidationFeatureEnableEXT vk_validation_feature_enable[] = {
+    VkValidationFeatureEnableEXT const vk_validation_feature_enable[] = {
         VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT,
         VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT,
         VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT,
     };
-    VkValidationFeaturesEXT vk_validation_features = {
+    VkValidationFeaturesEXT const vk_validation_features = {
         .sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
         .pNext = nullptr,
         .enabledValidationFeatureCount = lake_arraysize(vk_validation_feature_enable),
@@ -2267,7 +2391,7 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
     }
 #ifndef LAKE_NDEBUG
     if (extension_bits & instance_extension_layer_validation) {
-        VkDebugUtilsMessengerCreateInfoEXT messenger_info = {
+        VkDebugUtilsMessengerCreateInfoEXT const messenger_info = {
             .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
             .pNext = nullptr,
             .flags = 0,
@@ -2486,7 +2610,7 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
     moon->interface.cmd_draw_mesh_tasks_indirect = _moon_vulkan_cmd_draw_mesh_tasks_indirect;
     moon->interface.cmd_draw_mesh_tasks_indirect_count = _moon_vulkan_cmd_draw_mesh_tasks_indirect_count;
 
-    lake_trace("Connected %s, instance ver. %u.%u.%u, %u physical devices available.", name, 
+    lake_trace("Connected to %s, instance ver. %u.%u.%u, %u physical devices available.", name, 
         (api_version >> 22u), (api_version >> 12u) & 0x3ffu, (api_version & 0xfffu), moon->physical_devices.da.size);
     lake_refcnt_inc(&moon->interface.header.refcnt);
     assembly->out_impl->adapter = moon;
