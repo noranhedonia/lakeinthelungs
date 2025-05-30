@@ -386,15 +386,15 @@ typedef enum moon_explicit_feature_bits : moon_explicit_features {
 #define MOON_QUEUE_INDEX_COUNT                  (MOON_QUEUE_VIDEO_ENCODE_BEGIN_INDEX + MOON_MAX_VIDEO_ENCODE_QUEUE_COUNT)
 
 /** Queue types used for scheduling different type of GPU work. */
-typedef enum moon_queue_type : u8  {
+typedef enum moon_queue_type : s8  {
     moon_queue_type_none            = 0u,
-    moon_queue_type_main            = (1u << 0),
-    moon_queue_type_compute         = (1u << 1),
-    moon_queue_type_transfer        = (1u << 2),
-    moon_queue_type_sparse_binding  = (1u << 3),
-    moon_queue_type_video_decode    = (1u << 4),
-    moon_queue_type_video_encode    = (1u << 5),
-    moon_queue_type_count           = 6u,
+    moon_queue_type_main,
+    moon_queue_type_compute,
+    moon_queue_type_transfer,
+    moon_queue_type_sparse_binding,
+    moon_queue_type_video_decode,
+    moon_queue_type_video_encode,
+    moon_queue_type_count,
 } moon_queue_type;
 
 typedef struct moon_queue {

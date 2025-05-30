@@ -166,15 +166,16 @@ static FN_LAKE_FRAMEWORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)
     prototype_fini(amw);
 
     dt = lake_frame_time_median();
-    lake_trace("Last recorded frame time: %.3f ms (%.0f FPS).", 1000.f * dt, 1.f/dt);
+    lake_trace("Last recorded frame time: %.3f ms (%.0f FPS), on %u worker threads.", 1000.f * dt, 1.f/dt, framework->hints.worker_thread_count);
 }
 
 s32 lake_main(lake_framework *framework, s32 argc, const char **argv)
 {
     struct a_moonlit_walk amw = {0};
 
-    (void)argc;
     (void)argv;
+    framework->hints.worker_thread_count = (argc > 1 ? 1 : 0);
+    framework->hints.fiber_stack_size = 96*1024; /* bo vulkan daje dupy */
 
     lake_abort(lake_in_the_lungs((PFN_lake_framework)a_moonlit_walk__main, &amw, framework));
 }

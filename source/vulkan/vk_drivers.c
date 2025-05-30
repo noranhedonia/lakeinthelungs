@@ -194,6 +194,17 @@ LAKE_CONST_FN char const *LAKECALL vk_result_string(VkResult result)
     }
 }
 
+static bool query_extension(
+    VkExtensionProperties *properties, 
+    u32 const              count, 
+    char const      *const extension)
+{
+    for (u32 i = 0; i < count; i++)
+        if (!strcmp(properties[i].extensionName, extension))
+            return true;
+    return false;
+}
+
 #ifndef LAKE_NDEBUG
 static VKAPI_ATTR VkBool32 VKAPI_CALL
 handle_debug_utils_callback(
@@ -1859,6 +1870,169 @@ static void query_physical_device_details(
         write->total_score = 50;
 }
 
+struct query_physical_device_work {
+    u32                     idx;
+    u32                     pd_count;
+    char const             *name;
+    moon_adapter            moon;
+    struct physical_device  write;
+};
+
+static FN_LAKE_WORK(query_physical_device, struct query_physical_device_work *work)
+{
+    char const *name = work->name;
+    moon_adapter const moon = work->moon;
+    struct physical_device *write = &work->write;
+
+    VkQueueFamilyVideoPropertiesKHR *queue_family_video_properties;
+    VkQueueFamilyProperties2 *queue_family_properties2;
+    VkExtensionProperties *extension_properties;
+    char const *pd_name;
+    u32 pd_api_version;
+    u32 queue_family_count;
+    u32 extension_count;
+
+    moon->vkGetPhysicalDeviceProperties(write->vk_physical_device, &write->vk_properties.properties2.properties);
+    moon->vkGetPhysicalDeviceQueueFamilyProperties2(write->vk_physical_device, &queue_family_count, nullptr);
+    VERIFY_VK_ERROR(moon->vkEnumerateDeviceExtensionProperties(write->vk_physical_device, nullptr, &extension_count, nullptr));
+    pd_name = write->vk_properties.properties2.properties.deviceName;
+    pd_api_version = write->vk_properties.properties2.properties.apiVersion;
+
+    /* early checks to invalidate faulty or too old physical devices */
+    if (pd_api_version < VK_API_VERSION_1_2) {
+        lake_dbg_2("%s: DISMISSED physical device (%u of %u) `%s` "
+            " has too old drivers. Found Vulkan API version %u.%u.%u, we target atleast 1.2.X.",
+            name, work->idx, work->pd_count, pd_name, (pd_api_version >> 22u),
+            (pd_api_version >> 12u) & 0x3ffu, (pd_api_version & 0xfffu));
+        return;
+    } else if (queue_family_count == 0) {
+        lake_dbg_2("%s: DISMISSED physical device (%u of %u) `%s` has no queue families.", name, work->idx, work->pd_count, pd_name);
+        return;
+    } else if (extension_count == 0) {
+        lake_dbg_2("%s: DISMISSED physical device (%u of %u) `%s` has no Vulkan extension support.", name, work->idx, work->pd_count, pd_name);
+        return;
+    }
+
+    u8 *raw = nullptr; 
+    { /* get scratch memory */
+        usize const queue_family_video_properties_bytes = lake_align(sizeof(VkQueueFamilyVideoPropertiesKHR) * queue_family_count, 16);
+        usize const queue_family_properties2_bytes = lake_align(sizeof(VkQueueFamilyProperties2) * queue_family_count, 16);
+        usize const extension_properties_bytes = lake_align(sizeof(VkExtensionProperties) * extension_count, 16);
+        usize const total_bytes = 
+            queue_family_video_properties_bytes +
+            queue_family_properties2_bytes +
+            extension_properties_bytes;
+
+        usize o = 0;
+        raw = (u8 *)__lake_malloc(total_bytes, 16);
+
+        queue_family_video_properties = (VkQueueFamilyVideoPropertiesKHR *)&raw[o];
+        o += queue_family_video_properties_bytes;
+        queue_family_properties2 = (VkQueueFamilyProperties2 *)&raw[o];
+        o += queue_family_properties2_bytes;
+        extension_properties = (VkExtensionProperties *)&raw[o];
+        lake_san_assert(o + extension_properties_bytes == total_bytes, LAKE_VALIDATION_FAILED, nullptr);
+    }
+
+    /* resolve queue families */
+    for (u32 i = 0; i < queue_family_count; i++) {
+        queue_family_properties2[i].sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2;
+        queue_family_properties2[i].pNext = &queue_family_video_properties[i];
+        queue_family_video_properties[i].sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_VIDEO_PROPERTIES_KHR;
+        queue_family_video_properties[i].pNext = nullptr;
+        queue_family_video_properties[i].videoCodecOperations = 0;
+        write->queue_families[i].vk_index = -1;
+    }
+    moon->vkGetPhysicalDeviceQueueFamilyProperties2(write->vk_physical_device, &queue_family_count, queue_family_properties2);
+
+    u32 found_queue_families = 0u;
+    /* search for specialized command queue families */
+    for (u32 i = 0; i < queue_family_count; i++) {
+        VkQueueFlags flags = queue_family_properties2[i].queueFamilyProperties.queueFlags;
+        u32 queue_count = queue_family_properties2[i].queueFamilyProperties.queueCount;
+        if (queue_count == 0) continue;
+
+        /* don't be picky about the main queue */
+        if (!(found_queue_families & (1u << moon_queue_type_main)) && flags & VK_QUEUE_GRAPHICS_BIT) {
+            write->queue_families[moon_queue_type_main].queue_count = queue_count;
+            write->queue_families[moon_queue_type_main].vk_index = i;
+            write->main_queue_command_support = flags;
+            found_queue_families |= (1u << moon_queue_type_main);
+
+        /* try for an async compute family */
+        } else if (!(found_queue_families & (1u << moon_queue_type_compute)) && VK_QUEUE_COMPUTE_BIT
+            == (flags & (VK_QUEUE_COMPUTE_BIT | VK_QUEUE_GRAPHICS_BIT)))
+        {
+            write->queue_families[moon_queue_type_compute].queue_count = queue_count;
+            write->queue_families[moon_queue_type_compute].vk_index = i;
+            found_queue_families |= (1u << moon_queue_type_compute);
+
+        /* try for an async transfer family */
+        } else if (!(found_queue_families & (1u << moon_queue_type_transfer)) && VK_QUEUE_TRANSFER_BIT
+            == (flags & (VK_QUEUE_TRANSFER_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_GRAPHICS_BIT)))
+        {
+            write->queue_families[moon_queue_type_transfer].queue_count = queue_count;
+            write->queue_families[moon_queue_type_transfer].vk_index = i;
+            found_queue_families |= (1u << moon_queue_type_transfer);
+
+        /* try for an async sparse binding family */
+        } else if (!(found_queue_families & (1u << moon_queue_type_sparse_binding)) && VK_QUEUE_SPARSE_BINDING_BIT
+            == (flags & (VK_QUEUE_SPARSE_BINDING_BIT | VK_QUEUE_GRAPHICS_BIT)))
+        {
+            write->queue_families[moon_queue_type_sparse_binding].queue_count = queue_count;
+            write->queue_families[moon_queue_type_sparse_binding].vk_index = i;
+            found_queue_families |= (1u << moon_queue_type_sparse_binding);
+
+        /* try for an async video decode queue */
+        } else if (!(found_queue_families & (1u << moon_queue_type_video_decode)) && VK_QUEUE_VIDEO_DECODE_BIT_KHR
+            == (flags & (VK_QUEUE_VIDEO_DECODE_BIT_KHR | VK_QUEUE_GRAPHICS_BIT)))
+        {
+            write->queue_families[moon_queue_type_video_decode].queue_count = queue_count;
+            write->queue_families[moon_queue_type_video_decode].vk_index = i;
+            found_queue_families |= (1u << moon_queue_type_video_decode);
+
+        /* try for an async video encode queue */
+        } else if (!(found_queue_families & (1u << moon_queue_type_video_encode)) && VK_QUEUE_VIDEO_ENCODE_BIT_KHR
+            == (flags & (VK_QUEUE_VIDEO_ENCODE_BIT_KHR | VK_QUEUE_GRAPHICS_BIT)))
+        {
+            write->queue_families[moon_queue_type_video_encode].queue_count = queue_count;
+            write->queue_families[moon_queue_type_video_encode].vk_index = i;
+            found_queue_families |= (1u << moon_queue_type_video_encode);
+        }
+    }
+    if (!(found_queue_families & (1u << moon_queue_type_main))) {
+        lake_dbg_2("%s: DISMISSED physical device (%u of %u) `%s` has no graphics command support.", name, work->idx, work->pd_count, pd_name);
+        return;
+    }
+    write->found_queue_families = found_queue_families;
+
+    /* resolve device extensions */
+    for (u32 i = 0; i < device_extension_count; i++)
+        if (query_extension(extension_properties, extension_count, g_device_extension_names[i]))
+            write->extension_bits |= (1llu << i);
+    if (pd_api_version < VK_API_VERSION_1_4)
+        for (u32 i = device_extension_count; i < device_extension_count_1_4_fallback; i++)
+            if (query_extension(extension_properties, extension_count, g_device_extension_names[i]))
+                write->extension_bits |= (1llu << i);
+    if (pd_api_version < VK_API_VERSION_1_3)
+        for (u32 i = device_extension_count_1_4_fallback; i < device_extension_count_1_3_fallback; i++)
+            if (query_extension(extension_properties, extension_count, g_device_extension_names[i]))
+                write->extension_bits |= (1llu << i);
+    __lake_free(raw);
+
+    /* fill Vulkan physical device info */
+    query_physical_device_properties(&write->vk_properties, write->extension_bits);
+    query_physical_device_features(&write->vk_features, write->extension_bits);
+    /* TODO video */
+
+    moon->vkGetPhysicalDeviceProperties2(write->vk_physical_device, &write->vk_properties.properties2);
+    moon->vkGetPhysicalDeviceMemoryProperties2(write->vk_physical_device, &write->vk_properties.memory_properties2);
+    moon->vkGetPhysicalDeviceFeatures2(write->vk_physical_device, &write->vk_features.features2);
+
+    /* we accept this device */
+    query_physical_device_details(&write->details, write);
+}
+
 FN_MOON_LIST_DEVICE_DETAILS(vulkan)
 {
     lake_dbg_assert(moon && out_device_count, LAKE_INVALID_PARAMETERS, nullptr);
@@ -1883,6 +2057,9 @@ static FN_LAKE_WORK(moon_interface_destructor, moon_adapter moon)
     s32 refcnt = lake_atomic_read(&moon->interface.header.refcnt);
     lake_assert(refcnt <= 0, LAKE_HANDLE_STILL_REFERENCED, nullptr);
 
+    if (moon->physical_devices.v)
+        __lake_free(moon->physical_devices.v); /* TODO darray */
+
     if (moon->vk_instance)
         moon->vkDestroyInstance(moon->vk_instance, &moon->vk_allocator);
     if (moon->vulkan_library)
@@ -1899,6 +2076,7 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
     u32 layer_count = 0;
     u32 extension_count = 0;
     u32 extension_bits = 0;
+    u32 physical_device_count = 0;
     VkAllocationCallbacks const vk_allocator = {
         .pfnAllocation = handle_allocation_callback__malloc,
         .pfnReallocation = handle_allocation_callback__realloc,
@@ -1993,16 +2171,13 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
         __lake_malloc_n(VkExtensionProperties, extension_count);
     VERIFY_VK_ERROR(vkEnumerateInstanceExtensionProperties(nullptr, &extension_count, extension_properties));
 
-    for (u32 i = 0; i < instance_extension_count; i++) {
-        /* don't enable debug utils if not requested */
-        if (i == instance_extension_count-1 && !assembly->framework->hints.use_debug_instruments)
-            continue;
-        for (u32 j = 0; j < extension_count; j++) {
-            if (!strcmp(extension_properties[j].extensionName, g_instance_extension_names[i])) {
-                extension_bits |= (1u << i); break;
-            }
-        }
-    }
+    /* query extensions we will be using */
+    for (u32 i = 0; i < instance_extension_count; i++) 
+        if (query_extension(extension_properties, extension_count, g_instance_extension_names[i]))
+            extension_bits |= (1u << i);
+    /* don't enable debug utils if not requested */
+    if (assembly->framework->hints.use_debug_instruments <= 0)
+        extension_bits &= ~(instance_extension_ext_debug_utils | instance_extension_layer_validation);
     __lake_free(extension_properties);
 
     extension_count = 0;
@@ -2116,7 +2291,85 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
 #endif /* LAKE_NDEBUG */
 
     /* query physical devices */
-    // TODO
+    result = moon->vkEnumeratePhysicalDevices(vk_instance, &physical_device_count, nullptr);
+    if (result != VK_SUCCESS || physical_device_count == 0) {
+        lake_dbg_1("%s: no physical devices are available to Vulkan: %s.", name, vk_result_string(result));
+        moon_interface_destructor(moon);
+        return;
+    }
+    usize const vk_physical_devices_bytes = lake_align(sizeof(VkPhysicalDevice) * physical_device_count, 16);
+    usize const query_physical_device_work_bytes = lake_align(sizeof(struct query_physical_device_work) * physical_device_count, 16);
+    usize const query_work_bytes = lake_align(sizeof(lake_work_details) * physical_device_count, 16);
+    usize const indices_bytes = lake_align(sizeof(u32) * physical_device_count, 16);
+    usize const total_bytes =
+        vk_physical_devices_bytes +
+        query_physical_device_work_bytes +
+        query_work_bytes +
+        indices_bytes;
+
+    usize o = 0;
+    u8 *raw = (u8 *)__lake_malloc(total_bytes, 16);
+    lake_memset(raw, 0, total_bytes);
+
+    VkPhysicalDevice *vk_physical_devices = (VkPhysicalDevice *)raw;
+    o += vk_physical_devices_bytes;
+    struct query_physical_device_work *query_physical_device_work = 
+        (struct query_physical_device_work *)&raw[o];
+    o += query_physical_device_work_bytes;
+    lake_work_details *query_work = (lake_work_details *)&raw[o];
+    o += query_work_bytes;
+    u32 *indices = (u32 *)&raw[o];
+
+    lake_san_assert(o + indices_bytes == total_bytes, LAKE_VALIDATION_FAILED, nullptr);
+    VERIFY_VK_ERROR(moon->vkEnumeratePhysicalDevices(vk_instance, &physical_device_count, vk_physical_devices));
+
+    /* execute the physical device query as a job per physical device */
+    for (u32 i = 0; i < physical_device_count; i++) {
+        query_physical_device_work[i].idx = i;
+        query_physical_device_work[i].pd_count = physical_device_count;
+        query_physical_device_work[i].moon = moon;
+        query_physical_device_work[i].name = name;
+        query_physical_device_work[i].write.vk_physical_device = vk_physical_devices[i];
+        query_work[i].procedure = (PFN_lake_work)query_physical_device;
+        query_work[i].argument = (void *)&query_physical_device_work[i];
+        query_work[i].name = "moon/vulkan/query_physical_device";
+    }
+    lake_submit_work_and_yield(physical_device_count, query_work);
+
+    o = 0;
+    /* collect indices of accepted physical devices */
+    for (u32 i = 0; i < physical_device_count; i++)
+        if (query_physical_device_work[i].write.details.total_score > 0)
+            indices[o++] = i;
+    if (o == 0) {
+        lake_dbg_1("%s: invalidated all available physical devices (%u):", name, physical_device_count);
+        for (u32 i = 0; i < physical_device_count; i++)
+            lake_dbg_1("    - (idx:%u) %s", i, query_physical_device_work[i].write.vk_properties.properties2.properties.deviceName);
+        __lake_free(raw);
+        moon_interface_destructor(moon);
+        return;
+    }
+    /* sort indices by device score */
+    for (u32 i = 0, j, max_idx; i < o; i++) {
+        max_idx = i;
+        for (j = i + 1; j < o; j++)
+            if (query_physical_device_work[indices[j]].write.details.total_score >
+                query_physical_device_work[indices[max_idx]].write.details.total_score)
+            {
+                max_idx = j;
+            }
+        lake_swap(indices[max_idx], indices[i]);
+    }
+    /* TODO darray */
+    moon->physical_devices.v = __lake_malloc_n(struct physical_device, o);
+    moon->physical_devices.da.alloc = sizeof(struct physical_device) * o;
+    moon->physical_devices.da.size = o;
+
+    for (u32 i = 0; i < o; i++) {
+        struct physical_device *pd = &moon->physical_devices.v[i];
+        lake_memcpy(pd, &query_physical_device_work[indices[i]].write, sizeof(struct physical_device));
+    }
+    __lake_free(raw);
 
     /* write the interface */
     moon->interface.list_device_details = _moon_vulkan_list_device_details;

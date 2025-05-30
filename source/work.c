@@ -101,7 +101,7 @@ static usize acquire_next_fiber(void)
             fiber->work = data;
 
             /* make_fcontext requires the top of the stack, as it grows downwards */
-            u8 *stack = &g_bedrock->stack[(fiber_idx * g_bedrock->stack_size) + g_bedrock->stack_size];
+            u8 *stack = &g_bedrock->stack[(fiber_idx + 1) * g_bedrock->stack_size];
             make_fiber_context(&fiber->context, the_work, stack, g_bedrock->stack_size);
         }
     }
@@ -191,6 +191,7 @@ static LAKE_NORETURN void LAKECALL the_work(sptr raw_tls)
 
 lake_work_chain lake_acquire_chain_(usize initial_value)
 {
+    lake_san_assert(g_bedrock != nullptr, LAKE_FRAMEWORK_REQUIRED, nullptr);
     for (;;) {
         /* as with acquiring the fibers, this method of traversing through the locks 
          * is primitive, it may be a point of optimization to revisit this later */
@@ -217,7 +218,7 @@ void lake_submit_work(
     lake_work_chain         *out_chain)
 {
     atomic_usize *to_use = nullptr;
-    lake_san_assert(g_lake.heap != nullptr, LAKE_FRAMEWORK_REQUIRED, nullptr);
+    lake_san_assert(g_bedrock != nullptr, LAKE_FRAMEWORK_REQUIRED, nullptr);
 
     if (out_chain) {
         *out_chain = lake_acquire_chain_(work_count);
@@ -237,7 +238,7 @@ void lake_submit_work(
 void lake_yield(lake_work_chain chain)
 {
     usize wait_value = 0;
-    lake_san_assert(g_lake.heap != nullptr, LAKE_FRAMEWORK_REQUIRED, nullptr);
+    lake_san_assert(g_bedrock != nullptr, LAKE_FRAMEWORK_REQUIRED, nullptr);
 
     if (chain) {
         wait_value = lake_atomic_read(chain);

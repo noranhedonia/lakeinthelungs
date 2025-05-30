@@ -175,6 +175,10 @@ FN_MOON_CMD_TRACE_RAYS_INDIRECT(vulkan);
     #include <vulkan/vulkan_beta.h>
 #endif
 
+#include <vk_video/vulkan_video_codec_av1std_decode.h>
+#include <vk_video/vulkan_video_codec_av1std_encode.h>
+#include <vk_video/vulkan_video_codec_h264std_decode.h>
+#include <vk_video/vulkan_video_codec_h264std_encode.h>
 #include <vk_mem_alloc.h>
 
 struct queue_family {
@@ -189,6 +193,32 @@ struct queue_impl {
     VkQueue             vk_queue;
     VkSemaphore         gpu_local_timeline;
     atomic_u64          latest_pending_submit_timeline_value;
+};
+
+/** Information about capabilities of accelerated video coding. */
+struct physical_device_video_capability {
+    VkVideoProfileInfoKHR                                           profile;
+    VkVideoDecodeCapabilitiesKHR                                    decode_capabilities;
+    VkVideoEncodeCapabilitiesKHR                                    encode_capabilities;
+    VkVideoCapabilitiesKHR                                          capabilities;
+};
+
+/** Information about the physical device AV1 video codec. */
+struct physical_device_video_av1 {
+    VkVideoDecodeAV1ProfileInfoKHR                                  decode_profile;
+    VkVideoDecodeAV1CapabilitiesKHR                                 decode_capabilities;
+    VkVideoEncodeAV1ProfileInfoKHR                                  encode_profile;
+    VkVideoEncodeAV1CapabilitiesKHR                                 encode_capabilities;
+    struct physical_device_video_capability                         video_capability;
+};
+
+/** Information about the physical device H.264 video codec. */
+struct physical_device_video_h264 {
+    VkVideoDecodeH264ProfileInfoKHR                                 decode_profile;
+    VkVideoDecodeH264CapabilitiesKHR                                decode_capabilities;
+    VkVideoEncodeH264ProfileInfoKHR                                 encode_profile;
+    VkVideoEncodeH264CapabilitiesKHR                                encode_capabilities;
+    struct physical_device_video_capability                         video_capability;
 };
 
 /** Information about hardware properties of the physical device. */
@@ -258,9 +288,13 @@ struct physical_device {
 
     struct queue_family                     queue_families[moon_queue_type_count];
     s32                                     valid_queue_family_indices[moon_queue_type_count];
+    VkQueueFlags                            main_queue_command_support;
+    u32                                     found_queue_families;
 
     struct physical_device_properties       vk_properties;
     struct physical_device_features         vk_features;
+    struct physical_device_video_av1        vk_video_av1;
+    struct physical_device_video_h264       vk_video_h264;
 };
 
 struct device_heap_zombie { 

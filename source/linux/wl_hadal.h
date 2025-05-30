@@ -5,6 +5,7 @@
 #endif
 
 #include <lake/hadal.h>
+#include <lake/data_structures/darray.h>
 #ifdef HADAL_WAYLAND
 
 FN_HADAL_WINDOW_ASSEMBLY(wayland);
@@ -364,8 +365,51 @@ typedef VkBool32 (*PFN_vkGetPhysicalDeviceWaylandPresentationSupportKHR)(
     struct VkPhysicalDevice_T *, u32, struct wl_display *);
 #endif /* MOON_VULKAN */
 
+struct hadal_display_impl {
+    hadal_interface                         hadal;
+};
+
+struct hadal_window_impl {
+    hadal_window_header                     header;
+    char const                             *tag;
+    struct wl_surface                      *surface;
+
+    union {
+#ifdef HADAL_LIBDECOR
+        struct {
+            struct libdecor_frame          *frame;
+        } libdecor;
+#endif /* HADAL_LIBDECOR */
+        struct {
+            struct xdg_surface             *surface;
+            union {
+                struct xdg_toplevel        *toplevel;
+                struct {
+                    struct xdg_popup       *popup;
+                    struct xdg_positioner  *positioner;
+                    u32                     parent_id;
+                    hadal_window            child;
+                } popup;
+            } roleobj;
+        } xdg;
+    } shell_surface;
+
+    enum : s8 {
+        WAYLAND_SURFACE_UNKNOWN = 0,
+        WAYLAND_SURFACE_XDG_TOPLEVEL,
+        WAYLAND_SURFACE_XDG_POPUP,
+#ifdef HADAL_LIBDECOR
+        WAYLAND_SURFACE_LIBDECOR,
+#endif /* HADAL_LIBDECOR */
+    } shell_surface_type;
+
+    bool initial_config_seen;
+};
+
 struct hadal_adapter_impl {
     hadal_interface_impl                    interface; 
+    lake_darray_t(struct hadal_display_impl) displays;
+
     struct wl_display                      *wl_display;
     struct wl_registry                     *wl_registry;
     struct wl_compositor                   *wl_compositor;
@@ -532,43 +576,6 @@ struct hadal_adapter_impl {
 #endif /* MOON_VULKAN */
 };
 extern hadal_adapter g_hadal;
-
-struct hadal_window_impl {
-    hadal_window_header                     header;
-    char const                             *tag;
-    struct wl_surface                      *surface;
-
-    union {
-#ifdef HADAL_LIBDECOR
-        struct {
-            struct libdecor_frame          *frame;
-        } libdecor;
-#endif /* HADAL_LIBDECOR */
-        struct {
-            struct xdg_surface             *surface;
-            union {
-                struct xdg_toplevel        *toplevel;
-                struct {
-                    struct xdg_popup       *popup;
-                    struct xdg_positioner  *positioner;
-                    u32                     parent_id;
-                    hadal_window            child;
-                } popup;
-            } roleobj;
-        } xdg;
-    } shell_surface;
-
-    enum : s8 {
-        WAYLAND_SURFACE_UNKNOWN = 0,
-        WAYLAND_SURFACE_XDG_TOPLEVEL,
-        WAYLAND_SURFACE_XDG_POPUP,
-#ifdef HADAL_LIBDECOR
-        WAYLAND_SURFACE_LIBDECOR,
-#endif /* HADAL_LIBDECOR */
-    } shell_surface_type;
-
-    bool initial_config_seen;
-};
 
 /* Protocols are generated with wayland-scanner, their sources are included in
  * the project repository: wayland_protocols/<protocol>.xml. */

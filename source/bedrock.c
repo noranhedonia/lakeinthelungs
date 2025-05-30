@@ -10,8 +10,8 @@ static LAKE_NORETURN void LAKECALL d4c_love_train(void *stub)
     struct tls *tls = get_thread_local_storage();
     struct fiber *old_fiber = &g_bedrock->fibers[tls->fiber_in_use];
 
-    if (tls == &g_bedrock->tls[0]) for (s32 i = 1; i < g_bedrock->thread_count; i++) 
-        sys_thread_join(g_bedrock->threads[i++]);
+    if (tls == &g_bedrock->tls[0]) 
+        for (s32 i = 1; i < g_bedrock->thread_count; sys_thread_join(g_bedrock->threads[i++]));
 
     tls->fiber_old = tls->fiber_in_use | tls_to_free;
     jump_fiber_context(tls, &old_fiber->context, &tls->home_context);
@@ -70,21 +70,21 @@ s32 lake_in_the_lungs(
     { /* setup the framework */
         struct work    *work_array = nullptr;
         lake_mpmc_node *work_nodes = nullptr;
-        usize bedrock_bytes     = lake_align(sizeof(struct bedrock), LAKE_CACHELINE_SIZE);
-        usize work_count        = 1lu << framework->hints.log2_work_count;
-        usize work_array_bytes  = lake_align(sizeof(struct work) * work_count, 16);
-        usize work_nodes_bytes  = lake_align(sizeof(lake_mpmc_node) * work_count, 16);
-        usize tls_bytes         = lake_align(sizeof(struct tls) * framework->hints.worker_thread_count, 16);
-        usize ends_bytes        = lake_align(sizeof(lake_work_details) * framework->hints.worker_thread_count, 16);
-        usize threads_bytes     = lake_align(sizeof(sys_thread_id) * framework->hints.worker_thread_count, 16);
-        usize fibers_bytes      = lake_align(sizeof(struct fiber) * framework->hints.fiber_count, 16);
-        usize waiting_bytes     = lake_align(sizeof(atomic_usize) * framework->hints.fiber_count, 16);
-        usize free_bytes        = lake_align(sizeof(atomic_usize) * framework->hints.fiber_count, 16);
-        usize locks_bytes       = lake_align(sizeof(atomic_usize) * framework->hints.fiber_count, 16);
-        usize stack_bytes       = lake_align(framework->hints.fiber_stack_size, 16);
-        usize stack_heap_bytes  = stack_bytes * framework->hints.fiber_count;
+        usize const bedrock_bytes     = lake_align(sizeof(struct bedrock), LAKE_CACHELINE_SIZE);
+        usize const work_count        = 1lu << framework->hints.log2_work_count;
+        usize const work_array_bytes  = lake_align(sizeof(struct work) * work_count, 16);
+        usize const work_nodes_bytes  = lake_align(sizeof(lake_mpmc_node) * work_count, 16);
+        usize const tls_bytes         = lake_align(sizeof(struct tls) * framework->hints.worker_thread_count, 16);
+        usize const ends_bytes        = lake_align(sizeof(lake_work_details) * framework->hints.worker_thread_count, 16);
+        usize const threads_bytes     = lake_align(sizeof(sys_thread_id) * framework->hints.worker_thread_count, 16);
+        usize const fibers_bytes      = lake_align(sizeof(struct fiber) * framework->hints.fiber_count, 16);
+        usize const waiting_bytes     = lake_align(sizeof(atomic_usize) * framework->hints.fiber_count, 16);
+        usize const free_bytes        = lake_align(sizeof(atomic_usize) * framework->hints.fiber_count, 16);
+        usize const locks_bytes       = lake_align(sizeof(atomic_usize) * framework->hints.fiber_count, 16);
+        usize const stack_bytes       = lake_align(framework->hints.fiber_stack_size, 16);
+        usize const stack_heap_bytes  = stack_bytes * framework->hints.fiber_count;
 
-        usize total_bytes = 
+        usize const total_bytes = 
             bedrock_bytes +
             work_array_bytes +
             work_nodes_bytes +
@@ -96,7 +96,7 @@ s32 lake_in_the_lungs(
             free_bytes +
             locks_bytes +
             stack_heap_bytes;
-        usize commitment = lake_min(lake_align(total_bytes, framework->hints.huge_page_size), framework->hints.memory_budget);
+        usize const commitment = lake_min(lake_align(total_bytes, framework->hints.huge_page_size), framework->hints.memory_budget);
 
         g_bedrock = sys_mmap(framework->hints.memory_budget, framework->hints.huge_page_size);
         lake_assert(g_bedrock != nullptr, LAKE_ERROR_MEMORY_MAP_FAILED, "Can't map internal memory for the framework.");

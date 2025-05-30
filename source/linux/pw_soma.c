@@ -157,7 +157,7 @@ FN_LAKE_WORK(soma_interface_assembly_pipewire, soma_interface_assembly const *as
 
     /* XXX there are no custom `PFN_soma` procedures for now */
 
-    lake_trace("Connected %s, ver. %s.", name, pipewire_version);
+    lake_trace("Connected to %s, server ver. %s.", name, pipewire_version);
     lake_refcnt_inc(&soma->interface.header.refcnt);
     assembly->out_impl->adapter = soma;
 }
