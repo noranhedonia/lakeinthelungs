@@ -543,7 +543,7 @@ static bool create_key_tables(hadal_adapter hadal)
     return true;
 }
 
-static FN_LAKE_WORK(hadal_interface_destructor, hadal_adapter hadal) 
+static FN_LAKE_WORK(_hadal_wayland_zero_refcnt, hadal_adapter hadal) 
 {
     if (hadal == nullptr) return;
 
@@ -598,14 +598,13 @@ static FN_LAKE_WORK(hadal_interface_destructor, hadal_adapter hadal)
     g_hadal = nullptr;
 }
 
-FN_LAKE_WORK(hadal_interface_assembly_wayland, hadal_interface_assembly const *assembly)
+FN_LAKE_INTERFACE_IMPL(hadal, wayland, lake_framework)
 {
     char const *name = "hadal/wayland";
 
     if (lake_unlikely(g_hadal != nullptr)) {
-        lake_refcnt_inc(&g_hadal->interface.header.refcnt);
-        assembly->out_impl->adapter = g_hadal;
-        return;
+        lake_inc_refcnt(&g_hadal->interface.header.refcnt);
+        return g_hadal;
     }
 
     char const *client_library_name = "libwayland-client.so.0";
@@ -632,7 +631,7 @@ FN_LAKE_WORK(hadal_interface_assembly_wayland, hadal_interface_assembly const *a
     if (!client_library || !cursor_library || !xkbcommon_library) {
 disconnect:
         if (g_hadal != nullptr) {
-            hadal_interface_destructor(g_hadal);
+            _hadal_wayland_zero_refcnt(g_hadal);
         } else {
 #ifdef HADAL_LIBDECOR
             if (libdecor_library)
@@ -645,7 +644,7 @@ disconnect:
             if (client_library)
                 lake_close_library(client_library);
         }
-        return;
+        return nullptr;
     }
 
     PFN_wl_display_connect _wl_display_connect = (PFN_wl_display_connect)
@@ -676,8 +675,8 @@ disconnect:
 #endif /* HADAL_LIBDECOR */
 
     /* write the interface header */
-    hadal->interface.header.framework = assembly->framework;
-    hadal->interface.header.destructor = (PFN_lake_work)hadal_interface_destructor;
+    hadal->interface.header.framework = assembly;
+    hadal->interface.header.zero_refcnt = (PFN_lake_work)_hadal_wayland_zero_refcnt;
     hadal->interface.header.name.len = lake_strlen(name) + 1;
     lake_memcpy(hadal->interface.header.name.str, name, hadal->interface.header.name.len);
 
@@ -706,7 +705,7 @@ disconnect:
 
     /* write the interface */
     hadal->interface.window_assembly = _hadal_wayland_window_assembly;
-    hadal->interface.window_destructor = _hadal_wayland_window_destructor;
+    hadal->interface.window_zero_refcnt = _hadal_wayland_window_zero_refcnt;
 #ifdef MOON_VULKAN
     hadal->interface.vulkan_connect_instance = _hadal_wayland_vulkan_connect_instance;
     hadal->interface.vulkan_presentation_support = _hadal_wayland_vulkan_presentation_support;
@@ -714,8 +713,8 @@ disconnect:
 #endif /* MOON_VULKAN */
 
     lake_trace("Connected to %s, %d displays available.", name, hadal->displays.da.size);
-    lake_refcnt_inc(&hadal->interface.header.refcnt);
-    assembly->out_impl->adapter = hadal;
+    lake_inc_refcnt(&hadal->interface.header.refcnt);
+    return hadal;
 }
 
 #include "wayland-protocol-code.h"

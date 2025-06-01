@@ -8,7 +8,7 @@ struct a_moonlit_walk {
     hadal_interface         hadal;
 
     moon_interface          moon;
-    moon_device_interface   primary_device;
+    moon_device             primary_device;
 
     soma_interface          soma;
 };

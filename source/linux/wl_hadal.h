@@ -4,12 +4,12 @@
 #define _GNU_SOURCE
 #endif
 
-#include <lake/hadal.h>
+#include <lake/platform/hadal.h>
 #include <lake/data_structures/darray.h>
 #ifdef HADAL_WAYLAND
 
 FN_HADAL_WINDOW_ASSEMBLY(wayland);
-FN_HADAL_WINDOW_DESTRUCTOR(wayland);
+FN_HADAL_WINDOW_ZERO_REFCNT(wayland);
 #ifdef MOON_VULKAN
 FN_HADAL_VULKAN_CONNECT_INSTANCE(wayland);
 FN_HADAL_VULKAN_PRESENTATION_SUPPORT(wayland);

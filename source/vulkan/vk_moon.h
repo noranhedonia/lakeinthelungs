@@ -1,29 +1,32 @@
 #pragma once
 
-#include <lake/moon.h>
+#include <lake/renderer/moon.h>
 #include <lake/data_structures/darray.h>
 #include <lake/data_structures/deque.h>
 #ifdef MOON_VULKAN
 
 FN_MOON_LIST_DEVICE_DETAILS(vulkan);
 FN_MOON_DEVICE_ASSEMBLY(vulkan);
-FN_MOON_DEVICE_DESTRUCTOR(vulkan);
+FN_MOON_DEVICE_ZERO_REFCNT(vulkan);
 FN_MOON_DEVICE_QUEUE_COUNT(vulkan);
 FN_MOON_DEVICE_QUEUE_WAIT_IDLE(vulkan);
 FN_MOON_DEVICE_WAIT_IDLE(vulkan);
 FN_MOON_DEVICE_SUBMIT_COMMANDS(vulkan);
 FN_MOON_DEVICE_PRESENT_FRAMES(vulkan);
-FN_MOON_DEVICE_DESTROY_DEFERRED(vulkan);
-FN_MOON_DEVICE_HEAP_ASSEMBLY(vulkan);
-FN_MOON_DEVICE_HEAP_DESTRUCTOR(vulkan);
+FN_MOON_DEVICE_COMMIT_DEFERRED_DESTRUCTORS(vulkan);
 FN_MOON_DEVICE_BUFFER_MEMORY_REQUIREMENTS(vulkan);
 FN_MOON_DEVICE_TEXTURE_MEMORY_REQUIREMENTS(vulkan);
+FN_MOON_DEVICE_TLAS_BUILD_SIZES(vulkan);
+FN_MOON_DEVICE_BLAS_BUILD_SIZES(vulkan);
 FN_MOON_DEVICE_MEMORY_REPORT(vulkan);
 
+FN_MOON_MEMORY_HEAP_ASSEMBLY(vulkan);
+FN_MOON_MEMORY_HEAP_ZERO_REFCNT(vulkan);
+
 FN_MOON_CREATE_BUFFER(vulkan);
-FN_MOON_CREATE_BUFFER_FROM_HEAP(vulkan);
+FN_MOON_CREATE_BUFFER_FROM_MEMORY_HEAP(vulkan);
 FN_MOON_CREATE_TEXTURE(vulkan);
-FN_MOON_CREATE_TEXTURE_FROM_HEAP(vulkan);
+FN_MOON_CREATE_TEXTURE_FROM_MEMORY_HEAP(vulkan);
 FN_MOON_CREATE_TEXTURE_VIEW(vulkan);
 FN_MOON_CREATE_SAMPLER(vulkan);
 FN_MOON_CREATE_TLAS(vulkan);
@@ -51,23 +54,37 @@ FN_MOON_DESTROY_TLAS(vulkan);
 FN_MOON_DESTROY_BLAS(vulkan);
 
 FN_MOON_TIMELINE_QUERY_POOL_ASSEMBLY(vulkan);
-FN_MOON_TIMELINE_QUERY_POOL_DESTRUCTOR(vulkan);
-FN_MOON_TIMELINE_SEMAPHORE_ASSEMBLY(vulkan);
-FN_MOON_TIMELINE_SEMAPHORE_DESTRUCTOR(vulkan);
-FN_MOON_BINARY_SEMAPHORE_ASSEMBLY(vulkan);
-FN_MOON_BINARY_SEMAPHORE_DESTRUCTOR(vulkan);
+FN_MOON_TIMELINE_QUERY_POOL_ZERO_REFCNT(vulkan);
+FN_MOON_TIMELINE_QUERY_POOL_QUERY_RESULTS(vulkan);
 
-FN_MOON_COMPUTE_PIPELINES_ASSEMBLY(vulkan);
-FN_MOON_COMPUTE_PIPELINE_DESTRUCTOR(vulkan);
-FN_MOON_WORK_GRAPH_PIPELINES_ASSEMBLY(vulkan);
-FN_MOON_WORK_GRAPH_PIPELINE_DESTRUCTOR(vulkan);
-FN_MOON_RASTER_PIPELINES_ASSEMBLY(vulkan);
-FN_MOON_RASTER_PIPELINE_DESTRUCTOR(vulkan);
-FN_MOON_RAY_TRACING_PIPELINES_ASSEMBLY(vulkan);
-FN_MOON_RAY_TRACING_PIPELINE_DESTRUCTOR(vulkan);
+FN_MOON_TIMELINE_SEMAPHORE_ASSEMBLY(vulkan);
+FN_MOON_TIMELINE_SEMAPHORE_ZERO_REFCNT(vulkan);
+FN_MOON_TIMELINE_SEMAPHORE_READ_VALUE(vulkan);
+FN_MOON_TIMELINE_SEMAPHORE_WRITE_VALUE(vulkan);
+FN_MOON_TIMELINE_SEMAPHORE_WAIT_FOR_VALUE(vulkan);
+
+FN_MOON_BINARY_SEMAPHORE_ASSEMBLY(vulkan);
+FN_MOON_BINARY_SEMAPHORE_ZERO_REFCNT(vulkan);
+
+FN_MOON_EVENT_ASSEMBLY(vulkan);
+FN_MOON_EVENT_ZERO_REFCNT(vulkan);
+
+FN_MOON_COMPUTE_PIPELINE_ASSEMBLY(vulkan);
+FN_MOON_COMPUTE_PIPELINE_ZERO_REFCNT(vulkan);
+
+FN_MOON_WORK_GRAPH_PIPELINE_ASSEMBLY(vulkan);
+FN_MOON_WORK_GRAPH_PIPELINE_ZERO_REFCNT(vulkan);
+
+FN_MOON_RAY_TRACING_PIPELINE_ASSEMBLY(vulkan);
+FN_MOON_RAY_TRACING_PIPELINE_ZERO_REFCNT(vulkan);
+FN_MOON_RAY_TRACING_PIPELINE_CREATE_DEFAULT_SBT(vulkan);
+FN_MOON_RAY_TRACING_PIPELINE_SHADER_GROUP_HANDLES(vulkan);
+
+FN_MOON_RASTER_PIPELINE_ASSEMBLY(vulkan);
+FN_MOON_RASTER_PIPELINE_ZERO_REFCNT(vulkan);
 
 FN_MOON_SWAPCHAIN_ASSEMBLY(vulkan);
-FN_MOON_SWAPCHAIN_DESTRUCTOR(vulkan);
+FN_MOON_SWAPCHAIN_ZERO_REFCNT(vulkan);
 FN_MOON_SWAPCHAIN_WAIT_FOR_NEXT_FRAME(vulkan);
 FN_MOON_SWAPCHAIN_ACQUIRE_NEXT_IMAGE(vulkan);
 FN_MOON_SWAPCHAIN_CURRENT_ACQUIRE_SEMAPHORE(vulkan);
@@ -79,9 +96,10 @@ FN_MOON_SWAPCHAIN_SET_PRESENT_MODE(vulkan);
 FN_MOON_SWAPCHAIN_RESIZE(vulkan);
 
 FN_MOON_COMMAND_RECORDER_ASSEMBLY(vulkan);
-FN_MOON_COMMAND_RECORDER_DESTRUCTOR(vulkan);
+FN_MOON_COMMAND_RECORDER_ZERO_REFCNT(vulkan);
+
 FN_MOON_STAGED_COMMAND_LIST_ASSEMBLY(vulkan);
-FN_MOON_STAGED_COMMAND_LIST_DESTRUCTOR(vulkan);
+FN_MOON_STAGED_COMMAND_LIST_ZERO_REFCNT(vulkan);
 
 FN_MOON_CMD_COPY_BUFFER(vulkan);
 FN_MOON_CMD_COPY_BUFFER_TO_TEXTURE(vulkan);
@@ -91,26 +109,29 @@ FN_MOON_CMD_BLIT_TEXTURE(vulkan);
 FN_MOON_CMD_RESOLVE_TEXTURE(vulkan);
 FN_MOON_CMD_CLEAR_BUFFER(vulkan);
 FN_MOON_CMD_CLEAR_TEXTURE(vulkan);
+FN_MOON_CMD_BUILD_ACCELERATION_STRUCTURES(vulkan);
 FN_MOON_CMD_DESTROY_BUFFER_DEFERRED(vulkan);
 FN_MOON_CMD_DESTROY_TEXTURE_DEFERRED(vulkan);
 FN_MOON_CMD_DESTROY_TEXTURE_VIEW_DEFERRED(vulkan);
 FN_MOON_CMD_DESTROY_SAMPLER_DEFERRED(vulkan);
-FN_MOON_CMD_BUILD_ACCELERATION_STRUCTURES(vulkan);
-FN_MOON_CMD_ROOT_CONSTANTS(vulkan);
+FN_MOON_CMD_PUSH_CONSTANTS(vulkan);
 FN_MOON_CMD_SET_COMPUTE_PIPELINE(vulkan);
-FN_MOON_CMD_SET_RASTER_PIPELINE(vulkan);
-FN_MOON_CMD_SET_RAY_TRACING_PIPELINE(vulkan);
 FN_MOON_CMD_SET_WORK_GRAPH_PIPELINE(vulkan);
+FN_MOON_CMD_SET_RAY_TRACING_PIPELINE(vulkan);
+FN_MOON_CMD_SET_RASTER_PIPELINE(vulkan);
 FN_MOON_CMD_SET_VIEWPORT(vulkan);
 FN_MOON_CMD_SET_SCISSOR(vulkan);
-FN_MOON_CMD_SET_RASTERIZATION_SAMPLES(vulkan);
 FN_MOON_CMD_SET_DEPTH_BIAS(vulkan);
 FN_MOON_CMD_SET_INDEX_BUFFER(vulkan);
+FN_MOON_CMD_SET_RASTERIZATION_SAMPLES(vulkan);
 FN_MOON_CMD_BARRIERS_AND_TRANSITIONS(vulkan);
 FN_MOON_CMD_BEGIN_RENDERPASS(vulkan);
 FN_MOON_CMD_END_RENDERPASS(vulkan);
 FN_MOON_CMD_WRITE_TIMESTAMPS(vulkan);
 FN_MOON_CMD_RESOLVE_TIMESTAMPS(vulkan);
+FN_MOON_CMD_SIGNAL_EVENT(vulkan);
+FN_MOON_CMD_WAIT_ON_EVENTS(vulkan);
+FN_MOON_CMD_RESET_EVENT(vulkan);
 FN_MOON_CMD_BEGIN_LABEL(vulkan);
 FN_MOON_CMD_END_LABEL(vulkan);
 FN_MOON_CMD_DISPATCH(vulkan);
@@ -118,6 +139,8 @@ FN_MOON_CMD_DISPATCH_INDIRECT(vulkan);
 FN_MOON_CMD_DISPATCH_GRAPH(vulkan);
 FN_MOON_CMD_DISPATCH_GRAPH_INDIRECT(vulkan);
 FN_MOON_CMD_DISPATCH_GRAPH_INDIRECT_COUNT(vulkan);
+FN_MOON_CMD_TRACE_RAYS(vulkan);
+FN_MOON_CMD_TRACE_RAYS_INDIRECT(vulkan);
 FN_MOON_CMD_DRAW(vulkan);
 FN_MOON_CMD_DRAW_INDEXED(vulkan);
 FN_MOON_CMD_DRAW_INDIRECT(vulkan);
@@ -125,8 +148,6 @@ FN_MOON_CMD_DRAW_INDIRECT_COUNT(vulkan);
 FN_MOON_CMD_DRAW_MESH_TASKS(vulkan);
 FN_MOON_CMD_DRAW_MESH_TASKS_INDIRECT(vulkan);
 FN_MOON_CMD_DRAW_MESH_TASKS_INDIRECT_COUNT(vulkan);
-FN_MOON_CMD_TRACE_RAYS(vulkan);
-FN_MOON_CMD_TRACE_RAYS_INDIRECT(vulkan);
 
 #ifndef VK_NO_PROTOTYPES
     #define VK_NO_PROTOTYPES
@@ -298,7 +319,7 @@ struct physical_device {
     struct physical_device_video_h264       vk_video_h264;
 };
 
-struct device_heap_zombie { 
+struct memory_heap_zombie { 
     VmaAllocation                           vma_allocation;
 };
 
@@ -308,6 +329,10 @@ struct timeline_query_pool_zombie {
 
 struct semaphore_zombie { 
     VkSemaphore                             vk_semaphore;
+};
+
+struct event_zombie {
+    VkEvent                                 vk_event;
 };
 
 struct pipeline_zombie { 
@@ -329,7 +354,7 @@ struct buffer_impl_slot {
     moon_buffer_assembly                    assembly;
     VkBuffer                                vk_buffer;
     VmaAllocation                           vma_allocation;
-    moon_device_heap                        optional_heap;
+    moon_memory_heap                        optional_heap;
     VkDeviceAddress                         device_address;
     void                                   *host_address;
 };
@@ -344,7 +369,7 @@ struct texture_impl_slot {
     moon_texture_assembly                   assembly;
     VkImage                                 vk_image;
     VmaAllocation                           vma_allocation;
-    moon_device_heap                        optional_heap;
+    moon_memory_heap                        optional_heap;
     s32                                     swapchain_image_idx;
     VkImageAspectFlags                      aspect_flags;
 };
@@ -393,8 +418,8 @@ struct gpu_resource_table {
     VkPipelineLayout                        pipeline_layouts[MOON_PIPELINE_LAYOUT_COUNT];
 };
 
-struct moon_device_heap_impl {
-    moon_device_heap_header                 header;
+struct moon_memory_heap_impl {
+    moon_memory_heap_header                 header;
     VmaAllocationInfo                       vma_allocation_info;
     VmaAllocation                           vma_allocation;
 };
@@ -412,6 +437,11 @@ struct moon_timeline_semaphore_impl {
 struct moon_binary_semaphore_impl {
     moon_binary_semaphore_header            header;
     VkSemaphore                             vk_semaphore;
+};
+
+struct moon_event_impl {
+    moon_event_header                       header;
+    VkEvent                                 vk_event;
 };
 
 struct moon_compute_pipeline_impl {
@@ -671,9 +701,10 @@ struct moon_device_impl {
     lake_deque_t(lake_pair(u64, moon_sampler_id))                   sampler_zombies;
     lake_deque_t(lake_pair(u64, moon_tlas_id))                      tlas_zombies;
     lake_deque_t(lake_pair(u64, moon_blas_id))                      blas_zombies;
+    lake_deque_t(lake_pair(u64, struct event_zombie))               event_zombies;
     lake_deque_t(lake_pair(u64, struct semaphore_zombie))           semaphore_zombies;
     lake_deque_t(lake_pair(u64, struct timeline_query_pool_zombie)) timeline_query_pool_zombies;
-    lake_deque_t(lake_pair(u64, struct device_heap_zombie))         heap_zombies;
+    lake_deque_t(lake_pair(u64, struct memory_heap_zombie))         memory_heap_zombies;
 
     /** Command buffer/pool recycling, accessed via `moon_queue_type`. */
     struct command_pool_arena               command_pool_arenas[moon_queue_type_count];
@@ -956,10 +987,12 @@ static constexpr u32 DEVICE_QUEUE_IMPL_OFFSETS[moon_queue_type_count] = {
 
 /** Returns a message for a Vulkan result code. */
 extern LAKE_CONST_FN char const *LAKECALL 
-vk_result_string(VkResult result);
+vk_result_string(
+    VkResult result);
 
 extern LAKE_CONST_FN LAKE_HOT_FN lake_result LAKECALL 
-vk_result_translate(VkResult result);
+vk_result_translate(
+    VkResult result);
 
 #ifndef LAKE_NDEBUG
     #define VERIFY_VK_ERROR(x) do { \
@@ -982,7 +1015,7 @@ LAKE_FORCE_INLINE bool is_device_queue_valid(moon_device const device, moon_queu
 LAKE_FORCE_INLINE struct queue_impl *get_device_queue_impl(moon_device device, moon_queue queue)
 { return &device->queues[DEVICE_QUEUE_IMPL_OFFSETS[queue.type] + queue.idx]; }
 
-LAKE_FORCE_INLINE VkBufferUsageFlags create_buffer_usage_flags(moon_device device)
+LAKE_FORCE_INLINE VkBufferUsageFlags get_buffer_usage_flags(moon_device device)
 {
     VkBufferUsageFlags result = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
                                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
@@ -998,10 +1031,66 @@ LAKE_FORCE_INLINE VkBufferUsageFlags create_buffer_usage_flags(moon_device devic
     return result;
 }
 
+extern LAKE_CONST_FN bool LAKECALL is_depth_format(moon_format format);
+extern LAKE_CONST_FN bool LAKECALL is_stencil_format(moon_format format);
+
+LAKE_FORCE_INLINE LAKE_CONST_FN VkImageAspectFlags 
+infer_aspect_from_format(moon_format format)
+{
+    bool is_depth = is_depth_format(format);
+    bool is_stencil = is_stencil_format(format);
+    if (!is_depth && !is_stencil)
+        return VK_IMAGE_ASPECT_COLOR_BIT;
+    return (is_depth ? VK_IMAGE_ASPECT_DEPTH_BIT : 0) | (is_stencil ? VK_IMAGE_ASPECT_STENCIL_BIT : 0);
+}
+
+LAKE_FORCE_INLINE VkImageSubresourceRange 
+make_subresource_range(
+    moon_texture_mip_array_slice const *slice, 
+    VkImageAspectFlags                  aspect)
+{
+    return (VkImageSubresourceRange){
+        .aspectMask = aspect,
+        .baseMipLevel = slice->base_mip_level,
+        .levelCount = slice->level_count,
+        .baseArrayLayer = slice->base_array_layer,
+        .layerCount = slice->layer_count,
+    };
+}
+
+LAKE_FORCE_INLINE VkImageSubresourceLayers 
+make_subresource_layers(
+    moon_texture_array_slice const *slice, 
+    VkImageAspectFlags              aspect)
+{
+    return (VkImageSubresourceLayers){
+        .aspectMask = aspect,
+        .mipLevel = slice->mip_level,
+        .baseArrayLayer = slice->base_array_layer,
+        .layerCount = slice->layer_count,
+    };
+}
+
 LAKE_NONNULL_ALL
 extern void LAKECALL populate_vk_image_create_info_from_assembly(
     moon_device                  device, 
     moon_texture_assembly const *assembly,
     VkImageCreateInfo           *out_vk_create_info);
+
+struct acceleratrion_structure_build {
+    lake_darray_t(VkAccelerationStructureBuildGeometryInfoKHR) vk_build_geometry_infos;
+    lake_darray_t(VkAccelerationStructureGeometryKHR)          vk_geometry_infos;
+    lake_darray_t(u32)                                         primitive_counts;
+    lake_darray_t(u32 const *)                                 primitive_counts_ptrs;
+};
+
+LAKE_NONNULL(1, 6)
+extern void LAKECALL populate_vk_acceleration_structure_build_from_assembly(
+    moon_device                                  device,
+    usize                                        tlas_count,
+    moon_tlas_assembly const                    *tlas_assembly,
+    usize                                        blas_count,
+    moon_blas_assembly const                    *blas_assembly,
+    struct acceleratrion_structure_build        *out_vk_build);
 
 #endif /* MOON_VULKAN */

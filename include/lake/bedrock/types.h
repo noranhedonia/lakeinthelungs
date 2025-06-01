@@ -250,4 +250,12 @@ typedef enum lake_result : s32 {
     LAKE_ERROR_COULD_NOT_QUERY_DEVICE_QUEUE                         = -72,
     LAKE_ERROR_COMPRESSION_EXHAUSTED                                = -73,
     LAKE_ERROR_TOO_MANY_OBJECTS                                     = -76,
+    LAKE_ERROR_RAY_TRACING_REQUIRED                                 = -78,
+    LAKE_ERROR_INVALID_BUFFER_ID                                    = -79,
+    LAKE_ERROR_INVALID_TEXTURE_ID                                   = -80,
+    LAKE_ERROR_INVALID_TEXTURE_VIEW_ID                              = -81,
+    LAKE_ERROR_INVALID_SAMPLER_ID                                   = -82,
+    LAKE_ERROR_INVALID_TLAS_ID                                      = -83,
+    LAKE_ERROR_INVALID_BLAS_ID                                      = -84,
+    LAKE_ERROR_QUEUE_SCHEDULING_TYPE_MISMATCH                       = -85,
 } lake_result;

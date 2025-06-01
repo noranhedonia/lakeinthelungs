@@ -9,7 +9,7 @@ FN_HADAL_WINDOW_ASSEMBLY(wayland)
     return LAKE_ERROR_FEATURE_NOT_PRESENT;
 }
 
-FN_HADAL_WINDOW_DESTRUCTOR(wayland)
+FN_HADAL_WINDOW_ZERO_REFCNT(wayland)
 {
     (void)window;
 }

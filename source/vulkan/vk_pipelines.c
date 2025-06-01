@@ -1,7 +1,7 @@
 #include "vk_moon.h"
 #ifdef MOON_VULKAN
 
-FN_MOON_COMPUTE_PIPELINES_ASSEMBLY(vulkan)
+FN_MOON_COMPUTE_PIPELINE_ASSEMBLY(vulkan)
 {
     (void)device;
     (void)count;
@@ -10,12 +10,12 @@ FN_MOON_COMPUTE_PIPELINES_ASSEMBLY(vulkan)
     return LAKE_ERROR_FEATURE_NOT_PRESENT;
 }
 
-FN_MOON_COMPUTE_PIPELINE_DESTRUCTOR(vulkan)
+FN_MOON_COMPUTE_PIPELINE_ZERO_REFCNT(vulkan)
 {
-    (void)compute_pipeline;
+    (void)pipeline;
 }
 
-FN_MOON_WORK_GRAPH_PIPELINES_ASSEMBLY(vulkan)
+FN_MOON_WORK_GRAPH_PIPELINE_ASSEMBLY(vulkan)
 {
     (void)device;
     (void)count;
@@ -24,12 +24,12 @@ FN_MOON_WORK_GRAPH_PIPELINES_ASSEMBLY(vulkan)
     return LAKE_ERROR_FEATURE_NOT_PRESENT;
 }
 
-FN_MOON_WORK_GRAPH_PIPELINE_DESTRUCTOR(vulkan)
+FN_MOON_WORK_GRAPH_PIPELINE_ZERO_REFCNT(vulkan)
 {
-    (void)work_graph_pipeline;
+    (void)pipeline;
 }
 
-FN_MOON_RASTER_PIPELINES_ASSEMBLY(vulkan)
+FN_MOON_RAY_TRACING_PIPELINE_ASSEMBLY(vulkan)
 {
     (void)device;
     (void)count;
@@ -38,12 +38,27 @@ FN_MOON_RASTER_PIPELINES_ASSEMBLY(vulkan)
     return LAKE_ERROR_FEATURE_NOT_PRESENT;
 }
 
-FN_MOON_RASTER_PIPELINE_DESTRUCTOR(vulkan)
+FN_MOON_RAY_TRACING_PIPELINE_ZERO_REFCNT(vulkan)
 {
-    (void)raster_pipeline;
+    (void)pipeline;
 }
 
-FN_MOON_RAY_TRACING_PIPELINES_ASSEMBLY(vulkan)
+FN_MOON_RAY_TRACING_PIPELINE_CREATE_DEFAULT_SBT(vulkan)
+{
+    (void)pipeline;
+    (void)out_sbt;
+    (void)out_buffer;
+    return LAKE_ERROR_FEATURE_NOT_PRESENT;
+}
+
+FN_MOON_RAY_TRACING_PIPELINE_SHADER_GROUP_HANDLES(vulkan)
+{
+    (void)pipeline;
+    (void)out_blob;
+    return LAKE_ERROR_FEATURE_NOT_PRESENT;
+}
+
+FN_MOON_RASTER_PIPELINE_ASSEMBLY(vulkan)
 {
     (void)device;
     (void)count;
@@ -52,8 +67,8 @@ FN_MOON_RAY_TRACING_PIPELINES_ASSEMBLY(vulkan)
     return LAKE_ERROR_FEATURE_NOT_PRESENT;
 }
 
-FN_MOON_RAY_TRACING_PIPELINE_DESTRUCTOR(vulkan)
+FN_MOON_RASTER_PIPELINE_ZERO_REFCNT(vulkan)
 {
-    (void)ray_tracing_pipeline;
+    (void)pipeline;
 }
 #endif /* MOON_VULKAN */

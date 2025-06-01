@@ -6,7 +6,8 @@ if with_vulkan
         'vk_gpu_resources.c',
         'vk_pipelines.c',
         'vk_swapchain.c',
-        'vk_timeline.c',
+        'vk_timeline_query.c',
+        'vk_sync.c',
     )
     pre_args += ['-DMOON_VULKAN=1']
 

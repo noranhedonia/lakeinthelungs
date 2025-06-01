@@ -1785,7 +1785,6 @@ static void query_physical_device_details(
     QUERY_FEATURES_ARRAY(implicit_feature, g_implicit_features, all_set);
     QUERY_FEATURES_ARRAY(explicit_feature, g_explicit_features, all_set);
 #undef QUERY_FEATURES_ARRAY
-    lake_trace("%b, %b, %b", write->missing_required_features, write->implicit_features, write->explicit_features);
 
     write->api_version = p->properties2.properties.apiVersion;
     write->driver_version = p->properties2.properties.driverVersion;
@@ -2173,7 +2172,7 @@ VkResult create_vk_device_from_physical_device(
 
 static moon_adapter g_moon = nullptr;
 
-static FN_LAKE_WORK(moon_interface_destructor, moon_adapter moon)
+static FN_LAKE_WORK(_moon_vulkan_zero_refcnt, moon_adapter moon)
 {
 #ifndef LAKE_NDEBUG
     lake_dbg_assert(moon != nullptr, LAKE_INVALID_PARAMETERS, nullptr);
@@ -2192,7 +2191,7 @@ static FN_LAKE_WORK(moon_interface_destructor, moon_adapter moon)
     g_moon = nullptr;
 }
 
-LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly const *assembly)
+LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, vulkan, lake_framework)
 {
     char const *name = "moon/vulkan";
     void *vulkan_library;
@@ -2212,9 +2211,8 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
 
     /* we allow only one Vulkan backend instance to exist at a time. */
     if (lake_unlikely(g_moon != nullptr)) {
-        lake_refcnt_inc(&g_moon->interface.header.refcnt);
-        assembly->out_impl->adapter = g_moon;
-        return;
+        lake_inc_refcnt(&g_moon->interface.header.refcnt);
+        return g_moon;
     }
 
 #if defined(LAKE_PLATFORM_WINDOWS)
@@ -2243,7 +2241,7 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
 #endif
     if (vulkan_library == nullptr) {
         lake_dbg_1("%s: can't open the Vulkan drivers, ensure they are correclty installed and available via the system PATH.", name);
-        return;
+        return nullptr;
     }
 
     char const *vkGetInstanceProcAddr_name = "vkGetInstanceProcAddr";
@@ -2251,7 +2249,7 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
     if (vkGetInstanceProcAddr == nullptr) {
         lake_dbg_1("%s: can't get the address of %s from Vulkan drivers.", name, vkGetInstanceProcAddr_name);
         lake_close_library(vulkan_library);
-        return;
+        return nullptr;
     }
 
     PFN_vkCreateInstance const vkCreateInstance = (PFN_vkCreateInstance)
@@ -2269,7 +2267,7 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
     {
         lake_dbg_1("%s: can't get addresses of global procedures from Vulkan drivers.", name);
         lake_close_library(vulkan_library);
-        return;
+        return nullptr;
     }
 
     /* check the API version */
@@ -2279,7 +2277,7 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
                 "your drivers API version is %u.%u.%u.",
                 name, (api_version >> 22u), (api_version >> 12u) & 0x3ffu, (api_version & 0xfffu));
         lake_close_library(vulkan_library);
-        return;
+        return nullptr;
     }
     vkEnumerateInstanceLayerProperties(&layer_count, nullptr);
 
@@ -2288,7 +2286,7 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
     if (lake_unlikely(!extension_count)) {
         lake_dbg_1("%s: no instance extensions available, can't continue.", name);
         lake_close_library(vulkan_library);
-        return;
+        return nullptr;
     }
 
     VkExtensionProperties *extension_properties = (VkExtensionProperties *)
@@ -2300,7 +2298,7 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
         if (query_extension(extension_properties, extension_count, g_instance_extension_names[i]))
             extension_bits |= (1u << i);
     /* don't enable debug utils if not requested */
-    if (assembly->framework->hints.use_debug_instruments <= 0)
+    if (assembly->hints.use_debug_instruments <= 0)
         extension_bits &= ~(instance_extension_ext_debug_utils | instance_extension_layer_validation);
     __lake_free(extension_properties);
 
@@ -2314,10 +2312,10 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
     VkApplicationInfo const vk_app_info = {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
         .pNext = nullptr,
-        .pApplicationName = assembly->framework->app_name,
-        .applicationVersion = assembly->framework->build_app_ver,
-        .pEngineName = assembly->framework->engine_name,
-        .engineVersion = assembly->framework->build_engine_ver,
+        .pApplicationName = assembly->app_name,
+        .applicationVersion = assembly->build_app_ver,
+        .pEngineName = assembly->engine_name,
+        .engineVersion = assembly->build_engine_ver,
         .apiVersion = api_version,
     };
     VkInstanceCreateInfo vk_instance_info = {
@@ -2348,7 +2346,7 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
         "VK_LAYER_KHRONOS_validation",
     };
     /* enable validation layers if debug requested */
-    if ((extension_bits & instance_extension_ext_debug_utils) && assembly->framework->hints.use_debug_instruments) {
+    if ((extension_bits & instance_extension_ext_debug_utils) && assembly->hints.use_debug_instruments) {
         extension_bits |= instance_extension_layer_validation;
         vk_instance_info.pNext = &vk_validation_features;
         vk_instance_info.enabledLayerCount = 1;
@@ -2362,7 +2360,7 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
     if (result != VK_SUCCESS) {
         lake_dbg_1("%s: creating a Vulkan instance failed: %s.", name, vk_result_string(result));
         lake_close_library(vulkan_library);
-        return;
+        return nullptr;
     }
 
     moon_adapter moon = __lake_malloc_t(struct moon_adapter_impl);
@@ -2380,14 +2378,14 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
     moon->api_version = api_version;
 
     /* write the interface header */
-    moon->interface.header.framework = assembly->framework;
-    moon->interface.header.destructor = (PFN_lake_work)moon_interface_destructor;
+    moon->interface.header.framework = assembly;
+    moon->interface.header.zero_refcnt = (PFN_lake_work)_moon_vulkan_zero_refcnt;
     moon->interface.header.name.len = lake_strlen(name) + 1;
     lake_memcpy(moon->interface.header.name.str, name, moon->interface.header.name.len);
 
     if (lake_unlikely(!load_vk_instance_symbols(moon, extension_bits))) {
-        moon_interface_destructor(moon);
-        return;
+        _moon_vulkan_zero_refcnt(moon);
+        return nullptr;
     }
 #ifndef LAKE_NDEBUG
     if (extension_bits & instance_extension_layer_validation) {
@@ -2418,8 +2416,8 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
     result = moon->vkEnumeratePhysicalDevices(vk_instance, &physical_device_count, nullptr);
     if (result != VK_SUCCESS || physical_device_count == 0) {
         lake_dbg_1("%s: no physical devices are available to Vulkan: %s.", name, vk_result_string(result));
-        moon_interface_destructor(moon);
-        return;
+        _moon_vulkan_zero_refcnt(moon);
+        return nullptr;
     }
     usize const vk_physical_devices_bytes = lake_align(sizeof(VkPhysicalDevice) * physical_device_count, 16);
     usize const query_physical_device_work_bytes = lake_align(sizeof(struct query_physical_device_work) * physical_device_count, 16);
@@ -2470,8 +2468,8 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
         for (u32 i = 0; i < physical_device_count; i++)
             lake_dbg_1("    - (idx:%u) %s", i, query_physical_device_work[i].write.vk_properties.properties2.properties.deviceName);
         __lake_free(raw);
-        moon_interface_destructor(moon);
-        return;
+        _moon_vulkan_zero_refcnt(moon);
+        return nullptr;
     }
     /* sort indices by device score */
     for (u32 i = 0, j, max_idx; i < o; i++) {
@@ -2498,22 +2496,24 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
     /* write the interface */
     moon->interface.list_device_details = _moon_vulkan_list_device_details;
     moon->interface.device_assembly = _moon_vulkan_device_assembly;
-    moon->interface.device_destructor = _moon_vulkan_device_destructor;
+    moon->interface.device_zero_refcnt = _moon_vulkan_device_zero_refcnt;
     moon->interface.device_queue_count = _moon_vulkan_device_queue_count;
     moon->interface.device_queue_wait_idle = _moon_vulkan_device_queue_wait_idle;
     moon->interface.device_wait_idle = _moon_vulkan_device_wait_idle;
     moon->interface.device_submit_commands = _moon_vulkan_device_submit_commands;
     moon->interface.device_present_frames = _moon_vulkan_device_present_frames;
-    moon->interface.device_destroy_deferred = _moon_vulkan_device_destroy_deferred;
-    moon->interface.device_heap_assembly = _moon_vulkan_device_heap_assembly;
-    moon->interface.device_heap_destructor = _moon_vulkan_device_heap_destructor;
+    moon->interface.device_commit_deferred_destructors = _moon_vulkan_device_commit_deferred_destructors;
     moon->interface.device_buffer_memory_requirements = _moon_vulkan_device_buffer_memory_requirements;
     moon->interface.device_texture_memory_requirements = _moon_vulkan_device_texture_memory_requirements;
+    moon->interface.device_tlas_build_sizes = _moon_vulkan_device_tlas_build_sizes;
+    moon->interface.device_blas_build_sizes = _moon_vulkan_device_blas_build_sizes;
     moon->interface.device_memory_report = _moon_vulkan_device_memory_report;
+    moon->interface.memory_heap_assembly = _moon_vulkan_memory_heap_assembly;
+    moon->interface.memory_heap_zero_refcnt = _moon_vulkan_memory_heap_zero_refcnt;
     moon->interface.create_buffer = _moon_vulkan_create_buffer;
-    moon->interface.create_buffer_from_heap = _moon_vulkan_create_buffer_from_heap;
+    moon->interface.create_buffer_from_memory_heap = _moon_vulkan_create_buffer_from_memory_heap;
     moon->interface.create_texture = _moon_vulkan_create_texture;
-    moon->interface.create_texture_from_heap = _moon_vulkan_create_texture_from_heap;
+    moon->interface.create_texture_from_memory_heap = _moon_vulkan_create_texture_from_memory_heap;
     moon->interface.create_texture_view = _moon_vulkan_create_texture_view;
     moon->interface.create_sampler = _moon_vulkan_create_sampler;
     moon->interface.create_tlas = _moon_vulkan_create_tlas;
@@ -2537,21 +2537,29 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
     moon->interface.destroy_tlas = _moon_vulkan_destroy_tlas;
     moon->interface.destroy_blas = _moon_vulkan_destroy_blas;
     moon->interface.timeline_query_pool_assembly = _moon_vulkan_timeline_query_pool_assembly;
-    moon->interface.timeline_query_pool_destructor = _moon_vulkan_timeline_query_pool_destructor;
+    moon->interface.timeline_query_pool_zero_refcnt = _moon_vulkan_timeline_query_pool_zero_refcnt;
+    moon->interface.timeline_query_pool_query_results = _moon_vulkan_timeline_query_pool_query_results;
     moon->interface.timeline_semaphore_assembly = _moon_vulkan_timeline_semaphore_assembly;
-    moon->interface.timeline_semaphore_destructor = _moon_vulkan_timeline_semaphore_destructor;
+    moon->interface.timeline_semaphore_zero_refcnt = _moon_vulkan_timeline_semaphore_zero_refcnt;
+    moon->interface.timeline_semaphore_read_value = _moon_vulkan_timeline_semaphore_read_value;
+    moon->interface.timeline_semaphore_write_value = _moon_vulkan_timeline_semaphore_write_value;
+    moon->interface.timeline_semaphore_wait_for_value = _moon_vulkan_timeline_semaphore_wait_for_value;
     moon->interface.binary_semaphore_assembly = _moon_vulkan_binary_semaphore_assembly;
-    moon->interface.binary_semaphore_destructor = _moon_vulkan_binary_semaphore_destructor;
-    moon->interface.compute_pipelines_assembly = _moon_vulkan_compute_pipelines_assembly;
-    moon->interface.compute_pipeline_destructor = _moon_vulkan_compute_pipeline_destructor;
-    moon->interface.work_graph_pipelines_assembly = _moon_vulkan_work_graph_pipelines_assembly;
-    moon->interface.work_graph_pipeline_destructor = _moon_vulkan_work_graph_pipeline_destructor;
-    moon->interface.ray_tracing_pipelines_assembly = _moon_vulkan_ray_tracing_pipelines_assembly;
-    moon->interface.ray_tracing_pipeline_destructor = _moon_vulkan_ray_tracing_pipeline_destructor;
-    moon->interface.raster_pipelines_assembly = _moon_vulkan_raster_pipelines_assembly;
-    moon->interface.raster_pipeline_destructor = _moon_vulkan_raster_pipeline_destructor;
+    moon->interface.binary_semaphore_zero_refcnt = _moon_vulkan_binary_semaphore_zero_refcnt;
+    moon->interface.event_assembly = _moon_vulkan_event_assembly;
+    moon->interface.event_zero_refcnt = _moon_vulkan_event_zero_refcnt;
+    moon->interface.compute_pipeline_assembly = _moon_vulkan_compute_pipeline_assembly;
+    moon->interface.compute_pipeline_zero_refcnt = _moon_vulkan_compute_pipeline_zero_refcnt;
+    moon->interface.work_graph_pipeline_assembly = _moon_vulkan_work_graph_pipeline_assembly;
+    moon->interface.work_graph_pipeline_zero_refcnt = _moon_vulkan_work_graph_pipeline_zero_refcnt;
+    moon->interface.ray_tracing_pipeline_assembly = _moon_vulkan_ray_tracing_pipeline_assembly;
+    moon->interface.ray_tracing_pipeline_zero_refcnt = _moon_vulkan_ray_tracing_pipeline_zero_refcnt;
+    moon->interface.ray_tracing_pipeline_create_default_sbt = _moon_vulkan_ray_tracing_pipeline_create_default_sbt;
+    moon->interface.ray_tracing_pipeline_shader_group_handles = _moon_vulkan_ray_tracing_pipeline_shader_group_handles;
+    moon->interface.raster_pipeline_assembly = _moon_vulkan_raster_pipeline_assembly;
+    moon->interface.raster_pipeline_zero_refcnt = _moon_vulkan_raster_pipeline_zero_refcnt;
     moon->interface.swapchain_assembly = _moon_vulkan_swapchain_assembly;
-    moon->interface.swapchain_destructor = _moon_vulkan_swapchain_destructor;
+    moon->interface.swapchain_zero_refcnt = _moon_vulkan_swapchain_zero_refcnt;
     moon->interface.swapchain_wait_for_next_frame = _moon_vulkan_swapchain_wait_for_next_frame;
     moon->interface.swapchain_acquire_next_image = _moon_vulkan_swapchain_acquire_next_image;
     moon->interface.swapchain_current_acquire_semaphore = _moon_vulkan_swapchain_current_acquire_semaphore;
@@ -2562,9 +2570,9 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
     moon->interface.swapchain_set_present_mode = _moon_vulkan_swapchain_set_present_mode;
     moon->interface.swapchain_resize = _moon_vulkan_swapchain_resize;
     moon->interface.command_recorder_assembly = _moon_vulkan_command_recorder_assembly;
-    moon->interface.command_recorder_destructor = _moon_vulkan_command_recorder_destructor;
+    moon->interface.command_recorder_zero_refcnt = _moon_vulkan_command_recorder_zero_refcnt;
     moon->interface.staged_command_list_assembly = _moon_vulkan_staged_command_list_assembly;
-    moon->interface.staged_command_list_destructor = _moon_vulkan_staged_command_list_destructor;
+    moon->interface.staged_command_list_zero_refcnt = _moon_vulkan_staged_command_list_zero_refcnt;
     moon->interface.cmd_copy_buffer = _moon_vulkan_cmd_copy_buffer;
     moon->interface.cmd_copy_buffer_to_texture = _moon_vulkan_cmd_copy_buffer_to_texture;
     moon->interface.cmd_copy_texture_to_buffer = _moon_vulkan_cmd_copy_texture_to_buffer;
@@ -2573,26 +2581,29 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
     moon->interface.cmd_resolve_texture = _moon_vulkan_cmd_resolve_texture;
     moon->interface.cmd_clear_buffer = _moon_vulkan_cmd_clear_buffer;
     moon->interface.cmd_clear_texture = _moon_vulkan_cmd_clear_texture;
+    moon->interface.cmd_build_acceleration_structures = _moon_vulkan_cmd_build_acceleration_structures;
     moon->interface.cmd_destroy_buffer_deferred = _moon_vulkan_cmd_destroy_buffer_deferred;
     moon->interface.cmd_destroy_texture_deferred = _moon_vulkan_cmd_destroy_texture_deferred;
     moon->interface.cmd_destroy_texture_view_deferred = _moon_vulkan_cmd_destroy_texture_view_deferred;
     moon->interface.cmd_destroy_sampler_deferred = _moon_vulkan_cmd_destroy_sampler_deferred;
-    moon->interface.cmd_build_acceleration_structures = _moon_vulkan_cmd_build_acceleration_structures;
-    moon->interface.cmd_root_constants = _moon_vulkan_cmd_root_constants;
+    moon->interface.cmd_push_constants = _moon_vulkan_cmd_push_constants;
     moon->interface.cmd_set_compute_pipeline = _moon_vulkan_cmd_set_compute_pipeline;
     moon->interface.cmd_set_work_graph_pipeline = _moon_vulkan_cmd_set_work_graph_pipeline;
     moon->interface.cmd_set_ray_tracing_pipeline = _moon_vulkan_cmd_set_ray_tracing_pipeline;
     moon->interface.cmd_set_raster_pipeline = _moon_vulkan_cmd_set_raster_pipeline;
     moon->interface.cmd_set_viewport = _moon_vulkan_cmd_set_viewport;
     moon->interface.cmd_set_scissor = _moon_vulkan_cmd_set_scissor;
-    moon->interface.cmd_set_rasterization_samples = _moon_vulkan_cmd_set_rasterization_samples;
     moon->interface.cmd_set_depth_bias = _moon_vulkan_cmd_set_depth_bias;
     moon->interface.cmd_set_index_buffer = _moon_vulkan_cmd_set_index_buffer;
+    moon->interface.cmd_set_rasterization_samples = _moon_vulkan_cmd_set_rasterization_samples;
     moon->interface.cmd_barriers_and_transitions = _moon_vulkan_cmd_barriers_and_transitions;
     moon->interface.cmd_begin_renderpass = _moon_vulkan_cmd_begin_renderpass;
     moon->interface.cmd_end_renderpass = _moon_vulkan_cmd_end_renderpass;
     moon->interface.cmd_write_timestamps = _moon_vulkan_cmd_write_timestamps;
     moon->interface.cmd_resolve_timestamps = _moon_vulkan_cmd_resolve_timestamps;
+    moon->interface.cmd_signal_event = _moon_vulkan_cmd_signal_event;
+    moon->interface.cmd_wait_on_events = _moon_vulkan_cmd_wait_on_events;
+    moon->interface.cmd_reset_event = _moon_vulkan_cmd_reset_event;
     moon->interface.cmd_begin_label = _moon_vulkan_cmd_begin_label;
     moon->interface.cmd_end_label = _moon_vulkan_cmd_end_label;
     moon->interface.cmd_dispatch = _moon_vulkan_cmd_dispatch;
@@ -2612,7 +2623,7 @@ LAKEAPI FN_LAKE_WORK(moon_interface_assembly_vulkan, moon_interface_assembly con
 
     lake_trace("Connected to %s, instance ver. %u.%u.%u, %u physical devices available.", name, 
         (api_version >> 22u), (api_version >> 12u) & 0x3ffu, (api_version & 0xfffu), moon->physical_devices.da.size);
-    lake_refcnt_inc(&moon->interface.header.refcnt);
-    assembly->out_impl->adapter = moon;
+    lake_inc_refcnt(&moon->interface.header.refcnt);
+    return moon;
 }
 #endif /* MOON_VULKAN */

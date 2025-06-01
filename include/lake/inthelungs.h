@@ -7,9 +7,11 @@
 #include <lake/data_structures/mpmc_ring.h>
 #include <lake/data_structures/strbuf.h>
 
-#include <lake/hadal.h>
-#include <lake/moon.h>
-#include <lake/soma.h>
+#include <lake/audio/soma.h>
+
+#include <lake/platform/hadal.h>
+
+#include <lake/renderer/moon.h>
 
 #ifdef LAKE_IN_THE_LUNGS_MAIN
 #include <lake/bedrock/private/lake_main_impl.h>

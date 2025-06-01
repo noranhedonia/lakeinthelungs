@@ -1,4 +1,4 @@
-#include <lake/moon.h>
+#include <lake/renderer/moon.h>
 
 u32 moon_calculate_score_from_device_details(moon_device_details const *details)
 {

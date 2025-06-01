@@ -15,38 +15,10 @@
 static lake_result prototype_init(struct a_moonlit_walk *amw)
 {
     lake_result result = LAKE_SUCCESS;
-    hadal_interface_assembly hadal_assembly = {
-        .framework = amw->framework,
-        .out_impl = &amw->hadal,
-    };
-    soma_interface_assembly soma_assembly = {
-        .framework = amw->framework,
-        .out_impl = &amw->soma,
-    };
-    moon_interface_assembly moon_assembly = {
-        .framework = amw->framework,
-        .out_impl = &amw->moon,
-    };
 
-    /* for now we don't care about fallbacks to other backends */
-    lake_work_details work[3] = {
-        { /* hadal (display) */
-            .procedure = (PFN_lake_work)hadal_interface_assembly_wayland,
-            .argument = &hadal_assembly,
-            .name = "main/prototype_init/hadal",
-        },
-        { /* soma (audio) */
-            .procedure = (PFN_lake_work)soma_interface_assembly_pipewire,
-            .argument = &soma_assembly,
-            .name = "main/prototype_init/soma",
-        },
-        { /* moon (graphics) */
-            .procedure = (PFN_lake_work)moon_interface_assembly_vulkan,
-            .argument = &moon_assembly,
-            .name = "main/prototype_init/moon",
-        },
-    };
-    lake_submit_work_and_yield(3, work);
+    amw->hadal.adapter = hadal_interface_impl_wayland(amw->framework);
+    amw->soma.adapter = soma_interface_impl_pipewire(amw->framework);
+    amw->moon.adapter = moon_interface_impl_vulkan(amw->framework);
 
     if (!amw->hadal.v || !amw->soma.v || !amw->moon.v) {
         result = LAKE_ERROR_INITIALIZATION_FAILED;
@@ -64,11 +36,11 @@ static lake_result prototype_init(struct a_moonlit_walk *amw)
     moon_device_work.name = (lake_small_string){ .str = "primary", .len = sizeof("primary"), };
     moon_device_work.device_idx = 0; /* pick the first device as our main */
 
-    result = amw->moon.interface->device_assembly(amw->moon.adapter, &moon_device_work, &amw->primary_device.device);
-    if (result != LAKE_SUCCESS) {
-        lake_exit_status(result);
-        return result;
-    }
+    // result = amw->moon.interface->device_assembly(amw->moon.adapter, &moon_device_work, &amw->primary_device);
+    // if (result != LAKE_SUCCESS) {
+    //     lake_exit_status(result);
+    //     return result;
+    // }
 
     /* TODO:
      * - create window
@@ -79,14 +51,14 @@ static lake_result prototype_init(struct a_moonlit_walk *amw)
 
 static void prototype_fini(struct a_moonlit_walk *amw)
 {
-    if (amw->primary_device.v)
-        lake_refcnt_dec(&amw->primary_device.header->refcnt, amw->primary_device.v, (PFN_lake_work)amw->moon.interface->device_destructor);
+    // if (amw->primary_device.v)
+    //     lake_dec_refcnt(&amw->primary_device.header->refcnt, amw->primary_device.v, (PFN_lake_work)amw->moon.interface->device_zero_refcnt);
     if (amw->moon.v)
-        lake_refcnt_dec(&amw->moon.header->refcnt, amw->moon.v, amw->moon.header->destructor);
+        lake_dec_refcnt(&amw->moon.header->refcnt, amw->moon.v, amw->moon.header->zero_refcnt);
     if (amw->soma.v)
-        lake_refcnt_dec(&amw->soma.header->refcnt, amw->soma.v, amw->soma.header->destructor);
+        lake_dec_refcnt(&amw->soma.header->refcnt, amw->soma.v, amw->soma.header->zero_refcnt);
     if (amw->hadal.v)
-        lake_refcnt_dec(&amw->hadal.header->refcnt, amw->hadal.v, amw->hadal.header->destructor);
+        lake_dec_refcnt(&amw->hadal.header->refcnt, amw->hadal.v, amw->hadal.header->zero_refcnt);
 }
 
 static FN_LAKE_FRAMEWORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)

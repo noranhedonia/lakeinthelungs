@@ -121,45 +121,33 @@ typedef struct lake_framework {
     u64             timer_start;
 } lake_framework;
 
-/** Helper to declare the interface child object assembly procedure. */
-#define PFN_LAKE_HANDLE_ASSEMBLY(T, arg, parent) \
-    typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_##T##_##arg##_assembly)( \
-        T##_##parent parent, T##_##arg##_assembly const *assembly, T##_##arg *out_##arg)
-#define FN_LAKE_HANDLE_ASSEMBLY(backend, T, arg, parent) \
-    LAKE_NODISCARD lake_result LAKECALL _##T##_##backend##_##arg##_assembly( \
-        T##_##parent parent, T##_##arg##_assembly const *assembly, T##_##arg *out_##arg)
-
-/** Helper to declare the interface child object destructor procedure. */
-#define PFN_LAKE_HANDLE_DESTRUCTOR(T, arg) \
-    PFN_LAKE_WORK(PFN_##T##_##arg##_destructor, T##_##arg arg)
-#define FN_LAKE_HANDLE_DESTRUCTOR(backend, T, arg) \
-    FN_LAKE_WORK(_##T##_##backend##_##arg##_destructor, T##_##arg arg)
-
 /** Defines an opaque handle with private implementation. */
 #define LAKE_DECL_HANDLE(T) \
     typedef struct T##_impl *T 
 
-#define LAKE_DECL_HANDLE_HEADER(T, IMPL, PARENT)    \
-    typedef struct T##_##IMPL##_header {            \
-        union {                                     \
-            struct T##_##PARENT##_impl   *impl;     \
-            struct T##_##PARENT##_header *header;   \
-        } PARENT;                                   \
-        u32                 pad0;                   \
-        lake_refcnt             refcnt;             \
-        T##_##IMPL##_assembly   assembly;           \
-    } T##_##IMPL##_header
+#define LAKE_DECL_INTERFACE(T)                  \
+    typedef union T##_interface {               \
+        lake_interface_header      *header;     \
+        struct T##_adapter_impl    *adapter;    \
+        struct T##_interface_impl  *interface;  \
+        void                       *v;          \
+    } T##_interface;
+
+/** Used to implement different interfaces. */
+typedef LAKE_NODISCARD void *(LAKECALL *PFN_lake_interface_impl)(void const *assembly);
+#define FN_LAKE_INTERFACE_IMPL(T, fn, data) \
+    LAKE_NODISCARD struct T##_adapter_impl *LAKECALL T##_interface_impl_##fn(data const *assembly)
 
 /** Systems can use an atomic counter for references to itself. A reference count of 0
  *  or less means that the system can be safely destroyed, as it is no longer in use. */
 typedef atomic_s32 lake_refcnt;
 
 LAKE_FORCE_INLINE LAKE_NONNULL_ALL
-s32 lake_refcnt_inc(lake_refcnt *refcnt)
+s32 lake_inc_refcnt(lake_refcnt *refcnt)
 { return lake_atomic_add_explicit(refcnt, 1, lake_memory_model_release); }
 
 LAKE_FORCE_INLINE LAKE_NONNULL_ALL
-s32 lake_refcnt_dec(lake_refcnt *refcnt, void *self, PFN_lake_work zero_ref_callback)
+s32 lake_dec_refcnt(lake_refcnt *refcnt, void *self, PFN_lake_work zero_ref_callback)
 { 
     s32 prev = lake_atomic_sub_explicit(refcnt, 1, lake_memory_model_release); 
     if (prev <= 1) zero_ref_callback(self);
@@ -170,11 +158,12 @@ s32 lake_refcnt_dec(lake_refcnt *refcnt, void *self, PFN_lake_work zero_ref_call
 LAKE_CACHELINE_ALIGNMENT
 typedef struct lake_interface_header {
     lake_framework const   *framework;
+    /** XXX For future use (and as a padding). */
+    atomic_u32              flags;
     /** Tracks reference count to this interface. */
     lake_refcnt             refcnt;
-    u32                 pad0;
     /** Will be called to destroy the interface, the work argument is self. */
-    PFN_lake_work           destructor;
+    PFN_lake_work           zero_refcnt;
     /** An unique name of the interface implementation, can be colored. */
     lake_small_string       name;
 } lake_interface_header;

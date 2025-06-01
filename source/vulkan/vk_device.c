@@ -216,7 +216,7 @@ deferred_null_cleanup:
             .pNext = nullptr,
             .flags = 0,
             .size = sizeof(u8) * 4,
-            .usage = create_buffer_usage_flags(device),
+            .usage = get_buffer_usage_flags(device),
             .sharingMode = VK_SHARING_MODE_CONCURRENT,
             .queueFamilyIndexCount = pd->unique_queue_family_count,
             .pQueueFamilyIndices = pd->unique_queue_family_indices,
@@ -557,13 +557,13 @@ deferred_null_cleanup:
     device->vkDestroyCommandPool(device->vk_device, init_cmd_pool, device->vk_allocator);
 
     lake_trace("Created Moon device `%s` from %s.", device->header.assembly.name.str, device->header.details->device_name);
-    lake_refcnt_inc(&moon->interface.header.refcnt);
-    lake_refcnt_inc(&device->header.refcnt);
+    lake_inc_refcnt(&moon->interface.header.refcnt);
+    lake_inc_refcnt(&device->header.refcnt);
     *out_device = device;
     return LAKE_SUCCESS;
 }
 
-FN_MOON_DEVICE_DESTRUCTOR(vulkan)
+FN_MOON_DEVICE_ZERO_REFCNT(vulkan)
 {
 #ifndef LAKE_NDEBUG
     lake_dbg_assert(device != nullptr, LAKE_INVALID_PARAMETERS, nullptr);
@@ -574,7 +574,8 @@ FN_MOON_DEVICE_DESTRUCTOR(vulkan)
 
     lake_result result = _moon_vulkan_device_wait_idle(device);
     lake_dbg_assert(result == LAKE_SUCCESS, result, "Failed to wait idle.");
-    _moon_vulkan_device_destroy_deferred(device);
+    result = _moon_vulkan_device_commit_deferred_destructors(device);
+    lake_dbg_assert(result == LAKE_SUCCESS, result, "Failed to call deferred GPU resources destructors.");
 
     for (s32 i = 0; i < moon_queue_type_count; i++) {
         if (device->command_pool_arenas[i].pools_and_buffers.v != nullptr) {
@@ -600,7 +601,7 @@ FN_MOON_DEVICE_DESTRUCTOR(vulkan)
     device->vkDestroyDevice(device->vk_device, device->vk_allocator);
     lake_trace("Destroyed Moon device `%s`.", device->header.assembly.name.str);
 
-    lake_refcnt_dec(&moon->interface.header.refcnt, moon, moon->interface.header.destructor);
+    lake_dec_refcnt(&moon->interface.header.refcnt, moon, moon->interface.header.zero_refcnt);
     __lake_free(device);
 }
 
@@ -627,50 +628,311 @@ FN_MOON_DEVICE_WAIT_IDLE(vulkan)
 
 FN_MOON_DEVICE_SUBMIT_COMMANDS(vulkan)
 {
-    (void)device;
-    (void)submit;
-    return LAKE_ERROR_FEATURE_NOT_PRESENT;
+    if (!is_device_queue_valid(device, submit->queue))
+        return LAKE_ERROR_INVALID_QUEUE;
+    if (submit->queue.idx >= device->physical_device->queue_families[submit->queue.type].queue_count)
+        return LAKE_ERROR_INVALID_QUEUE;
+
+    for (u32 i = 0; i < submit->staged_command_list_count; i++) {
+        moon_staged_command_list commands = submit->staged_command_lists[i];
+
+        if (commands->cmd_recorder->header.assembly.queue_type != submit->queue.type)
+            return LAKE_ERROR_QUEUE_SCHEDULING_TYPE_MISMATCH;
+
+        for (s32 j = 0; j < commands->data.used_buffers.da.size; j++)
+            if (!_moon_vulkan_is_buffer_valid(device, commands->data.used_buffers.v[j]))
+                return LAKE_ERROR_INVALID_BUFFER_ID;
+        for (s32 j = 0; j < commands->data.used_textures.da.size; j++)
+            if (!_moon_vulkan_is_texture_valid(device, commands->data.used_textures.v[j]))
+                return LAKE_ERROR_INVALID_TEXTURE_ID;
+        for (s32 j = 0; j < commands->data.used_texture_views.da.size; j++)
+            if (!_moon_vulkan_is_texture_view_valid(device, commands->data.used_texture_views.v[j]))
+                return LAKE_ERROR_INVALID_TEXTURE_VIEW_ID;
+        for (s32 j = 0; j < commands->data.used_samplers.da.size; j++)
+            if (!_moon_vulkan_is_sampler_valid(device, commands->data.used_samplers.v[j]))
+                return LAKE_ERROR_INVALID_SAMPLER_ID;
+    }
+    struct queue_impl *queue = get_device_queue_impl(device, submit->queue);
+    u64 const current_timeline_value = lake_atomic_add_explicit(&device->submit_timeline, 1, lake_memory_model_release) + 1;
+    lake_atomic_write_explicit(&queue->latest_pending_submit_timeline_value, current_timeline_value, lake_memory_model_release);
+
+    u32 const sem_signal_count = 1 + submit->signal_binary_semaphore_count + submit->signal_timeline_semaphore_count;
+    u32 const sem_wait_count = submit->wait_binary_semaphore_count + submit->wait_timeline_semaphore_count;
+
+    usize                   o;
+    u8                     *raw;
+    VkCommandBuffer        *submit_vk_cmd_buffers;
+    VkSemaphore            *submit_vk_sem_signals;
+    u64                    *submit_vk_sem_signal_values;
+    VkSemaphore            *submit_vk_sem_waits;
+    VkPipelineStageFlags   *submit_vk_sem_wait_stage_masks;
+    u64                    *submit_vk_sem_wait_values;
+    { /* get scratch memory */
+        usize const cmd_buffers_bytes = lake_align(sizeof(VkCommandBuffer) * submit->staged_command_list_count, 16);
+        usize const sem_signals_bytes = lake_align(sizeof(VkSemaphore) * sem_signal_count, 16);
+        usize const sem_signal_values_bytes = lake_align(sizeof(u64) * sem_signal_count, 16);
+        usize const sem_waits_bytes = lake_align(sizeof(VkSemaphore) * sem_wait_count, 16);
+        usize const sem_wait_stage_masks_bytes = lake_align(sizeof(VkPipelineStageFlags) * sem_wait_count, 16);
+        usize const sem_wait_values_bytes = lake_align(sizeof(u64) * sem_wait_count, 16);
+        usize const total_bytes = 
+            cmd_buffers_bytes +
+            sem_signals_bytes +
+            sem_signal_values_bytes +
+            sem_waits_bytes +
+            sem_wait_stage_masks_bytes +
+            sem_wait_values_bytes;
+
+        raw = (u8 *)__lake_malloc(total_bytes, 16);
+
+        o = 0;
+        submit_vk_cmd_buffers = (VkCommandBuffer *)&raw[o];
+        o += cmd_buffers_bytes;
+        submit_vk_sem_signals = (VkSemaphore *)&raw[o];
+        o += sem_signals_bytes;
+        submit_vk_sem_signal_values = (u64 *)&raw[o];
+        o += sem_signal_values_bytes;
+        submit_vk_sem_waits = (VkSemaphore *)&raw[o];
+        o += sem_waits_bytes;
+        submit_vk_sem_wait_stage_masks = (VkPipelineStageFlags *)&raw[o];
+        o += sem_wait_stage_masks_bytes;
+        submit_vk_sem_wait_values = (u64 *)&raw[o];
+        lake_san_assert(o + sem_wait_values_bytes, LAKE_PANIC, nullptr);
+    }
+
+    o = 0;
+    submit_vk_sem_signals[o] = queue->gpu_local_timeline;
+    submit_vk_sem_signal_values[o] = current_timeline_value;
+    o++;
+
+    for (u32 i = 0; i < submit->signal_timeline_semaphore_count; i++) {
+        moon_timeline_pair const *pair = &submit->signal_timeline_semaphores[i];
+        submit_vk_sem_signals[o] = pair->timeline_semaphore->vk_semaphore;
+        submit_vk_sem_signal_values[o] = pair->value;
+        o++;
+    }
+    for (u32 i = 0; i < submit->signal_binary_semaphore_count; i++) {
+        submit_vk_sem_signals[o] = submit->signal_binary_semaphores[i]->vk_semaphore;
+        submit_vk_sem_signal_values[o] = 0; /* the vulkan spec requires dummy values for binary semaphores */
+        o++;
+    }
+    lake_dbg_assert(o == sem_signal_count, LAKE_ERROR_OUT_OF_RANGE, nullptr);
+
+    o = 0;
+    for (u32 i = 0; i < submit->wait_timeline_semaphore_count; i++) {
+        moon_timeline_pair const *pair = &submit->wait_timeline_semaphores[i];
+        submit_vk_sem_waits[o] = pair->timeline_semaphore->vk_semaphore;
+        submit_vk_sem_wait_stage_masks[o] = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+        submit_vk_sem_wait_values[o] = pair->value;
+        o++;
+    }
+    for (u32 i = 0; i < submit->wait_binary_semaphore_count; i++) {
+        submit_vk_sem_waits[o] = submit->wait_binary_semaphores[i]->vk_semaphore;
+        submit_vk_sem_wait_stage_masks[o] = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+        submit_vk_sem_wait_values[o] = 0; /* the vulkan spec requires dummy values for binary semaphores */
+        o++;
+    }
+    lake_dbg_assert(o == sem_wait_count, LAKE_ERROR_OUT_OF_RANGE, nullptr);
+
+    VkTimelineSemaphoreSubmitInfo vk_timeline_info = {
+        .sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
+        .pNext = nullptr,
+        .waitSemaphoreValueCount = sem_wait_count,
+        .pWaitSemaphoreValues = submit_vk_sem_wait_values,
+        .signalSemaphoreValueCount = sem_signal_count,
+        .pSignalSemaphoreValues = submit_vk_sem_signal_values,
+    };
+    VkSubmitInfo const vk_submit_info = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext = (void *)&vk_timeline_info,
+        .waitSemaphoreCount = sem_wait_count,
+        .pWaitSemaphores = submit_vk_sem_waits,
+        .pWaitDstStageMask = submit_vk_sem_wait_stage_masks,
+        .commandBufferCount = submit->staged_command_list_count,
+        .pCommandBuffers = submit_vk_cmd_buffers,
+        .signalSemaphoreCount = sem_signal_count,
+        .pSignalSemaphores = submit_vk_sem_signals,
+    };
+    lake_result result = vk_result_translate(
+        device->vkQueueSubmit(
+            queue->vk_queue, 
+            1, 
+            &vk_submit_info, 
+            VK_NULL_HANDLE));
+
+    __lake_free(raw);
+    return result;
 }
 
 FN_MOON_DEVICE_PRESENT_FRAMES(vulkan)
 {
+    if (!is_device_queue_valid(device, present->queue))
+        return LAKE_ERROR_INVALID_QUEUE;
+    if (present->queue.idx >= device->physical_device->queue_families[present->queue.type].queue_count)
+        return LAKE_ERROR_INVALID_QUEUE;
+
+    u8             *raw;
+    VkSemaphore    *submit_vk_sem_waits;
+    VkSwapchainKHR *vk_swapchains;
+    u32            *vk_image_indices;
+    { /* get scratch memory */
+        usize const submit_vk_sem_waits_bytes = lake_align(sizeof(VkSemaphore) * present->wait_binary_semaphore_count, 16);
+        usize const vk_swapchains_bytes = lake_align(sizeof(VkSwapchainKHR) * present->swapchain_count, 16);
+        usize const vk_image_indices_bytes = lake_align(sizeof(u32) * present->swapchain_count, 16);
+        usize const total_bytes =
+            submit_vk_sem_waits_bytes +
+            vk_swapchains_bytes +
+            vk_image_indices_bytes;
+
+        usize o = 0;
+        raw = (u8 *)__lake_malloc(total_bytes, 16);
+
+        submit_vk_sem_waits = (VkSemaphore *)&raw[vk_swapchains_bytes];
+        o += submit_vk_sem_waits_bytes;
+        vk_swapchains = (VkSwapchainKHR *)&raw[o];
+        o += vk_swapchains_bytes;
+        vk_image_indices = (u32 *)&raw[o];
+        lake_san_assert(o + vk_image_indices_bytes, LAKE_PANIC, nullptr);
+    }
+    for (u32 i = 0; i < present->wait_binary_semaphore_count; i++)
+        submit_vk_sem_waits[i] = present->wait_binary_semaphores[i]->vk_semaphore;
+    for (u32 i = 0; i < present->swapchain_count; i++) {
+        moon_swapchain sc = present->swapchains[i];
+
+        lake_dbg_assert(present->queue.type != sc->header.assembly.queue_type, LAKE_ERROR_QUEUE_SCHEDULING_TYPE_MISMATCH, 
+            "Swapchains queue types must match with the present queue");
+
+        vk_swapchains[i] = sc->vk_swapchain;
+        vk_image_indices[i] = sc->current_image_idx;
+    }
+    VkPresentInfoKHR const vk_present_info = {
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .pNext = nullptr, 
+        .waitSemaphoreCount = present->wait_binary_semaphore_count,
+        .pWaitSemaphores = submit_vk_sem_waits,
+        .swapchainCount = present->swapchain_count,
+        .pSwapchains = vk_swapchains,
+        .pImageIndices = vk_image_indices,
+        .pResults = nullptr,
+    };
+    lake_result result = vk_result_translate(
+        device->vkQueuePresentKHR(
+            get_device_queue_impl(device, present->queue)->vk_queue, 
+            &vk_present_info));
+
+    __lake_free(raw);
+    return result;
+}
+
+FN_MOON_DEVICE_COMMIT_DEFERRED_DESTRUCTORS(vulkan)
+{
     (void)device;
-    (void)present;
     return LAKE_ERROR_FEATURE_NOT_PRESENT;
-}
-
-FN_MOON_DEVICE_DESTROY_DEFERRED(vulkan)
-{
-    (void)device;
-}
-
-FN_MOON_DEVICE_HEAP_ASSEMBLY(vulkan)
-{
-    (void)device;
-    (void)assembly;
-    (void)out_device_heap;
-    return LAKE_ERROR_FEATURE_NOT_PRESENT;
-}
-
-FN_MOON_DEVICE_HEAP_DESTRUCTOR(vulkan)
-{
-    (void)device_heap;
 }
 
 FN_MOON_DEVICE_BUFFER_MEMORY_REQUIREMENTS(vulkan)
 {
-    (void)device;
-    (void)assembly;
-    (void)out_requirements;
-    return LAKE_ERROR_FEATURE_NOT_PRESENT;
+    VkBufferCreateInfo const vk_buffer_create_info = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .size = (VkDeviceSize)assembly->size,
+        .usage = get_buffer_usage_flags(device),
+        .sharingMode = VK_SHARING_MODE_CONCURRENT, /* buffers are always shared */
+        .queueFamilyIndexCount = device->physical_device->unique_queue_family_count, /* buffers are always shared across all queues */
+        .pQueueFamilyIndices = device->physical_device->unique_queue_family_indices,
+    };
+    VkDeviceBufferMemoryRequirements vk_device_buffer_memory_requirements = {
+        .sType = VK_STRUCTURE_TYPE_DEVICE_BUFFER_MEMORY_REQUIREMENTS,
+        .pNext = nullptr,
+        .pCreateInfo = &vk_buffer_create_info,
+    };
+    VkMemoryRequirements2 vk_mem_requirements2 = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
+        .pNext = nullptr,
+        .memoryRequirements = {0},
+    };
+    device->vkGetDeviceBufferMemoryRequirements(device->vk_device, &vk_device_buffer_memory_requirements, &vk_mem_requirements2);
+    *out_requirements = (moon_memory_requirements){
+        .alignment = vk_mem_requirements2.memoryRequirements.alignment,
+        .size = vk_mem_requirements2.memoryRequirements.size,
+        .type_bitmask = vk_mem_requirements2.memoryRequirements.memoryTypeBits,
+    };
+    return LAKE_SUCCESS;
 }
 
 FN_MOON_DEVICE_TEXTURE_MEMORY_REQUIREMENTS(vulkan)
 {
-    (void)device;
-    (void)assembly;
-    (void)out_requirements;
-    return LAKE_ERROR_FEATURE_NOT_PRESENT;
+    VkImageCreateInfo vk_image_create_info = {0};
+    populate_vk_image_create_info_from_assembly(device, assembly, &vk_image_create_info);
+
+    VkDeviceImageMemoryRequirements vk_device_image_memory_requirements = {
+        .sType = VK_STRUCTURE_TYPE_DEVICE_IMAGE_MEMORY_REQUIREMENTS, 
+        .pNext = nullptr,
+        .pCreateInfo = &vk_image_create_info,
+        .planeAspect = infer_aspect_from_format(assembly->format)
+    };
+    VkMemoryRequirements2 vk_mem_requirements2 = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
+        .pNext = nullptr,
+        .memoryRequirements = {0},
+    };
+    device->vkGetDeviceImageMemoryRequirements(device->vk_device, &vk_device_image_memory_requirements, &vk_mem_requirements2);
+    *out_requirements = (moon_memory_requirements){
+        .alignment = vk_mem_requirements2.memoryRequirements.alignment,
+        .size = vk_mem_requirements2.memoryRequirements.size,
+        .type_bitmask = vk_mem_requirements2.memoryRequirements.memoryTypeBits,
+    };
+    return LAKE_SUCCESS;
+}
+
+FN_MOON_DEVICE_TLAS_BUILD_SIZES(vulkan)
+{
+    if (!(device->header.details->implicit_features & moon_implicit_feature_basic_ray_tracing))
+        return LAKE_ERROR_RAY_TRACING_REQUIRED;
+
+    struct acceleratrion_structure_build build = {0};
+    populate_vk_acceleration_structure_build_from_assembly(device, 1, assembly, 0, nullptr, &build);
+
+    VkAccelerationStructureBuildSizesInfoKHR vk_acceleration_structure_build_sizes_info = {
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR,
+        .pNext = nullptr,
+    };
+    device->vkGetAccelerationStructureBuildSizesKHR(
+        device->vk_device, 
+        VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+        build.vk_build_geometry_infos.v,
+        build.primitive_counts.v,
+        &vk_acceleration_structure_build_sizes_info);
+
+    out_sizes->acceleration_structure_size = vk_acceleration_structure_build_sizes_info.accelerationStructureSize;
+    out_sizes->build_scratch_size = vk_acceleration_structure_build_sizes_info.buildScratchSize;
+    out_sizes->update_scratch_size = vk_acceleration_structure_build_sizes_info.updateScratchSize;
+    return LAKE_SUCCESS;
+}
+
+FN_MOON_DEVICE_BLAS_BUILD_SIZES(vulkan)
+{
+    if (!(device->header.details->implicit_features & moon_implicit_feature_basic_ray_tracing))
+        return LAKE_ERROR_RAY_TRACING_REQUIRED;
+
+    struct acceleratrion_structure_build build = {0};
+    populate_vk_acceleration_structure_build_from_assembly(device, 0, nullptr, 1, assembly, &build);
+
+    VkAccelerationStructureBuildSizesInfoKHR vk_acceleration_structure_build_sizes_info = {
+        .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR,
+        .pNext = nullptr,
+    };
+    device->vkGetAccelerationStructureBuildSizesKHR(
+        device->vk_device, 
+        VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+        build.vk_build_geometry_infos.v,
+        build.primitive_counts.v,
+        &vk_acceleration_structure_build_sizes_info);
+
+    out_sizes->acceleration_structure_size = vk_acceleration_structure_build_sizes_info.accelerationStructureSize;
+    out_sizes->build_scratch_size = vk_acceleration_structure_build_sizes_info.buildScratchSize;
+    out_sizes->update_scratch_size = vk_acceleration_structure_build_sizes_info.updateScratchSize;
+    return LAKE_SUCCESS;
 }
 
 FN_MOON_DEVICE_MEMORY_REPORT(vulkan)
@@ -678,5 +940,18 @@ FN_MOON_DEVICE_MEMORY_REPORT(vulkan)
     (void)device;
     (void)out_report;
     return LAKE_ERROR_FEATURE_NOT_PRESENT;
+}
+
+FN_MOON_MEMORY_HEAP_ASSEMBLY(vulkan)
+{
+    (void)device;
+    (void)assembly;
+    (void)out_heap;
+    return LAKE_ERROR_FEATURE_NOT_PRESENT;
+}
+
+FN_MOON_MEMORY_HEAP_ZERO_REFCNT(vulkan)
+{
+    (void)heap;
 }
 #endif /* MOON_VULKAN */

@@ -81,7 +81,7 @@ static bool load_pipewire_symbols(soma_adapter soma, char const *name)
 /** Only one pipewire backend is allowed to exist at a time. */
 static soma_adapter g_soma = nullptr;
 
-static FN_LAKE_WORK(soma_interface_destructor, soma_adapter soma)
+static FN_LAKE_WORK(_soma_pipewire_zero_refcnt, soma_adapter soma)
 {
     if (soma == nullptr) return;
 
@@ -97,19 +97,18 @@ static FN_LAKE_WORK(soma_interface_destructor, soma_adapter soma)
     g_soma = nullptr;
 }
 
-FN_LAKE_WORK(soma_interface_assembly_pipewire, soma_interface_assembly const *assembly)
+FN_LAKE_INTERFACE_IMPL(soma, pipewire, lake_framework)
 {
     char const *name = "soma/pipewire";
 
     if (lake_unlikely(g_soma != nullptr)) {
-        lake_refcnt_inc(&g_soma->interface.header.refcnt);
-        assembly->out_impl->adapter = g_soma;
-        return;
+        lake_inc_refcnt(&g_soma->interface.header.refcnt);
+        return g_soma;
     }
     void *pipewire_library = lake_open_library("libpipewire-0.3.so");
     if (pipewire_library == nullptr) {
         lake_dbg_1("%s: libpipewire-0.3.so is missing.", name);
-        return;
+        return nullptr;
     }
 
     PFN_pw_get_library_version _pw_get_library_version = (PFN_pw_get_library_version)
@@ -119,7 +118,7 @@ FN_LAKE_WORK(soma_interface_assembly_pipewire, soma_interface_assembly const *as
     if (_pw_get_library_version == nullptr || _pw_init == nullptr) {
         lake_dbg_1("%s: can't load PipeWire entry point procedures.", name);
         lake_close_library(pipewire_library);
-        return;
+        return nullptr;
     }
 
     char const *pipewire_version = _pw_get_library_version();
@@ -128,7 +127,7 @@ FN_LAKE_WORK(soma_interface_assembly_pipewire, soma_interface_assembly const *as
     if (nargs < 3) {
         lake_dbg_1("%s: an unsupported Pipewire version of %s.", name, pipewire_version);
         lake_close_library(pipewire_library);
-        return;
+        return nullptr;
     }
     _pw_init(nullptr, nullptr);
 
@@ -144,21 +143,21 @@ FN_LAKE_WORK(soma_interface_assembly_pipewire, soma_interface_assembly const *as
     soma->pw_init = _pw_init;
 
     /* write the interface header */
-    soma->interface.header.framework = assembly->framework;
-    soma->interface.header.destructor = (PFN_lake_work)soma_interface_destructor;
+    soma->interface.header.framework = assembly;
+    soma->interface.header.zero_refcnt = (PFN_lake_work)_soma_pipewire_zero_refcnt;
     soma->interface.header.name.len = lake_strlen(name) + 1;
     lake_memcpy(soma->interface.header.name.str, name, soma->interface.header.name.len);
 
     /* load pipewire symbols */
     if (lake_unlikely(!load_pipewire_symbols(soma, name))) {
-        soma_interface_destructor(soma);
-        return;
+        _soma_pipewire_zero_refcnt(soma);
+        return nullptr;
     }
 
     /* XXX there are no custom `PFN_soma` procedures for now */
 
     lake_trace("Connected to %s, server ver. %s.", name, pipewire_version);
-    lake_refcnt_inc(&soma->interface.header.refcnt);
-    assembly->out_impl->adapter = soma;
+    lake_inc_refcnt(&soma->interface.header.refcnt);
+    return soma;
 }
 #endif /* SOMA_PIPEWIRE */
