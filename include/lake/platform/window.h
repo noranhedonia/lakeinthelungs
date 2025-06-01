@@ -48,13 +48,3 @@ typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_hadal_window_assembly)(hadal_a
 PFN_LAKE_WORK(PFN_hadal_window_zero_refcnt, hadal_window window);
 #define FN_HADAL_WINDOW_ZERO_REFCNT(backend) \
     FN_LAKE_WORK(_hadal_##backend##_window_zero_refcnt, hadal_window window)
-
-/** Header for `struct hadal_window_impl`. */
-typedef struct hadal_window_header {
-    hadal_interface         hadal;
-    atomic_u32              flags;
-    lake_refcnt             refcnt;
-    hadal_window_assembly   assembly;
-    char const             *title;
-    hadal_display           fullscreen;
-} hadal_window_header;

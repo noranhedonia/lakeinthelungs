@@ -8,6 +8,7 @@
 #include <lake/platform/input/keycodes.h>
 #include <lake/platform/input/scancodes.h>
 #include <lake/platform/window.h>
+#include <lake/data_structures/strbuf.h>
 
 /** Interface of the display backend. */
 typedef struct hadal_interface_impl {
@@ -24,6 +25,8 @@ typedef struct hadal_interface_impl {
     PFN_hadal_window_assembly               window_assembly;
     PFN_hadal_window_zero_refcnt            window_zero_refcnt;
 } hadal_interface_impl;
+
+LAKE_DECL_HANDLE_IMPL(hadal, window, hadal_interface, hadal, hadal_display fullscreen; lake_strbuf title; )
 
 #ifdef __cplusplus
 extern "C" {

@@ -5,7 +5,9 @@
 #include <lake/data_structures/deque.h>
 #ifdef MOON_VULKAN
 
+FN_MOON_CONNECT_TO_DISPLAY(vulkan);
 FN_MOON_LIST_DEVICE_DETAILS(vulkan);
+
 FN_MOON_DEVICE_ASSEMBLY(vulkan);
 FN_MOON_DEVICE_ZERO_REFCNT(vulkan);
 FN_MOON_DEVICE_QUEUE_COUNT(vulkan);

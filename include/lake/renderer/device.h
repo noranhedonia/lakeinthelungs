@@ -373,6 +373,7 @@ static constexpr moon_device_present MOON_DEVICE_PRESENT_INIT = {0};
 typedef struct moon_memory_heap_assembly {
     moon_memory_requirements        requirements;
     moon_memory_flags               flags;
+    lake_small_string               name;
 } moon_memory_heap_assembly;
 static constexpr moon_memory_heap_assembly MOON_MEMORY_HEAP_ASSEMBLY_INIT = {0};
 
@@ -632,20 +633,3 @@ typedef void (LAKECALL *PFN_moon_destroy_tlas)(moon_device device, moon_tlas_id 
 typedef void (LAKECALL *PFN_moon_destroy_blas)(moon_device device, moon_blas_id blas);
 #define FN_MOON_DESTROY_BLAS(backend) \
     void LAKECALL _moon_##backend##_destroy_blas(moon_device device, moon_blas_id blas)
-
-/** Header for `struct moon_device_impl`. */
-typedef struct moon_device_header {
-    moon_interface              moon;
-    atomic_u32                  flags;
-    lake_refcnt                 refcnt;
-    moon_device_details const  *details;
-    moon_device_assembly        assembly;
-} moon_device_header;
-
-/** Header for `struct moon_memory_heap_impl`. */
-typedef struct moon_memory_heap_header {
-    moon_device                 device;
-    atomic_u32                  flags;
-    lake_refcnt                 refcnt;
-    moon_memory_heap_assembly   assembly;
-} moon_memory_heap_header;

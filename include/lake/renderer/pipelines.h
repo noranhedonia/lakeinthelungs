@@ -423,35 +423,3 @@ typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_raster_pipeline_assembly)
 PFN_LAKE_WORK(PFN_moon_raster_pipeline_zero_refcnt, moon_raster_pipeline pipeline);
 #define FN_MOON_RASTER_PIPELINE_ZERO_REFCNT(backend) \
     FN_LAKE_WORK(_moon_##backend##_raster_pipeline_zero_refcnt, moon_raster_pipeline pipeline)
-
-/** Header for `struct moon_compute_pipeline_impl`. */
-typedef struct moon_compute_pipeline_header {
-    moon_device                         device;
-    atomic_u32                          flags;
-    lake_refcnt                         refcnt;
-    moon_compute_pipeline_assembly      assembly;
-} moon_compute_pipeline_header;
-
-/** Header for `struct moon_work_graph_pipeline_impl`. */
-typedef struct moon_work_graph_pipeline_header {
-    moon_device                         device;
-    atomic_u32                          flags;
-    lake_refcnt                         refcnt;
-    moon_work_graph_pipeline_assembly   assembly;
-} moon_work_graph_pipeline_header;
-
-/** Header for `struct moon_ray_tracing_pipeline_impl`. */
-typedef struct moon_ray_tracing_pipeline_header {
-    moon_device                         device;
-    atomic_u32                          flags;
-    lake_refcnt                         refcnt;
-    moon_ray_tracing_pipeline_assembly  assembly;
-} moon_ray_tracing_pipeline_header;
-
-/** Header for `struct moon_raster_pipeline_impl`. */
-typedef struct moon_raster_pipeline_header {
-    moon_device                         device;
-    atomic_u32                          flags;
-    lake_refcnt                         refcnt;
-    moon_raster_pipeline_assembly       assembly;
-} moon_raster_pipeline_header;

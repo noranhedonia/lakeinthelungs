@@ -237,35 +237,3 @@ typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_event_assembly)(moon_devi
 PFN_LAKE_WORK(PFN_moon_event_zero_refcnt, moon_event event);
 #define FN_MOON_EVENT_ZERO_REFCNT(backend) \
     FN_LAKE_WORK(_moon_##backend##_event_zero_refcnt, moon_event event)
-
-/** Header for `struct moon_timeline_query_pool_impl`. */
-typedef struct moon_timeline_query_pool_header {
-    moon_device                         device;
-    atomic_u32                          flags;
-    lake_refcnt                         refcnt;
-    moon_timeline_query_pool_assembly   assembly;
-} moon_timeline_query_pool_header;
-
-/** Header for `struct moon_timeline_semaphore_impl`. */
-typedef struct moon_timeline_semaphore_header {
-    moon_device                         device;
-    atomic_u32                          flags;
-    lake_refcnt                         refcnt;
-    moon_timeline_semaphore_assembly    assembly;
-} moon_timeline_semaphore_header;
-
-/** Header for `struct moon_binary_semaphore_impl`. */
-typedef struct moon_binary_semaphore_header {
-    moon_device                         device;
-    atomic_u32                          flags;
-    lake_refcnt                         refcnt;
-    moon_binary_semaphore_assembly      assembly;
-} moon_binary_semaphore_header;
-
-/** Header for `struct moon_event_impl`. */
-typedef struct moon_event_header {
-    moon_device                         device;
-    atomic_u32                          flags;
-    lake_refcnt                         refcnt;
-    moon_event_assembly                 assembly;
-} moon_event_header;

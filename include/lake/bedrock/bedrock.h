@@ -121,18 +121,6 @@ typedef struct lake_framework {
     u64             timer_start;
 } lake_framework;
 
-/** Defines an opaque handle with private implementation. */
-#define LAKE_DECL_HANDLE(T) \
-    typedef struct T##_impl *T 
-
-#define LAKE_DECL_INTERFACE(T)                  \
-    typedef union T##_interface {               \
-        lake_interface_header      *header;     \
-        struct T##_adapter_impl    *adapter;    \
-        struct T##_interface_impl  *interface;  \
-        void                       *v;          \
-    } T##_interface;
-
 /** Used to implement different interfaces. */
 typedef LAKE_NODISCARD void *(LAKECALL *PFN_lake_interface_impl)(void const *assembly);
 #define FN_LAKE_INTERFACE_IMPL(T, fn, data) \
@@ -167,6 +155,75 @@ typedef struct lake_interface_header {
     /** An unique name of the interface implementation, can be colored. */
     lake_small_string       name;
 } lake_interface_header;
+
+/** Defines an opaque handle with private implementation. */
+#define LAKE_DECL_HANDLE(T) \
+    typedef struct T##_impl *T 
+
+/** Defines an union for the interface. */
+#define LAKE_DECL_INTERFACE(I)                  \
+    typedef union I##_interface {               \
+        lake_interface_header      *header;     \
+        struct I##_adapter_impl    *adapter;    \
+        struct I##_interface_impl  *interface;  \
+        void                       *v;          \
+    } I##_interface;
+
+/** For a public interface, defines the following:
+ *  - a `header` structure to access the known internal layout of an opaque handle,
+ *  - a `v` union to view into the header and handle.
+ *  - inline functions to increment and decrement the reference count. 
+ *  - inline function to defer the zero_refcnt call into work for the job system.
+ *  - inline function to get a pointer to the saved assembly structure. */
+#define LAKE_DECL_HANDLE_IMPL(I, T, Tparent, parent, header_details) \
+    /** Header for `struct I##_##T##_impl`. */ \
+    typedef struct I##_##T##_header { \
+        Tparent                 parent; \
+        atomic_u32              flags; \
+        lake_refcnt             refcnt; \
+        PFN_lake_work           zero_refcnt; \
+        I##_##T##_assembly      assembly; \
+        header_details \
+    } I##_##T##_header; \
+    \
+    /** Interface to access the public details of an opaque handle. */ \
+    typedef union I##_##T##_v { \
+        Tparent                    *parent; \
+        struct I##_##T##_header    *header; \
+        struct I##_##T##_impl      *impl; \
+        void                       *v; \
+    } I##_##T##_v; \
+    \
+    /** Increment the reference count. 
+     *  @return previous refcnt. */ \
+    LAKE_FORCE_INLINE s32 I##_##T##_v_inc_refcnt(I##_##T##_v T) \
+    { return lake_inc_refcnt(&T.header->refcnt); } \
+    \
+    /** Decrement the reference count, calls zero_refcnt inline if reaches zero. \
+     *  @return previous refcnt. */ \
+    LAKE_FORCE_INLINE s32 I##_##T##_v_dec_refcnt(I##_##T##_v T) \
+    { return lake_dec_refcnt(&T.header->refcnt, T.v, T.header->zero_refcnt); } \
+    \
+    /** Decrement the reference count, defer the zero_refcnt into a work detail.
+     *  If the work is detailed, the `out_work_count` will be incremented. \
+     *  @return previous refcnt, if <= 1 then work details were written to. */ \
+    LAKE_FORCE_INLINE LAKE_NONNULL_ALL \
+    s32 I##_##T##_v_dec_refcnt_deferred(I##_##T##_v T, s32 *idx, lake_work_details *work_array) \
+    { \
+        s32 prev = lake_atomic_sub_explicit(&T.header->refcnt, 1, lake_memory_model_release); \
+        if (prev <= 1) { \
+            work_array[(*idx)++]= (lake_work_details){ \
+                .procedure = T.header->zero_refcnt, \
+                .argument = T.v, \
+                .name = T.header->assembly.name.str, \
+            }; \
+        } \
+        return prev; \
+    } \
+    \
+    /** Return a pointer to the assembly details saved in the header structure. */ \
+    LAKE_FORCE_INLINE I##_##T##_assembly const *I##_##T##_v_assembly(I##_##T##_v T) \
+    { return &T.header->assembly; }
 
 /** Entry point defined by an application. */
 typedef void (LAKECALL *PFN_lake_framework)(void *userdata, lake_framework const *framework);

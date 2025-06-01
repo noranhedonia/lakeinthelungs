@@ -88,7 +88,7 @@ lake_assert_status lake_assert_log_(
 {
     /* TODO */
     lake_exit_status(status);
-    lake_print_(-4, fn, file, line, "Assertion! %s", condition);
+    lake_print_(-4, fn, file, line, "Assertion! `%s`.", condition);
     if (fmt != nullptr) {
         va_list args;
         va_start(args, fmt);

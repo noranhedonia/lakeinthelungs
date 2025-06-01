@@ -10,21 +10,33 @@
 #define RENDERING_STAGE_INDEX 1
 #define GPUEXEC_STAGE_INDEX   2
 
-#define MAX_MOON_DEVICES    4
+#define MAX_MOON_DEVICES      4
 
-static lake_result prototype_init(struct a_moonlit_walk *amw)
+/* TODO: 
+ * - create window
+ * - create swapchain
+ * - create pipelines: gbuffer, lighting (no ray tracing), lighting (ray tracing), interface
+ * - create imgui context, initialize imgui backend with hadal and moon
+ * - load a 3d scene (or atleast a soup of triangles)
+ * - create gpu resources (buffers, textures, samplers, tlas, blas)
+ * - 3d math for the camera
+ * - draw some stuff
+ * - handle keyboard and mouse input with wayland
+ */
+
+static FN_LAKE_WORK(prototype_init__platform, struct a_moonlit_walk *amw)
 {
-    lake_result result = LAKE_SUCCESS;
-
     amw->hadal.adapter = hadal_interface_impl_wayland(amw->framework);
-    amw->soma.adapter = soma_interface_impl_pipewire(amw->framework);
-    amw->moon.adapter = moon_interface_impl_vulkan(amw->framework);
+}
 
-    if (!amw->hadal.v || !amw->soma.v || !amw->moon.v) {
-        result = LAKE_ERROR_INITIALIZATION_FAILED;
-        lake_exit_status(result);
-        return result;
-    }
+static FN_LAKE_WORK(prototype_init__audio, struct a_moonlit_walk *amw)
+{
+    amw->soma.adapter = soma_interface_impl_pipewire(amw->framework);
+}
+
+static FN_LAKE_WORK(prototype_init__renderer, struct a_moonlit_walk *amw)
+{
+    amw->moon.adapter = moon_interface_impl_vulkan(amw->framework);
 
     u32 moon_device_count = 0;
     amw->moon.interface->list_device_details(amw->moon.adapter, &moon_device_count, nullptr); 
@@ -36,23 +48,51 @@ static lake_result prototype_init(struct a_moonlit_walk *amw)
     moon_device_work.name = (lake_small_string){ .str = "primary", .len = sizeof("primary"), };
     moon_device_work.device_idx = 0; /* pick the first device as our main */
 
-    // result = amw->moon.interface->device_assembly(amw->moon.adapter, &moon_device_work, &amw->primary_device);
-    // if (result != LAKE_SUCCESS) {
-    //     lake_exit_status(result);
-    //     return result;
-    // }
+    lake_result result = amw->moon.interface->device_assembly(amw->moon.adapter, &moon_device_work, &amw->primary_device.impl);
+    if (result != LAKE_SUCCESS) {
+        lake_exit_status(result);
+        lake_dec_refcnt(&amw->moon.header->refcnt, amw->moon.v, amw->moon.header->zero_refcnt);
+    }
+}
 
-    /* TODO:
-     * - create window
-     * - create swapchain */
+static lake_result prototype_init(struct a_moonlit_walk *amw)
+{
+    lake_result result = LAKE_SUCCESS;
+
+    lake_work_details init_work[3] = {
+        { /* platform */
+            .procedure = (PFN_lake_work)prototype_init__platform,
+            .argument = (void *)amw,
+            .name = "main/prototype_init/platform",
+        },
+        { /* audio */
+            .procedure = (PFN_lake_work)prototype_init__audio,
+            .argument = (void *)amw,
+            .name = "main/prototype_init/audio",
+        },
+        { /* renderer */
+            .procedure = (PFN_lake_work)prototype_init__renderer,
+            .argument = (void *)amw,
+            .name = "main/prototype_init/renderer",
+        },
+    };
+    lake_submit_work_and_yield(3, init_work);
+
+    if (!amw->hadal.v || !amw->soma.v || !amw->moon.v) {
+        result = LAKE_ERROR_INITIALIZATION_FAILED;
+        return result;
+    }
+    result = amw->moon.interface->connect_to_display(amw->moon.adapter, amw->hadal.adapter);
+    if (result != LAKE_SUCCESS)
+        return result;
 
     return result;
 }
 
 static void prototype_fini(struct a_moonlit_walk *amw)
 {
-    // if (amw->primary_device.v)
-    //     lake_dec_refcnt(&amw->primary_device.header->refcnt, amw->primary_device.v, (PFN_lake_work)amw->moon.interface->device_zero_refcnt);
+    if (amw->primary_device.v)
+        moon_device_v_dec_refcnt(amw->primary_device);
     if (amw->moon.v)
         lake_dec_refcnt(&amw->moon.header->refcnt, amw->moon.v, amw->moon.header->zero_refcnt);
     if (amw->soma.v)

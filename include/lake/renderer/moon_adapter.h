@@ -855,3 +855,10 @@ static constexpr moon_blas_assembly_from_buffer MOON_BLAS_ASSEMBLY_FROM_BUFFER_I
     .buffer = {0},
     .offset = 0,
 };
+
+struct hadal_adapter_impl;
+
+/** Calls into the display backend to setup windowing support, necessary to use the swapchain. */
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_connect_to_display)(moon_adapter moon, struct hadal_adapter_impl *hadal);
+#define FN_MOON_CONNECT_TO_DISPLAY(backend) \
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_connect_to_display(moon_adapter moon, struct hadal_adapter_impl *hadal)

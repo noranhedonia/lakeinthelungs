@@ -128,11 +128,3 @@ typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_swapchain_set_present_mod
 typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_swapchain_resize)(moon_swapchain swapchain);
 #define FN_MOON_SWAPCHAIN_RESIZE(backend) \
     LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_swapchain_resize(moon_swapchain swapchain)
-
-/** Header for `struct moon_swapchain_impl`. */
-typedef struct moon_swapchain_header {
-    moon_device                 device;
-    atomic_u32                  flags;
-    lake_refcnt                 refcnt;
-    moon_swapchain_assembly     assembly;
-} moon_swapchain_header;

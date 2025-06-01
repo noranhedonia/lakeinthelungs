@@ -15,7 +15,9 @@
 /** Interface of the rendering backend. */
 typedef struct moon_interface_impl {
     lake_interface_header                               header;
+    PFN_moon_connect_to_display                         connect_to_display;
     PFN_moon_list_device_details                        list_device_details;
+    
     PFN_moon_device_assembly                            device_assembly;
     PFN_moon_device_zero_refcnt                         device_zero_refcnt;
     PFN_moon_device_queue_count                         device_queue_count;
@@ -159,6 +161,20 @@ typedef struct moon_interface_impl {
     PFN_moon_cmd_draw_mesh_tasks_indirect               cmd_draw_mesh_tasks_indirect;
     PFN_moon_cmd_draw_mesh_tasks_indirect_count         cmd_draw_mesh_tasks_indirect_count;
 } moon_interface_impl;
+
+LAKE_DECL_HANDLE_IMPL(moon, device, moon_interface, moon, moon_device_details const *details; );
+LAKE_DECL_HANDLE_IMPL(moon, memory_heap, moon_device, device, LAKE_MAGIC_NOTHING());
+LAKE_DECL_HANDLE_IMPL(moon, timeline_query_pool, moon_device, device, LAKE_MAGIC_NOTHING());
+LAKE_DECL_HANDLE_IMPL(moon, timeline_semaphore, moon_device, device, LAKE_MAGIC_NOTHING());
+LAKE_DECL_HANDLE_IMPL(moon, binary_semaphore, moon_device, device, LAKE_MAGIC_NOTHING());
+LAKE_DECL_HANDLE_IMPL(moon, event, moon_device, device, LAKE_MAGIC_NOTHING());
+LAKE_DECL_HANDLE_IMPL(moon, compute_pipeline, moon_device, device, LAKE_MAGIC_NOTHING());
+LAKE_DECL_HANDLE_IMPL(moon, work_graph_pipeline, moon_device, device, LAKE_MAGIC_NOTHING());
+LAKE_DECL_HANDLE_IMPL(moon, ray_tracing_pipeline, moon_device, device, LAKE_MAGIC_NOTHING());
+LAKE_DECL_HANDLE_IMPL(moon, raster_pipeline, moon_device, device, LAKE_MAGIC_NOTHING());
+LAKE_DECL_HANDLE_IMPL(moon, swapchain, moon_device, device, LAKE_MAGIC_NOTHING());
+LAKE_DECL_HANDLE_IMPL(moon, command_recorder, moon_device, device, LAKE_MAGIC_NOTHING());
+LAKE_DECL_HANDLE_IMPL(moon, staged_command_list, moon_command_recorder, cmd, LAKE_MAGIC_NOTHING());
 
 #ifdef __cplusplus
 extern "C" {

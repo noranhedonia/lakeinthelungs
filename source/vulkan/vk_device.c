@@ -40,9 +40,10 @@ FN_MOON_DEVICE_ASSEMBLY(vulkan)
     moon_device device = __lake_malloc_t(struct moon_device_impl);
     lake_zerop(device);
 
-    device->header.moon.adapter = moon;
+    device->header.zero_refcnt = (PFN_lake_work)_moon_vulkan_device_zero_refcnt;
     device->header.assembly = *assembly;
     device->header.details = details;
+    device->header.moon.adapter = moon;
     device->vk_allocator = &moon->vk_allocator;
     device->physical_device = pd;
 
@@ -566,9 +567,9 @@ deferred_null_cleanup:
 FN_MOON_DEVICE_ZERO_REFCNT(vulkan)
 {
 #ifndef LAKE_NDEBUG
-    lake_dbg_assert(device != nullptr, LAKE_INVALID_PARAMETERS, nullptr);
+    lake_dbg_assert(device != nullptr, LAKE_ERROR_MEMORY_MAP_FAILED, nullptr);
     s32 refcnt = lake_atomic_read(&device->header.refcnt);
-    lake_dbg_assert(refcnt <= 0, LAKE_HANDLE_STILL_REFERENCED, "Device %s reference count is %d.", device->physical_device->details.device_name, refcnt);
+    lake_dbg_assert(refcnt <= 0, LAKE_HANDLE_STILL_REFERENCED, "Device `%s` reference count is %d.", device->header.assembly.name.str, refcnt);
 #endif /* LAKE_NDEBUG */
     moon_adapter moon = device->header.moon.adapter;
 
@@ -826,7 +827,7 @@ FN_MOON_DEVICE_PRESENT_FRAMES(vulkan)
 FN_MOON_DEVICE_COMMIT_DEFERRED_DESTRUCTORS(vulkan)
 {
     (void)device;
-    return LAKE_ERROR_FEATURE_NOT_PRESENT;
+    return LAKE_SUCCESS;
 }
 
 FN_MOON_DEVICE_BUFFER_MEMORY_REQUIREMENTS(vulkan)
@@ -941,17 +942,59 @@ FN_MOON_DEVICE_MEMORY_REPORT(vulkan)
     (void)out_report;
     return LAKE_ERROR_FEATURE_NOT_PRESENT;
 }
-
+;
 FN_MOON_MEMORY_HEAP_ASSEMBLY(vulkan)
 {
-    (void)device;
-    (void)assembly;
-    (void)out_heap;
-    return LAKE_ERROR_FEATURE_NOT_PRESENT;
+    struct moon_memory_heap_impl heap = {
+        .header = {
+            .device = device,
+            .assembly = *assembly,
+            .zero_refcnt = (PFN_lake_work)_moon_vulkan_memory_heap_zero_refcnt,
+        },
+    };
+    lake_dbg_assert(heap.header.assembly.requirements.type_bitmask != 0, LAKE_INVALID_PARAMETERS, "Memory heap type bitmask must be non-zero.");
+
+    VmaAllocationCreateInfo const vma_alloc_create_info = {
+        .flags = heap.header.assembly.flags,
+        .usage = VMA_MEMORY_USAGE_GPU_ONLY,
+        .requiredFlags = 0,
+        .preferredFlags = 0,
+        .memoryTypeBits = 0,
+        .pool = nullptr,
+        .pUserData = nullptr,
+        .priority = 0.5f,
+    };
+    VkMemoryRequirements const vk_mem_requirements = {
+        .size = heap.header.assembly.requirements.size,
+        .alignment = heap.header.assembly.requirements.alignment,
+        .memoryTypeBits = heap.header.assembly.requirements.type_bitmask,
+    };
+    VkResult vk_result = vmaAllocateMemory(device->vma_allocator, &vk_mem_requirements, &vma_alloc_create_info, &heap.vma_allocation, &heap.vma_allocation_info);
+    if (vk_result != VK_SUCCESS)
+        return vk_result_translate(vk_result);
+
+    lake_inc_refcnt(&device->header.refcnt);
+    lake_inc_refcnt(&heap.header.refcnt);
+    *out_heap = __lake_malloc_t(struct moon_memory_heap_impl);
+    **out_heap = heap;
+    return LAKE_SUCCESS;
 }
 
 FN_MOON_MEMORY_HEAP_ZERO_REFCNT(vulkan)
 {
-    (void)heap;
+#ifndef LAKE_NDEBUG
+    lake_dbg_assert(heap != nullptr, LAKE_ERROR_MEMORY_MAP_FAILED, nullptr);
+    s32 refcnt = lake_atomic_read(&heap->header.refcnt);
+    lake_dbg_assert(refcnt <= 0, LAKE_HANDLE_STILL_REFERENCED, "Memory heap `%s` reference count is %d.", heap->header.assembly.name.str, refcnt);
+#endif /* LAKE_NDEBUG */
+    moon_device device = heap->header.device;
+
+    /* TODO create an memory heap zombie instead */
+    // u64 const main_queue_cpu_timeline = lake_atomic_read(&device->submit_timeline);
+    // ...
+    vmaFreeMemory(device->vma_allocator, heap->vma_allocation);
+
+    lake_dec_refcnt(&device->header.refcnt, device, (PFN_lake_work)_moon_vulkan_device_zero_refcnt);
+    __lake_free(heap);
 }
 #endif /* MOON_VULKAN */

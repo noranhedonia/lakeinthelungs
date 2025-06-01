@@ -646,19 +646,3 @@ PFN_MOON_COMMAND_NO_DISCARD(draw_mesh_tasks_indirect, moon_draw_mesh_tasks_indir
 PFN_MOON_COMMAND_NO_DISCARD(draw_mesh_tasks_indirect_count, moon_draw_mesh_tasks_indirect_count const *work);
 #define FN_MOON_CMD_DRAW_MESH_TASKS_INDIRECT_COUNT(backend) \
     FN_MOON_COMMAND_NO_DISCARD(draw_mesh_tasks_indirect_count, backend, moon_draw_mesh_tasks_indirect_count const *work)
-
-/** Header for `struct moon_command_recorder_impl`. */
-typedef struct moon_command_recorder_header {
-    moon_device                     device;
-    atomic_u32                      flags;
-    lake_refcnt                     refcnt;
-    moon_command_recorder_assembly  assembly;
-} moon_command_recorder_header;
-
-/** Header for `struct moon_staged_command_list_impl`. */
-typedef struct moon_staged_command_list_header {
-    moon_command_recorder           cmd;
-    atomic_u32                      flags;
-    lake_refcnt                     refcnt;
-    moon_command_recorder_assembly  assembly;
-} moon_staged_command_list_header;

@@ -1,5 +1,6 @@
 #include "vk_moon.h"
 #ifdef MOON_VULKAN
+#include <lake/platform/hadal.h>
 
 enum instance_extension_bits {
     instance_extension_khr_surface              = (1u << 0),    /**< VK_KHR_surface */
@@ -2170,6 +2171,15 @@ VkResult create_vk_device_from_physical_device(
     return result;
 }
 
+FN_MOON_CONNECT_TO_DISPLAY(vulkan)
+{
+    lake_dbg_assert(moon && hadal, LAKE_ERROR_MEMORY_MAP_FAILED, nullptr);
+    hadal_interface impl = { .adapter = hadal };
+    if (impl.interface->vulkan_connect_instance == nullptr)
+        return LAKE_ERROR_INCOMPATIBLE_DISPLAY;
+    return impl.interface->vulkan_connect_instance(hadal, moon->vk_instance, moon->vkGetInstanceProcAddr);
+}
+
 static moon_adapter g_moon = nullptr;
 
 static FN_LAKE_WORK(_moon_vulkan_zero_refcnt, moon_adapter moon)
@@ -2494,6 +2504,7 @@ LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, vulkan, lake_framework)
     __lake_free(raw);
 
     /* write the interface */
+    moon->interface.connect_to_display = _moon_vulkan_connect_to_display;
     moon->interface.list_device_details = _moon_vulkan_list_device_details;
     moon->interface.device_assembly = _moon_vulkan_device_assembly;
     moon->interface.device_zero_refcnt = _moon_vulkan_device_zero_refcnt;

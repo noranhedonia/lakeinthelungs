@@ -11,7 +11,22 @@ FN_MOON_COMMAND_RECORDER_ASSEMBLY(vulkan)
 
 FN_MOON_COMMAND_RECORDER_ZERO_REFCNT(vulkan)
 {
-    (void)cmd;
+#ifndef LAKE_NDEBUG
+    lake_dbg_assert(cmd != nullptr, LAKE_ERROR_MEMORY_MAP_FAILED, nullptr);
+    s32 refcnt = lake_atomic_read(&cmd->header.refcnt);
+    lake_dbg_assert(refcnt <= 0, LAKE_HANDLE_STILL_REFERENCED, "Command recorder `%s` reference count is %d.", cmd->header.assembly.name.str, refcnt);
+#endif /* LAKE_NDEBUG */
+    moon_device device = cmd->header.device;
+
+    /* TODO execute the deferred destructions within the command list data */
+
+    /* TODO create a command pool zombie instead */
+    // u64 const main_queue_cpu_timeline = lake_atomic_read(&device->submit_timeline);
+    // ...
+    /* TODO recycle command pool */
+
+    lake_dec_refcnt(&device->header.refcnt, device, (PFN_lake_work)_moon_vulkan_device_zero_refcnt);
+    __lake_free(cmd);
 }
 
 FN_MOON_STAGED_COMMAND_LIST_ASSEMBLY(vulkan)
@@ -24,7 +39,17 @@ FN_MOON_STAGED_COMMAND_LIST_ASSEMBLY(vulkan)
 
 FN_MOON_STAGED_COMMAND_LIST_ZERO_REFCNT(vulkan)
 {
-    (void)cmd_list;
+#ifndef LAKE_NDEBUG
+    lake_dbg_assert(cmd_list != nullptr, LAKE_ERROR_MEMORY_MAP_FAILED, nullptr);
+    s32 refcnt = lake_atomic_read(&cmd_list->header.refcnt);
+    lake_dbg_assert(refcnt <= 0, LAKE_HANDLE_STILL_REFERENCED, "Staged command list `%s` reference count is %d.", cmd_list->header.assembly.name.str, refcnt);
+#endif /* LAKE_NDEBUG */
+    moon_command_recorder cmd = cmd_list->header.cmd;
+
+    /* TODO execute the deferred destructions within the command list data */
+
+    lake_dec_refcnt(&cmd->header.refcnt, cmd, (PFN_lake_work)_moon_vulkan_command_recorder_zero_refcnt);
+    __lake_free(cmd_list);
 }
 
 FN_MOON_CMD_COPY_BUFFER(vulkan)

@@ -2,13 +2,15 @@
 
 #include <lake/inthelungs.h>
 
+/** After I figure out some use patterns for my interfaces I may move the details into a public header file. */
 struct a_moonlit_walk {
     lake_framework const   *framework;
 
     hadal_interface         hadal;
+    hadal_window_v          window;
 
     moon_interface          moon;
-    moon_device             primary_device;
+    moon_device_v           primary_device;
 
     soma_interface          soma;
 };

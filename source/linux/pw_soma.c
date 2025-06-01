@@ -156,7 +156,7 @@ FN_LAKE_INTERFACE_IMPL(soma, pipewire, lake_framework)
 
     /* XXX there are no custom `PFN_soma` procedures for now */
 
-    lake_trace("Connected to %s, server ver. %s.", name, pipewire_version);
+    lake_trace("Connected to %s, PipeWire ver. %s.", name, pipewire_version);
     lake_inc_refcnt(&soma->interface.header.refcnt);
     return soma;
 }
