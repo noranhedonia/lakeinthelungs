@@ -4,7 +4,7 @@
 #define _GNU_SOURCE
 #endif
 
-#include <lake/platform/hadal.h>
+#include <lake/hadal.h>
 #include <lake/data_structures/darray.h>
 #ifdef HADAL_WAYLAND
 
@@ -406,9 +406,12 @@ struct hadal_window_impl {
     bool initial_config_seen;
 };
 
-struct hadal_adapter_impl {
-    hadal_interface_impl                    interface; 
-    lake_darray_t(struct hadal_display_impl) displays;
+struct hadal_impl {
+    struct hadal_interface_impl             interface; 
+    s16                                     keycodes[256];
+    s16                                     scancodes[hadal_keycode_last + 1];
+    s8                                      keynames[hadal_keycode_last + 1][5];
+    s8                                      keys[hadal_keycode_last + 1];
 
     struct wl_display                      *wl_display;
     struct wl_registry                     *wl_registry;
@@ -575,7 +578,7 @@ struct hadal_adapter_impl {
     } vulkan;
 #endif /* MOON_VULKAN */
 };
-extern hadal_adapter g_hadal;
+extern struct hadal_impl *g_hadal;
 
 /* Protocols are generated with wayland-scanner, their sources are included in
  * the project repository: wayland_protocols/<protocol>.xml. */

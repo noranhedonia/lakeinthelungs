@@ -1,7 +1,7 @@
-#include "../bedrock_internal.h"
+#include "../internal.h"
 
 #ifdef LAKE_PLATFORM_WINDOWS
-#include <lake/bedrock/private/windows.h>
+#include <lake/private/windows.h>
 
 void sys_cpuinfo(s32 *out_threads, s32 *out_cores, s32 *out_packages)
 {

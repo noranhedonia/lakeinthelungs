@@ -1,4 +1,4 @@
-#include <lake/bedrock/bedrock.h>
+#include <lake/bedrock.h>
 
 #if defined(LAKE_PLATFORM_UNIX)
 #include <dlfcn.h>

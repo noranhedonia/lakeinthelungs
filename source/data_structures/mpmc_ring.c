@@ -1,49 +1,53 @@
 #include <lake/data_structures/mpmc_ring.h>
 
-void lake_mpmc_ring_init(
-    lake_mpmc_ring     *ring,
-    usize               node_count,
-    lake_mpmc_node     *nodes,
-    usize const         stride,
-    void               *array)
+LAKEAPI LAKE_NONNULL_ALL void LAKECALL
+lake_mpmc_init_w_dbg(
+    lake_mpmc_ring *ring, 
+    s32             node_count, 
+    void           *nodes,
+    s32 const       stride,
+    char const     *type_name)
 {
-    lake_dbg_assert(lake_is_pow2(node_count), LAKE_INVALID_PARAMETERS, "Ring buffer node count must be a power of 2.");
+    lake_dbg_assert(lake_is_pow2(node_count), LAKE_INVALID_PARAMETERS, "mpmc_ring<%s> node count must be a power of 2.", type_name);
 
-    u8 *raw = (u8 *)array;
-    ring->buffer_mask = node_count - 1; /* ((1lu << log2_node_count) - 1) */
+    ring->buffer_mask = node_count - 1l;
     ring->buffer = nodes;
+    for (ssize i = 0l; i < node_count; i++)
+        lake_atomic_write((atomic_ssize *)lake_elem(nodes, stride, i), i);
 
-    for (usize i = 0lu; i < node_count; i++) {
-        lake_mpmc_node *node = &ring->buffer[i];
-        lake_atomic_write(&node->sequence, i);
-        node->data = (void *)&raw[i * stride];
-    }
-    lake_atomic_write(&ring->enqueue_pos, 0lu);
-    lake_atomic_write(&ring->dequeue_pos, 0lu);
+    lake_atomic_write(&ring->enqueue_pos, 0l); \
+    lake_atomic_write(&ring->dequeue_pos, 0l); \
 }
 
-lake_mpmc_result lake_mpmc_ring_rotate(
+bool lake_mpmc_rotate(
     lake_mpmc_ring     *ring,
-    atomic_usize       *in_or_out,
-    u32 const           pos_delta)
+    atomic_ssize       *in_or_out,
+    s32 const           stride,
+    s32 const           pos_delta,
+    lake_mpmc_result   *out_result) 
 {
-    lake_mpmc_node *node;
+    atomic_ssize *sequence;
+    ssize pos = lake_atomic_read_explicit(in_or_out, lake_memory_model_relaxed);
 
-    usize pos = lake_atomic_read_explicit(in_or_out, lake_memory_model_relaxed);
+    u8 *raw = (u8 *)ring->buffer;
     for (;;) {
-        node = &ring->buffer[pos & ring->buffer_mask];
-        usize seq = lake_atomic_read_explicit(&node->sequence, lake_memory_model_acquire);
+        void *check = (void *)(uptr)(raw + stride * (pos & ring->buffer_mask));
+        sequence = (atomic_ssize *)lake_elem(ring->buffer, stride, pos & ring->buffer_mask);
+        lake_dbg_assert(check == sequence, LAKE_PANIC, "check: %p and sequence: %p", check, sequence);
+        ssize seq = lake_atomic_read_explicit(sequence, lake_memory_model_acquire);
         sptr diff = (sptr)seq - (sptr)(pos + pos_delta);
 
         if (diff == 0) {
             if (lake_atomic_compare_exchange_weak_explicit(in_or_out, &pos , pos + 1,
                     lake_memory_model_relaxed, lake_memory_model_relaxed)) 
             {
-                return (lake_mpmc_result){ .node = node, .pos = pos };
+                *out_result = (lake_mpmc_result){ .node = (void *)sequence, .pos = pos };
+                return true;
             }
         } else if (diff < 0) {
             /* it's empty */
-            return (lake_mpmc_result){ .node = nullptr, .pos = 0 };
+            *out_result = (lake_mpmc_result){ .node = nullptr, .pos = 0 };
+            return false;
         } else {
             pos = lake_atomic_read_explicit(in_or_out, lake_memory_model_relaxed);
         }

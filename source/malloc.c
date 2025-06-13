@@ -1,4 +1,4 @@
-#include <lake/bedrock/bedrock.h>
+#include <lake//bedrock.h>
 
 struct malloc_allocation_header {
     void *outer;    /**< Unaligned pointer returned by malloc(). */
@@ -68,7 +68,7 @@ void *__lake_realloc(
             return NULL;
 
         /* verify realloc returned the alignment we expected */
-        lake_san_assert(((uptr)new_outer & (alignment - 1)) == 0, LAKE_ERROR_PANIC, nullptr);
+        lake_san_assert(((uptr)new_outer & (align - 1)) == 0, LAKE_ERROR_PANIC, nullptr);
 
         /* realloc already copied the inner contents, we just need to update the header */
         uptr new_inner = ((uptr)new_outer + sizeof(struct malloc_allocation_header) + align - 1) & ~(align - 1);

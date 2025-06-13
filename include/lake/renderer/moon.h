@@ -5,7 +5,7 @@
  *
  *  TODO docs
  */
-#include <lake/renderer/moon_adapter.h>
+#include <lake/renderer/render_resources.h>
 #include <lake/renderer/timeline_sync.h>
 #include <lake/renderer/pipelines.h>
 #include <lake/renderer/device.h>
@@ -13,7 +13,7 @@
 #include <lake/renderer/command_recorder.h>
 
 /** Interface of the rendering backend. */
-typedef struct moon_interface_impl {
+struct moon_interface_impl {
     lake_interface_header                               header;
     PFN_moon_connect_to_display                         connect_to_display;
     PFN_moon_list_device_details                        list_device_details;
@@ -58,6 +58,13 @@ typedef struct moon_interface_impl {
     PFN_moon_tlas_device_address                        tlas_device_address;
     PFN_moon_blas_device_address                        blas_device_address;
 
+    PFN_moon_read_buffer_assembly                       read_buffer_assembly;
+    PFN_moon_read_texture_assembly                      read_texture_assembly;
+    PFN_moon_read_texture_view_assembly                 read_texture_view_assembly;
+    PFN_moon_read_sampler_assembly                      read_sampler_assembly;
+    PFN_moon_read_tlas_assembly                         read_tlas_assembly;
+    PFN_moon_read_blas_assembly                         read_blas_assembly;
+
     PFN_moon_destroy_buffer                             destroy_buffer;
     PFN_moon_destroy_texture                            destroy_texture;
     PFN_moon_destroy_texture_view                       destroy_texture_view;
@@ -86,6 +93,8 @@ typedef struct moon_interface_impl {
 
     PFN_moon_work_graph_pipeline_assembly               work_graph_pipeline_assembly;
     PFN_moon_work_graph_pipeline_zero_refcnt            work_graph_pipeline_zero_refcnt;
+    PFN_moon_work_graph_pipeline_node_index             work_graph_pipeline_node_index;
+    PFN_moon_work_graph_pipeline_scratch_size           work_graph_pipeline_scratch_size;
 
     PFN_moon_ray_tracing_pipeline_assembly              ray_tracing_pipeline_assembly;
     PFN_moon_ray_tracing_pipeline_zero_refcnt           ray_tracing_pipeline_zero_refcnt;
@@ -136,13 +145,13 @@ typedef struct moon_interface_impl {
     PFN_moon_cmd_set_depth_bias                         cmd_set_depth_bias;
     PFN_moon_cmd_set_index_buffer                       cmd_set_index_buffer;
     PFN_moon_cmd_set_rasterization_samples              cmd_set_rasterization_samples;
-    PFN_moon_cmd_barriers_and_transitions               cmd_barriers_and_transitions;
     PFN_moon_cmd_begin_renderpass                       cmd_begin_renderpass;
     PFN_moon_cmd_end_renderpass                         cmd_end_renderpass;
     PFN_moon_cmd_write_timestamps                       cmd_write_timestamps;
     PFN_moon_cmd_resolve_timestamps                     cmd_resolve_timestamps;
+    PFN_moon_cmd_pipeline_barrier                       cmd_pipeline_barrier;
     PFN_moon_cmd_signal_event                           cmd_signal_event;
-    PFN_moon_cmd_wait_on_events                         cmd_wait_on_events;
+    PFN_moon_cmd_wait_events                            cmd_wait_events;
     PFN_moon_cmd_reset_event                            cmd_reset_event;
     PFN_moon_cmd_begin_label                            cmd_begin_label;
     PFN_moon_cmd_end_label                              cmd_end_label;
@@ -151,6 +160,7 @@ typedef struct moon_interface_impl {
     PFN_moon_cmd_dispatch_graph                         cmd_dispatch_graph;
     PFN_moon_cmd_dispatch_graph_indirect                cmd_dispatch_graph_indirect;
     PFN_moon_cmd_dispatch_graph_indirect_count          cmd_dispatch_graph_indirect_count;
+    PFN_moon_cmd_dispatch_graph_scratch_memory          cmd_dispatch_graph_scratch_memory;
     PFN_moon_cmd_trace_rays                             cmd_trace_rays;
     PFN_moon_cmd_trace_rays_indirect                    cmd_trace_rays_indirect;
     PFN_moon_cmd_draw                                   cmd_draw;
@@ -160,21 +170,21 @@ typedef struct moon_interface_impl {
     PFN_moon_cmd_draw_mesh_tasks                        cmd_draw_mesh_tasks;
     PFN_moon_cmd_draw_mesh_tasks_indirect               cmd_draw_mesh_tasks_indirect;
     PFN_moon_cmd_draw_mesh_tasks_indirect_count         cmd_draw_mesh_tasks_indirect_count;
-} moon_interface_impl;
+};
 
-LAKE_DECL_HANDLE_IMPL(moon, device, moon_interface, moon, moon_device_details const *details; );
-LAKE_DECL_HANDLE_IMPL(moon, memory_heap, moon_device, device, LAKE_MAGIC_NOTHING());
-LAKE_DECL_HANDLE_IMPL(moon, timeline_query_pool, moon_device, device, LAKE_MAGIC_NOTHING());
-LAKE_DECL_HANDLE_IMPL(moon, timeline_semaphore, moon_device, device, LAKE_MAGIC_NOTHING());
-LAKE_DECL_HANDLE_IMPL(moon, binary_semaphore, moon_device, device, LAKE_MAGIC_NOTHING());
-LAKE_DECL_HANDLE_IMPL(moon, event, moon_device, device, LAKE_MAGIC_NOTHING());
-LAKE_DECL_HANDLE_IMPL(moon, compute_pipeline, moon_device, device, LAKE_MAGIC_NOTHING());
-LAKE_DECL_HANDLE_IMPL(moon, work_graph_pipeline, moon_device, device, LAKE_MAGIC_NOTHING());
-LAKE_DECL_HANDLE_IMPL(moon, ray_tracing_pipeline, moon_device, device, LAKE_MAGIC_NOTHING());
-LAKE_DECL_HANDLE_IMPL(moon, raster_pipeline, moon_device, device, LAKE_MAGIC_NOTHING());
-LAKE_DECL_HANDLE_IMPL(moon, swapchain, moon_device, device, LAKE_MAGIC_NOTHING());
-LAKE_DECL_HANDLE_IMPL(moon, command_recorder, moon_device, device, LAKE_MAGIC_NOTHING());
-LAKE_DECL_HANDLE_IMPL(moon, staged_command_list, moon_command_recorder, cmd, LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_device, moon_interface moon,  moon_device_details const *details; );
+LAKE_IMPL_HANDLE_INTERFACED(moon_memory_heap, moon_device device, LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_timeline_query_pool, moon_device device, LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_timeline_semaphore, moon_device device, LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_binary_semaphore, moon_device device, LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_event, moon_device device, LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_compute_pipeline, moon_device device, LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_work_graph_pipeline, moon_device device, LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_ray_tracing_pipeline, moon_device device, LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_raster_pipeline, moon_device device, LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_swapchain, moon_device device, LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_command_recorder, moon_device device, LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_staged_command_list, moon_command_recorder cmd, LAKE_MAGIC_NOTHING());
 
 #ifdef __cplusplus
 extern "C" {

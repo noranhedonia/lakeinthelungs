@@ -1,7 +1,7 @@
-#include <lake/bedrock/bedrock.h>
+#include <lake/bedrock.h>
 
 #if defined(LAKE_PLATFORM_WINDOWS)
-#include <lake/bedrock/private/windows.h>
+#include <lake/private/windows.h>
 
 void *lake_open_library(char const *libname)
 {

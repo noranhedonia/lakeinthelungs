@@ -1,4 +1,4 @@
-#include "../bedrock_internal.h"
+#include "../internal.h"
 
 #if defined(LAKE_PLATFORM_UNIX)
 #include <unistd.h>
@@ -41,21 +41,21 @@ void sys_munmap(void *mapped, usize size_page_aligned)
     lake_dbg_assert(!res, LAKE_ERROR_MEMORY_MAP_FAILED, nullptr);
 }
 
-bool sys_madvise(void *mapped, usize offset, usize size, enum sys_madvise_mode mode)
+bool sys_madvise(void *mapped, usize offset, usize size, bool commit_or_release)
 {
     void       *raw_map = (void *)((sptr)mapped + offset);
-    char const *errtype = mode == sys_madvise_mode_commit ? "commitment" : "release";
+    char const *errtype = commit_or_release ? "commitment" : "release";
     bool        success = 1;
     lake_dbg_assert(size > 0, LAKE_INVALID_PARAMETERS, "The page size must not be zero.");
 
     /* commit physical memory */
-    if (mode == sys_madvise_mode_commit) {
+    if (commit_or_release) {
         s32 res = mprotect(raw_map, size, PROT_READ | PROT_WRITE);
         if (res == 0)
             res = madvise(raw_map, size, MADV_WILLNEED);
         success = (res == 0);
     /* release physical memory */
-    } else if (mode == sys_madvise_mode_release) {
+    } else {
         s32 res = madvise(raw_map, size, MADV_DONTNEED);
         if (res == 0)
             res = mprotect(raw_map, size, PROT_NONE);
@@ -63,7 +63,7 @@ bool sys_madvise(void *mapped, usize offset, usize size, enum sys_madvise_mode m
     }
     /* check for errors */
     if (!success) {
-        lake_error("Failed %s of physical memory: %lu bytes (%lu MB) at %lu mapped offset (%lu MB).", errtype,
+        lake_dbg_3("Failed %s of physical memory: %lu bytes (%lu MB) at %lu mapped offset (%lu MB).", errtype,
                 size, size >> 20, offset, offset >> 20);
 #ifdef LAKE_DEBUG
     } else {

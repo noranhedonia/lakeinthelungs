@@ -2,7 +2,7 @@
 #ifdef HADAL_WAYLAND
 
 /** We allow only one Wayland display backend to exist at a time. */
-hadal_adapter g_hadal = nullptr;
+struct hadal_impl *g_hadal = nullptr;
 
 char const *g_wl_output_tag = "hadal_display";
 char const *g_wl_surface_tag = "hadal_window";
@@ -27,7 +27,7 @@ static void handle_wl_registry_global(
     char const         *interface,
     u32                 version)
 {
-    hadal_adapter hadal = (hadal_adapter)raw_hadal;
+    struct hadal_impl *hadal = (struct hadal_impl *)raw_hadal;
 
     if (!strcmp(interface, "wl_compositor")) {
         hadal->wl_compositor = wl_registry_bind(registry, name, &wl_compositor_interface, lake_min(3, version));
@@ -37,7 +37,7 @@ static void handle_wl_registry_global(
         hadal->wl_shm = wl_registry_bind(registry, name, &wl_shm_interface, 1);
     } else if (!strcmp(interface, "wl_output")) {
         lake_dbg_3("TODO add wayland output: %u ver. %u", name, version);
-        hadal->displays.da.size++;
+        hadal->interface.displays.da.size++;
     } else if (!strcmp(interface, "xdg_wm_base")) {
         hadal->shell.xdg = wl_registry_bind(registry, name, &xdg_wm_base_interface, 1);
         xdg_wm_base_add_listener(hadal->shell.xdg, &g_wm_base_listener, hadal);
@@ -60,7 +60,7 @@ static struct wl_registry_listener const g_wl_registry_listener = {
     .global_remove = handle_wl_registry_global_remove,
 };
 
-static bool load_wayland_symbols(hadal_adapter hadal, char const *name)
+static bool load_wayland_symbols(struct hadal_impl *hadal, char const *name)
 {
     lake_dbg_assert(hadal->wl.display_connect, LAKE_ERROR_INITIALIZATION_FAILED, "Assumed Wayland procedure is missing.");
 
@@ -413,137 +413,137 @@ static bool load_wayland_symbols(hadal_adapter hadal, char const *name)
     return true;
 }
 
-static bool create_key_tables(hadal_adapter hadal)
+static bool create_key_tables(struct hadal_impl *hadal)
 {
-    lake_memset(hadal->interface.keycodes, -1, sizeof(hadal->interface.keycodes));
-    lake_memset(hadal->interface.scancodes, -1, sizeof(hadal->interface.scancodes));
+    lake_memset(hadal->keycodes, -1, sizeof(hadal->keycodes));
+    lake_memset(hadal->scancodes, -1, sizeof(hadal->scancodes));
 
-    hadal->interface.keycodes[KEY_GRAVE]      = hadal_keycode_grave_accent;
-    hadal->interface.keycodes[KEY_1]          = hadal_keycode_1;
-    hadal->interface.keycodes[KEY_2]          = hadal_keycode_2;
-    hadal->interface.keycodes[KEY_3]          = hadal_keycode_3;
-    hadal->interface.keycodes[KEY_4]          = hadal_keycode_4;
-    hadal->interface.keycodes[KEY_5]          = hadal_keycode_5;
-    hadal->interface.keycodes[KEY_6]          = hadal_keycode_6;
-    hadal->interface.keycodes[KEY_7]          = hadal_keycode_7;
-    hadal->interface.keycodes[KEY_8]          = hadal_keycode_8;
-    hadal->interface.keycodes[KEY_9]          = hadal_keycode_9;
-    hadal->interface.keycodes[KEY_0]          = hadal_keycode_0;
-    hadal->interface.keycodes[KEY_SPACE]      = hadal_keycode_space;
-    hadal->interface.keycodes[KEY_MINUS]      = hadal_keycode_minus;
-    hadal->interface.keycodes[KEY_EQUAL]      = hadal_keycode_equal;
-    hadal->interface.keycodes[KEY_Q]          = hadal_keycode_q;
-    hadal->interface.keycodes[KEY_W]          = hadal_keycode_w;
-    hadal->interface.keycodes[KEY_E]          = hadal_keycode_e;
-    hadal->interface.keycodes[KEY_R]          = hadal_keycode_r;
-    hadal->interface.keycodes[KEY_T]          = hadal_keycode_t;
-    hadal->interface.keycodes[KEY_Y]          = hadal_keycode_y;
-    hadal->interface.keycodes[KEY_U]          = hadal_keycode_u;
-    hadal->interface.keycodes[KEY_I]          = hadal_keycode_i;
-    hadal->interface.keycodes[KEY_O]          = hadal_keycode_o;
-    hadal->interface.keycodes[KEY_P]          = hadal_keycode_p;
-    hadal->interface.keycodes[KEY_LEFTBRACE]  = hadal_keycode_left_bracket;
-    hadal->interface.keycodes[KEY_RIGHTBRACE] = hadal_keycode_right_bracket;
-    hadal->interface.keycodes[KEY_A]          = hadal_keycode_a;
-    hadal->interface.keycodes[KEY_S]          = hadal_keycode_s;
-    hadal->interface.keycodes[KEY_D]          = hadal_keycode_d;
-    hadal->interface.keycodes[KEY_F]          = hadal_keycode_f;
-    hadal->interface.keycodes[KEY_G]          = hadal_keycode_g;
-    hadal->interface.keycodes[KEY_H]          = hadal_keycode_h;
-    hadal->interface.keycodes[KEY_J]          = hadal_keycode_j;
-    hadal->interface.keycodes[KEY_K]          = hadal_keycode_k;
-    hadal->interface.keycodes[KEY_L]          = hadal_keycode_l;
-    hadal->interface.keycodes[KEY_SEMICOLON]  = hadal_keycode_semicolon;
-    hadal->interface.keycodes[KEY_APOSTROPHE] = hadal_keycode_apostrophe;
-    hadal->interface.keycodes[KEY_Z]          = hadal_keycode_z;
-    hadal->interface.keycodes[KEY_X]          = hadal_keycode_x;
-    hadal->interface.keycodes[KEY_C]          = hadal_keycode_c;
-    hadal->interface.keycodes[KEY_V]          = hadal_keycode_v;
-    hadal->interface.keycodes[KEY_B]          = hadal_keycode_b;
-    hadal->interface.keycodes[KEY_N]          = hadal_keycode_n;
-    hadal->interface.keycodes[KEY_M]          = hadal_keycode_m;
-    hadal->interface.keycodes[KEY_COMMA]      = hadal_keycode_comma;
-    hadal->interface.keycodes[KEY_DOT]        = hadal_keycode_period;
-    hadal->interface.keycodes[KEY_SLASH]      = hadal_keycode_slash;
-    hadal->interface.keycodes[KEY_BACKSLASH]  = hadal_keycode_backslash;
-    hadal->interface.keycodes[KEY_ESC]        = hadal_keycode_escape;
-    hadal->interface.keycodes[KEY_TAB]        = hadal_keycode_tab;
-    hadal->interface.keycodes[KEY_LEFTSHIFT]  = hadal_keycode_left_shift;
-    hadal->interface.keycodes[KEY_RIGHTSHIFT] = hadal_keycode_right_shift;
-    hadal->interface.keycodes[KEY_LEFTCTRL]   = hadal_keycode_left_control;
-    hadal->interface.keycodes[KEY_RIGHTCTRL]  = hadal_keycode_right_control;
-    hadal->interface.keycodes[KEY_LEFTALT]    = hadal_keycode_left_alt;
-    hadal->interface.keycodes[KEY_RIGHTALT]   = hadal_keycode_right_alt;
-    hadal->interface.keycodes[KEY_LEFTMETA]   = hadal_keycode_left_super;
-    hadal->interface.keycodes[KEY_RIGHTMETA]  = hadal_keycode_right_super;
-    hadal->interface.keycodes[KEY_COMPOSE]    = hadal_keycode_menu;
-    hadal->interface.keycodes[KEY_NUMLOCK]    = hadal_keycode_num_lock;
-    hadal->interface.keycodes[KEY_CAPSLOCK]   = hadal_keycode_caps_lock;
-    hadal->interface.keycodes[KEY_PRINT]      = hadal_keycode_print_screen;
-    hadal->interface.keycodes[KEY_SCROLLLOCK] = hadal_keycode_scroll_lock;
-    hadal->interface.keycodes[KEY_PAUSE]      = hadal_keycode_pause;
-    hadal->interface.keycodes[KEY_DELETE]     = hadal_keycode_delete;
-    hadal->interface.keycodes[KEY_BACKSPACE]  = hadal_keycode_backspace;
-    hadal->interface.keycodes[KEY_ENTER]      = hadal_keycode_enter;
-    hadal->interface.keycodes[KEY_HOME]       = hadal_keycode_home;
-    hadal->interface.keycodes[KEY_END]        = hadal_keycode_end;
-    hadal->interface.keycodes[KEY_PAGEUP]     = hadal_keycode_page_up;
-    hadal->interface.keycodes[KEY_PAGEDOWN]   = hadal_keycode_page_down;
-    hadal->interface.keycodes[KEY_INSERT]     = hadal_keycode_insert;
-    hadal->interface.keycodes[KEY_LEFT]       = hadal_keycode_left;
-    hadal->interface.keycodes[KEY_RIGHT]      = hadal_keycode_right;
-    hadal->interface.keycodes[KEY_DOWN]       = hadal_keycode_down;
-    hadal->interface.keycodes[KEY_UP]         = hadal_keycode_up;
-    hadal->interface.keycodes[KEY_F1]         = hadal_keycode_f1;
-    hadal->interface.keycodes[KEY_F2]         = hadal_keycode_f2;
-    hadal->interface.keycodes[KEY_F3]         = hadal_keycode_f3;
-    hadal->interface.keycodes[KEY_F4]         = hadal_keycode_f4;
-    hadal->interface.keycodes[KEY_F5]         = hadal_keycode_f5;
-    hadal->interface.keycodes[KEY_F6]         = hadal_keycode_f6;
-    hadal->interface.keycodes[KEY_F7]         = hadal_keycode_f7;
-    hadal->interface.keycodes[KEY_F8]         = hadal_keycode_f8;
-    hadal->interface.keycodes[KEY_F9]         = hadal_keycode_f9;
-    hadal->interface.keycodes[KEY_F10]        = hadal_keycode_f10;
-    hadal->interface.keycodes[KEY_F11]        = hadal_keycode_f11;
-    hadal->interface.keycodes[KEY_F12]        = hadal_keycode_f12;
-    hadal->interface.keycodes[KEY_F13]        = hadal_keycode_f13;
-    hadal->interface.keycodes[KEY_F14]        = hadal_keycode_f14;
-    hadal->interface.keycodes[KEY_F15]        = hadal_keycode_f15;
-    hadal->interface.keycodes[KEY_F16]        = hadal_keycode_f16;
-    hadal->interface.keycodes[KEY_F17]        = hadal_keycode_f17;
-    hadal->interface.keycodes[KEY_F18]        = hadal_keycode_f18;
-    hadal->interface.keycodes[KEY_F19]        = hadal_keycode_f19;
-    hadal->interface.keycodes[KEY_F20]        = hadal_keycode_f20;
-    hadal->interface.keycodes[KEY_F21]        = hadal_keycode_f21;
-    hadal->interface.keycodes[KEY_F22]        = hadal_keycode_f22;
-    hadal->interface.keycodes[KEY_F23]        = hadal_keycode_f23;
-    hadal->interface.keycodes[KEY_F24]        = hadal_keycode_f24;
-    hadal->interface.keycodes[KEY_KPSLASH]    = hadal_keycode_kp_divide;
-    hadal->interface.keycodes[KEY_KPASTERISK] = hadal_keycode_kp_multiply;
-    hadal->interface.keycodes[KEY_KPMINUS]    = hadal_keycode_kp_subtract;
-    hadal->interface.keycodes[KEY_KPPLUS]     = hadal_keycode_kp_add;
-    hadal->interface.keycodes[KEY_KP0]        = hadal_keycode_kp_0;
-    hadal->interface.keycodes[KEY_KP1]        = hadal_keycode_kp_1;
-    hadal->interface.keycodes[KEY_KP2]        = hadal_keycode_kp_2;
-    hadal->interface.keycodes[KEY_KP3]        = hadal_keycode_kp_3;
-    hadal->interface.keycodes[KEY_KP4]        = hadal_keycode_kp_4;
-    hadal->interface.keycodes[KEY_KP5]        = hadal_keycode_kp_5;
-    hadal->interface.keycodes[KEY_KP6]        = hadal_keycode_kp_6;
-    hadal->interface.keycodes[KEY_KP7]        = hadal_keycode_kp_7;
-    hadal->interface.keycodes[KEY_KP8]        = hadal_keycode_kp_8;
-    hadal->interface.keycodes[KEY_KP9]        = hadal_keycode_kp_9;
-    hadal->interface.keycodes[KEY_KPDOT]      = hadal_keycode_kp_decimal;
-    hadal->interface.keycodes[KEY_KPEQUAL]    = hadal_keycode_kp_equal;
-    hadal->interface.keycodes[KEY_KPENTER]    = hadal_keycode_kp_enter;
-    hadal->interface.keycodes[KEY_102ND]      = hadal_keycode_world_2;
+    hadal->keycodes[KEY_GRAVE]      = hadal_keycode_grave_accent;
+    hadal->keycodes[KEY_1]          = hadal_keycode_1;
+    hadal->keycodes[KEY_2]          = hadal_keycode_2;
+    hadal->keycodes[KEY_3]          = hadal_keycode_3;
+    hadal->keycodes[KEY_4]          = hadal_keycode_4;
+    hadal->keycodes[KEY_5]          = hadal_keycode_5;
+    hadal->keycodes[KEY_6]          = hadal_keycode_6;
+    hadal->keycodes[KEY_7]          = hadal_keycode_7;
+    hadal->keycodes[KEY_8]          = hadal_keycode_8;
+    hadal->keycodes[KEY_9]          = hadal_keycode_9;
+    hadal->keycodes[KEY_0]          = hadal_keycode_0;
+    hadal->keycodes[KEY_SPACE]      = hadal_keycode_space;
+    hadal->keycodes[KEY_MINUS]      = hadal_keycode_minus;
+    hadal->keycodes[KEY_EQUAL]      = hadal_keycode_equal;
+    hadal->keycodes[KEY_Q]          = hadal_keycode_q;
+    hadal->keycodes[KEY_W]          = hadal_keycode_w;
+    hadal->keycodes[KEY_E]          = hadal_keycode_e;
+    hadal->keycodes[KEY_R]          = hadal_keycode_r;
+    hadal->keycodes[KEY_T]          = hadal_keycode_t;
+    hadal->keycodes[KEY_Y]          = hadal_keycode_y;
+    hadal->keycodes[KEY_U]          = hadal_keycode_u;
+    hadal->keycodes[KEY_I]          = hadal_keycode_i;
+    hadal->keycodes[KEY_O]          = hadal_keycode_o;
+    hadal->keycodes[KEY_P]          = hadal_keycode_p;
+    hadal->keycodes[KEY_LEFTBRACE]  = hadal_keycode_left_bracket;
+    hadal->keycodes[KEY_RIGHTBRACE] = hadal_keycode_right_bracket;
+    hadal->keycodes[KEY_A]          = hadal_keycode_a;
+    hadal->keycodes[KEY_S]          = hadal_keycode_s;
+    hadal->keycodes[KEY_D]          = hadal_keycode_d;
+    hadal->keycodes[KEY_F]          = hadal_keycode_f;
+    hadal->keycodes[KEY_G]          = hadal_keycode_g;
+    hadal->keycodes[KEY_H]          = hadal_keycode_h;
+    hadal->keycodes[KEY_J]          = hadal_keycode_j;
+    hadal->keycodes[KEY_K]          = hadal_keycode_k;
+    hadal->keycodes[KEY_L]          = hadal_keycode_l;
+    hadal->keycodes[KEY_SEMICOLON]  = hadal_keycode_semicolon;
+    hadal->keycodes[KEY_APOSTROPHE] = hadal_keycode_apostrophe;
+    hadal->keycodes[KEY_Z]          = hadal_keycode_z;
+    hadal->keycodes[KEY_X]          = hadal_keycode_x;
+    hadal->keycodes[KEY_C]          = hadal_keycode_c;
+    hadal->keycodes[KEY_V]          = hadal_keycode_v;
+    hadal->keycodes[KEY_B]          = hadal_keycode_b;
+    hadal->keycodes[KEY_N]          = hadal_keycode_n;
+    hadal->keycodes[KEY_M]          = hadal_keycode_m;
+    hadal->keycodes[KEY_COMMA]      = hadal_keycode_comma;
+    hadal->keycodes[KEY_DOT]        = hadal_keycode_period;
+    hadal->keycodes[KEY_SLASH]      = hadal_keycode_slash;
+    hadal->keycodes[KEY_BACKSLASH]  = hadal_keycode_backslash;
+    hadal->keycodes[KEY_ESC]        = hadal_keycode_escape;
+    hadal->keycodes[KEY_TAB]        = hadal_keycode_tab;
+    hadal->keycodes[KEY_LEFTSHIFT]  = hadal_keycode_left_shift;
+    hadal->keycodes[KEY_RIGHTSHIFT] = hadal_keycode_right_shift;
+    hadal->keycodes[KEY_LEFTCTRL]   = hadal_keycode_left_control;
+    hadal->keycodes[KEY_RIGHTCTRL]  = hadal_keycode_right_control;
+    hadal->keycodes[KEY_LEFTALT]    = hadal_keycode_left_alt;
+    hadal->keycodes[KEY_RIGHTALT]   = hadal_keycode_right_alt;
+    hadal->keycodes[KEY_LEFTMETA]   = hadal_keycode_left_super;
+    hadal->keycodes[KEY_RIGHTMETA]  = hadal_keycode_right_super;
+    hadal->keycodes[KEY_COMPOSE]    = hadal_keycode_menu;
+    hadal->keycodes[KEY_NUMLOCK]    = hadal_keycode_num_lock;
+    hadal->keycodes[KEY_CAPSLOCK]   = hadal_keycode_caps_lock;
+    hadal->keycodes[KEY_PRINT]      = hadal_keycode_print_screen;
+    hadal->keycodes[KEY_SCROLLLOCK] = hadal_keycode_scroll_lock;
+    hadal->keycodes[KEY_PAUSE]      = hadal_keycode_pause;
+    hadal->keycodes[KEY_DELETE]     = hadal_keycode_delete;
+    hadal->keycodes[KEY_BACKSPACE]  = hadal_keycode_backspace;
+    hadal->keycodes[KEY_ENTER]      = hadal_keycode_enter;
+    hadal->keycodes[KEY_HOME]       = hadal_keycode_home;
+    hadal->keycodes[KEY_END]        = hadal_keycode_end;
+    hadal->keycodes[KEY_PAGEUP]     = hadal_keycode_page_up;
+    hadal->keycodes[KEY_PAGEDOWN]   = hadal_keycode_page_down;
+    hadal->keycodes[KEY_INSERT]     = hadal_keycode_insert;
+    hadal->keycodes[KEY_LEFT]       = hadal_keycode_left;
+    hadal->keycodes[KEY_RIGHT]      = hadal_keycode_right;
+    hadal->keycodes[KEY_DOWN]       = hadal_keycode_down;
+    hadal->keycodes[KEY_UP]         = hadal_keycode_up;
+    hadal->keycodes[KEY_F1]         = hadal_keycode_f1;
+    hadal->keycodes[KEY_F2]         = hadal_keycode_f2;
+    hadal->keycodes[KEY_F3]         = hadal_keycode_f3;
+    hadal->keycodes[KEY_F4]         = hadal_keycode_f4;
+    hadal->keycodes[KEY_F5]         = hadal_keycode_f5;
+    hadal->keycodes[KEY_F6]         = hadal_keycode_f6;
+    hadal->keycodes[KEY_F7]         = hadal_keycode_f7;
+    hadal->keycodes[KEY_F8]         = hadal_keycode_f8;
+    hadal->keycodes[KEY_F9]         = hadal_keycode_f9;
+    hadal->keycodes[KEY_F10]        = hadal_keycode_f10;
+    hadal->keycodes[KEY_F11]        = hadal_keycode_f11;
+    hadal->keycodes[KEY_F12]        = hadal_keycode_f12;
+    hadal->keycodes[KEY_F13]        = hadal_keycode_f13;
+    hadal->keycodes[KEY_F14]        = hadal_keycode_f14;
+    hadal->keycodes[KEY_F15]        = hadal_keycode_f15;
+    hadal->keycodes[KEY_F16]        = hadal_keycode_f16;
+    hadal->keycodes[KEY_F17]        = hadal_keycode_f17;
+    hadal->keycodes[KEY_F18]        = hadal_keycode_f18;
+    hadal->keycodes[KEY_F19]        = hadal_keycode_f19;
+    hadal->keycodes[KEY_F20]        = hadal_keycode_f20;
+    hadal->keycodes[KEY_F21]        = hadal_keycode_f21;
+    hadal->keycodes[KEY_F22]        = hadal_keycode_f22;
+    hadal->keycodes[KEY_F23]        = hadal_keycode_f23;
+    hadal->keycodes[KEY_F24]        = hadal_keycode_f24;
+    hadal->keycodes[KEY_KPSLASH]    = hadal_keycode_kp_divide;
+    hadal->keycodes[KEY_KPASTERISK] = hadal_keycode_kp_multiply;
+    hadal->keycodes[KEY_KPMINUS]    = hadal_keycode_kp_subtract;
+    hadal->keycodes[KEY_KPPLUS]     = hadal_keycode_kp_add;
+    hadal->keycodes[KEY_KP0]        = hadal_keycode_kp_0;
+    hadal->keycodes[KEY_KP1]        = hadal_keycode_kp_1;
+    hadal->keycodes[KEY_KP2]        = hadal_keycode_kp_2;
+    hadal->keycodes[KEY_KP3]        = hadal_keycode_kp_3;
+    hadal->keycodes[KEY_KP4]        = hadal_keycode_kp_4;
+    hadal->keycodes[KEY_KP5]        = hadal_keycode_kp_5;
+    hadal->keycodes[KEY_KP6]        = hadal_keycode_kp_6;
+    hadal->keycodes[KEY_KP7]        = hadal_keycode_kp_7;
+    hadal->keycodes[KEY_KP8]        = hadal_keycode_kp_8;
+    hadal->keycodes[KEY_KP9]        = hadal_keycode_kp_9;
+    hadal->keycodes[KEY_KPDOT]      = hadal_keycode_kp_decimal;
+    hadal->keycodes[KEY_KPEQUAL]    = hadal_keycode_kp_equal;
+    hadal->keycodes[KEY_KPENTER]    = hadal_keycode_kp_enter;
+    hadal->keycodes[KEY_102ND]      = hadal_keycode_world_2;
 
     for (s32 scancode = 0; scancode < 256; scancode++)
-        if (hadal->interface.keycodes[scancode] > 0)
-            hadal->interface.scancodes[hadal->interface.keycodes[scancode]] = scancode;
+        if (hadal->keycodes[scancode] > 0)
+            hadal->scancodes[hadal->keycodes[scancode]] = scancode;
     return true;
 }
 
-static FN_LAKE_WORK(_hadal_wayland_zero_refcnt, hadal_adapter hadal) 
+static FN_LAKE_WORK(_hadal_wayland_zero_refcnt, struct hadal_impl *hadal) 
 {
     if (hadal == nullptr) return;
 
@@ -661,7 +661,7 @@ disconnect:
         goto disconnect;
     }
 
-    hadal_adapter hadal = __lake_malloc_t(struct hadal_adapter_impl);
+    struct hadal_impl *hadal = __lake_malloc_t(struct hadal_impl);
     lake_zerop(hadal);
     g_hadal = hadal;
 
@@ -670,9 +670,6 @@ disconnect:
     hadal->client_library = client_library;
     hadal->cursor_library = cursor_library;
     hadal->xkbcommon_library = xkbcommon_library;
-#ifdef HADAL_LIBDECOR
-    hadal->libdecor_library = libdecor_library;
-#endif /* HADAL_LIBDECOR */
 
     /* write the interface header */
     hadal->interface.header.framework = assembly;
@@ -703,6 +700,16 @@ disconnect:
     /* sync to get initial output events */
     wl_display_roundtrip(hadal->wl_display);
 
+#ifdef HADAL_LIBDECOR
+    if (libdecor_library) {
+        hadal->libdecor_library = libdecor_library;
+        hadal->shell.libdecor = libdecor_new(display), &libdecor_interface);
+        if (hadal->shell.libdecor) {
+            /* TODO create callbacks? */
+        }
+    }
+#endif /* HADAL_LIBDECOR */
+
     /* write the interface */
     hadal->interface.window_assembly = _hadal_wayland_window_assembly;
     hadal->interface.window_zero_refcnt = _hadal_wayland_window_zero_refcnt;
@@ -712,7 +719,7 @@ disconnect:
     hadal->interface.vulkan_create_surface = _hadal_wayland_vulkan_create_surface;
 #endif /* MOON_VULKAN */
 
-    lake_trace("Connected to %s, %d displays available.", name, hadal->displays.da.size);
+    lake_trace("Connected to %s, %d displays available.", name, hadal->interface.displays.da.size);
     lake_inc_refcnt(&hadal->interface.header.refcnt);
     return hadal;
 }

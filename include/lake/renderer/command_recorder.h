@@ -5,23 +5,23 @@
  *
  *  TODO docs
  */
-#include <lake/renderer/moon_adapter.h>
+#include <lake/renderer/render_resources.h>
 #include <lake/renderer/device.h>
 
 #define PFN_MOON_COMMAND_NO_DISCARD(fn, ...) \
-    typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_cmd_##fn)(moon_command_recorder cmd, __VA_ARGS__)
+    typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_cmd_##fn)(struct moon_command_recorder_impl *cmd, __VA_ARGS__)
 #define FN_MOON_COMMAND_NO_DISCARD(fn, backend, ...) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_cmd_##fn(moon_command_recorder cmd, __VA_ARGS__)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_cmd_##fn(struct moon_command_recorder_impl *cmd, __VA_ARGS__)
 
 #define PFN_MOON_COMMAND(fn, ...) \
-    typedef void (LAKECALL *PFN_moon_cmd_##fn)(moon_command_recorder cmd, __VA_ARGS__)
+    typedef void (LAKECALL *PFN_moon_cmd_##fn)(struct moon_command_recorder_impl *cmd, __VA_ARGS__)
 #define FN_MOON_COMMAND(fn, backend, ...) \
-    void LAKECALL _moon_##backend##_cmd_##fn(moon_command_recorder cmd, __VA_ARGS__)
+    void LAKECALL _moon_##backend##_cmd_##fn(struct moon_command_recorder_impl *cmd, __VA_ARGS__)
 
 #define PFN_MOON_COMMAND_NO_ARGS(fn) \
-    typedef void (LAKECALL *PFN_moon_cmd_##fn)(moon_command_recorder cmd)
+    typedef void (LAKECALL *PFN_moon_cmd_##fn)(struct moon_command_recorder_impl *cmd)
 #define FN_MOON_COMMAND_NO_ARGS(fn, backend) \
-    void LAKECALL _moon_##backend##_cmd_##fn(moon_command_recorder cmd)
+    void LAKECALL _moon_##backend##_cmd_##fn(struct moon_command_recorder_impl *cmd)
 
 typedef struct moon_buffer_copy_region {
     u64                                 src_offset;
@@ -35,9 +35,6 @@ typedef struct moon_copy_buffer {
     u32                                 region_count;
     moon_buffer_copy_region const      *regions;
 } moon_copy_buffer;
-static constexpr moon_copy_buffer MOON_COPY_BUFFER_INIT = {
-    .region_count = 1,
-};
 
 typedef struct moon_buffer_and_texture_copy_region {
     u64                                 buffer_offset;
@@ -51,18 +48,11 @@ typedef struct moon_buffer_and_texture_copy_region {
 typedef struct moon_copy_buffer_and_texture {
     moon_buffer_id                              buffer;
     moon_texture_id                             texture;
-    moon_texture_layout                         texture_layout;
+    moon_layout                                 texture_layout;
+    moon_access                                 texture_access;
     u32                                         region_count;
     moon_buffer_and_texture_copy_region const  *regions;
 } moon_copy_buffer_and_texture;
-static constexpr moon_copy_buffer_and_texture MOON_COPY_BUFFER_TO_TEXTURE_INIT = {
-    .texture_layout = moon_texture_layout_transfer_dst_optimal,
-    .region_count = 1,
-};
-static constexpr moon_copy_buffer_and_texture MOON_COPY_TEXTURE_TO_BUFFER_INIT = {
-    .texture_layout = moon_texture_layout_transfer_src_optimal,
-    .region_count = 1,
-};
 
 typedef struct moon_texture_copy_region {
     moon_texture_array_slice            src_slice;
@@ -75,16 +65,13 @@ typedef struct moon_texture_copy_region {
 typedef struct moon_copy_texture {
     moon_texture_id                     src_texture;
     moon_texture_id                     dst_texture;
-    moon_texture_layout                 src_texture_layout;
-    moon_texture_layout                 dst_texture_layout;
+    moon_layout                         src_layout;
+    moon_layout                         dst_layout;
+    moon_access                         src_access;
+    moon_access                         dst_access;
     u32                                 region_count;
     moon_texture_copy_region const     *regions;
 } moon_copy_texture;
-static constexpr moon_copy_texture MOON_COPY_TEXTURE_INIT = {
-    .src_texture_layout = moon_texture_layout_transfer_src_optimal,
-    .dst_texture_layout = moon_texture_layout_transfer_dst_optimal,
-    .region_count = 1,
-};
 
 typedef struct moon_texture_blit_region {
     moon_texture_array_slice            src_slice;
@@ -96,18 +83,14 @@ typedef struct moon_texture_blit_region {
 typedef struct moon_blit_texture {
     moon_texture_id                     src_texture;
     moon_texture_id                     dst_texture;
-    moon_texture_layout                 src_texture_layout;
-    moon_texture_layout                 dst_texture_layout;
+    moon_layout                         src_layout;
+    moon_layout                         dst_layout;
+    moon_access                         src_access;
+    moon_access                         dst_access;
     moon_filter_mode                    filter;
     u32                                 region_count;
     moon_texture_blit_region const     *regions;
 } moon_blit_texture;
-static constexpr moon_blit_texture MOON_BLIT_TEXTURE_INIT = {
-    .src_texture_layout = moon_texture_layout_transfer_src_optimal,
-    .dst_texture_layout = moon_texture_layout_transfer_dst_optimal,
-    .filter = moon_filter_mode_linear,
-    .region_count = 1,
-};
 
 typedef struct moon_texture_resolve_region {
     moon_texture_array_slice            src_slice;
@@ -120,16 +103,13 @@ typedef struct moon_texture_resolve_region {
 typedef struct moon_resolve_texture {
     moon_texture_id                     src_texture;
     moon_texture_id                     dst_texture;
-    moon_texture_layout                 src_texture_layout;
-    moon_texture_layout                 dst_texture_layout;
+    moon_layout                         src_layout;
+    moon_layout                         dst_layout;
+    moon_access                         src_access;
+    moon_access                         dst_access;
     u32                                 region_count;
     moon_texture_resolve_region const  *regions;
 } moon_resolve_texture;
-static constexpr moon_resolve_texture MOON_RESOLVE_TEXTURE_INIT = {
-    .src_texture_layout = moon_texture_layout_transfer_src_optimal,
-    .dst_texture_layout = moon_texture_layout_transfer_dst_optimal,
-    .region_count = 1,
-};
 
 typedef struct moon_clear_buffer {
     moon_buffer_id      dst_buffer;
@@ -137,68 +117,65 @@ typedef struct moon_clear_buffer {
     u64                 size;
     s32                 clear_value;
 } moon_clear_buffer;
-static constexpr moon_clear_buffer MOON_CLEAR_BUFFER_INIT = {0};
 
 typedef struct moon_clear_texture {
-    moon_texture_id     dst_texture;
-    moon_texture_layout dst_texture_layout;
-    moon_color_value    clear_value;
+    moon_texture_id                     dst_texture;
+    moon_texture_mip_array_slice        dst_slice;
+    moon_layout                         dst_layout;
+    moon_access                         dst_access;
+    bool                                is_clear_depth_stencil;
+    moon_clear_value                    clear_value;
 } moon_clear_texture;
-static constexpr moon_clear_texture MOON_CLEAR_TEXTURE_INIT = {
-    .dst_texture_layout = moon_texture_layout_transfer_dst_optimal,
-};
 
-typedef struct moon_build_acceleration_structures {
-    u32                 tlas_assembly_count;
-    u32                 blas_assembly_count;
-    moon_tlas_assembly *tlas_assembly;
-    moon_blas_assembly *blas_assembly;
-} moon_build_acceleration_structures;
-static constexpr moon_build_acceleration_structures MOON_BUILD_ACCELERATION_STRUCTURES_INIT = {0};
+typedef struct moon_acceleration_structure_build_details {
+    u32                         tlas_build_details_count;
+    u32                         blas_build_details_count;
+    moon_tlas_build_details    *tlas_build_details;
+    moon_blas_build_details    *blas_build_details;
+} moon_acceleration_structure_build_details;
+
+typedef struct moon_dispatch_graph_scratch_memory {
+    struct moon_work_graph_pipeline_impl   *work_graph;
+    moon_device_address                     scratch;
+    u64                                     scratch_size;
+} moon_dispatch_graph_scratch_memory;
 
 typedef struct moon_push_constants {
-    void const         *data;
-    u32                 offset;
-    u32                 size;
+    void const             *data;
+    usize                   size;
 } moon_push_constants;
-static constexpr moon_push_constants MOON_PUSH_CONSTANTS_INIT = {0};
+
+typedef struct moon_set_viewport {
+    u32                     first_viewport;
+    u32                     viewport_count;
+    lake_viewport const    *viewports;
+} moon_set_viewport;
+
+typedef struct moon_set_scissor {
+    u32                     first_scissor;
+    u32                     scissor_count;
+    lake_rect2d const      *scissors;
+} moon_set_scissor;
 
 typedef struct moon_set_index_buffer {
-    moon_buffer_id      buffer;
-    u64                 offset;
-    moon_index_format   index_format;
+    moon_buffer_id          buffer;
+    u64                     offset;
+    moon_index_format       index_format;
 } moon_set_index_buffer;
-static constexpr moon_set_index_buffer MOON_SET_INDEX_BUFFER_INIT = {
-    .index_format = moon_index_format_u32,
-};
-
-typedef struct moon_barriers_and_transitions {
-    u32                                 barrier_count;
-    u32                                 transition_count;
-    moon_memory_barrier const          *barriers;
-    moon_texture_memory_barrier const  *transitions;
-} moon_barriers_and_transitions;
-static constexpr moon_barriers_and_transitions MOON_BARRIERS_AND_TRANSITIONS_INIT = {0};
 
 typedef struct moon_render_attachment {
     moon_texture_view_id        texture_view;
     moon_texture_view_id        resolve_texture_view;
-    moon_texture_layout         texture_layout;
-    moon_texture_layout         resolve_texture_layout;
+    moon_layout                 texture_layout;
+    moon_layout                 resolve_texture_layout;
+    moon_access                 texture_access;
+    moon_access                 resolve_texture_access;
     moon_resolve_mode           resolve_mode;
     moon_load_op                load_op;
     moon_store_op               store_op;
     bool                        has_resolve;
     moon_color_value            clear_value;
 } moon_render_attachment;
-static constexpr moon_render_attachment MOON_RENDER_ATTACHMENT_INIT = {
-    .texture_layout = moon_texture_layout_attachment_optimal,
-    .resolve_texture_layout = moon_texture_layout_attachment_optimal,
-    .resolve_mode = moon_resolve_mode_average,
-    .load_op = moon_load_op_dont_care,
-    .store_op = moon_store_op_store,
-    .has_resolve = false,
-};
 
 typedef struct moon_begin_renderpass {
     moon_render_attachment      color_attachments[MOON_MAX_COLOR_ATTACHMENTS];
@@ -209,60 +186,48 @@ typedef struct moon_begin_renderpass {
     moon_render_attachment      stencil_attachment;
     lake_rect2d                 render_area;
 } moon_begin_renderpass;
-static constexpr moon_begin_renderpass MOON_BEGIN_RENDERPASS_INIT = {
-    .color_attachments = {
-        MOON_RENDER_ATTACHMENT_INIT,
-        MOON_RENDER_ATTACHMENT_INIT,
-        MOON_RENDER_ATTACHMENT_INIT,
-        MOON_RENDER_ATTACHMENT_INIT,
-        MOON_RENDER_ATTACHMENT_INIT,
-        MOON_RENDER_ATTACHMENT_INIT,
-        MOON_RENDER_ATTACHMENT_INIT,
-        MOON_RENDER_ATTACHMENT_INIT,
-    },
-    .color_attachment_count = 1,
-    .has_depth_attachment = false,
-    .has_stencil_attachment = false,
-    .depth_attachment = MOON_RENDER_ATTACHMENT_INIT,
-    .stencil_attachment = MOON_RENDER_ATTACHMENT_INIT,
-};
 
 typedef struct moon_write_timestamps {
-    moon_timeline_query_pool    timeline_query_pool;
-    u32                         query_index;
-    moon_pipeline_stage_bits    stage;
+    struct moon_timeline_query_pool_impl   *timeline_query_pool;
+    u32                                     query_index;
+    moon_access                             stage;
 } moon_write_timestamps;
-static constexpr moon_write_timestamps MOON_WRITE_TIMESTAMPS_INIT = {0};
 
 typedef struct moon_resolve_timestamps {
-    moon_timeline_query_pool    timeline_query_pool;
-    u32                         start_index;
-    u32                         count;
+    struct moon_timeline_query_pool_impl   *timeline_query_pool;
+    u32                                     start_index;
+    u32                                     count;
 } moon_resolve_timestamps;
-static constexpr moon_resolve_timestamps MOON_RESOLVE_TIMESTAMPS_INIT = {0};
+
+typedef struct moon_pipeline_barrier {
+    moon_global_barrier const      *global_barrier;
+    u32                             buffer_barrier_count;
+    u32                             texture_barrier_count;
+    moon_texture_barrier const     *buffer_bariers;
+    moon_texture_barrier const     *texture_bariers;
+} moon_pipeline_barrier;
 
 typedef struct moon_signal_event {
-    moon_event                          event;
-    usize                               memory_barrier_count;
-    moon_memory_barrier const          *memory_barriers;
-    usize                               texture_memory_barrier_count;
-    moon_texture_memory_barrier const  *texture_memory_barriers;
+    struct moon_event_impl         *event;
+    u32                             src_access_count;
+    moon_access const              *src_accesses;
 } moon_signal_event;
-typedef moon_signal_event moon_wait_event;
+typedef moon_signal_event moon_reset_event;
 
-typedef struct moon_reset_event {
-    moon_event                  event;
-    moon_pipeline_stage_bits    stage;
-} moon_reset_event;
-static constexpr moon_reset_event MOON_RESET_EVENT_INIT = {
-    .stage = moon_pipeline_stage_bottom_of_pipe,
-};
+typedef struct moon_wait_events {
+    u32                             event_count;
+    struct moon_event_impl const  **events;
+    moon_global_barrier const      *global_barrier;
+    u32                             buffer_barrier_count;
+    u32                             texture_barrier_count;
+    moon_texture_barrier const     *buffer_bariers;
+    moon_texture_barrier const     *texture_bariers;
+} moon_wait_events;
 
 typedef struct moon_begin_label {
-    vec4                        label_color;
-    char const                 *label_name;
+    vec4                            label_color;
+    char const                     *label_name;
 } moon_begin_label;
-static constexpr moon_begin_label MOON_BEGIN_LABEL_INIT = {0};
 
 /** Compatible with `moon_draw_mesh_tasks`. */
 typedef struct moon_dispatch {
@@ -273,7 +238,6 @@ typedef struct moon_dispatch_indirect {
     moon_buffer_id              indirect_buffer;
     u64                         offset;
 } moon_dispatch_indirect;
-static constexpr moon_dispatch_indirect MOON_DISPATCH_INDIRECT_INIT = {0};
 
 typedef struct moon_dispatch_node {
     u32                         node_index;
@@ -291,37 +255,36 @@ typedef struct moon_dispatch_graph {
 typedef struct moon_dispatch_graph_indirect {
     moon_device_address         scratch;
     u64                         scratch_size;
-    moon_dispatch_graph         graph;
+    struct moon_dispatch_graph  graph;
 } moon_dispatch_graph_indirect;
-static constexpr moon_dispatch_graph_indirect MOON_DISPATCH_GRAPH_INIT = {0};
-static constexpr moon_dispatch_graph_indirect MOON_DISPATCH_GRAPH_INDIRECT_INIT = {0};
 
 typedef struct moon_cmd_dispatch_graph_indirect_count {
     moon_device_address         scratch;
     u64                         scratch_size;
     moon_device_address         graph;
 } moon_dispatch_graph_indirect_count;
-static constexpr moon_dispatch_graph_indirect_count MOON_DISPATCH_GRAPH_INDIRECT_COUNT_INIT = {0};
 
 typedef struct moon_ray_trace {
     u32                         width, height, depth;
 } moon_ray_trace;
 
 typedef struct moon_trace_rays {
+    u32                         width, height, depth;
     u32                         raygen_shader_binding_table_offset;
     u32                         miss_shader_binding_table_offset;
-    u32                         miss_shader_binding_table_stride;
     u32                         hit_shader_binding_table_offset;
+    u32                         callable_shader_binding_table_offset;
     moon_shader_binding_table   shader_binding_table;
-    moon_ray_trace              payload;
 } moon_trace_rays;
-static constexpr moon_trace_rays MOON_TRACE_RAYS_INIT = {0};
 
 typedef struct moon_trace_rays_indirect {
     moon_device_address         indirect_buffer_address;
+    u32                         raygen_shader_binding_table_offset;
+    u32                         miss_shader_binding_table_offset;
+    u32                         hit_shader_binding_table_offset;
+    u32                         callable_shader_binding_table_offset;
     moon_shader_binding_table   shader_binding_table;
 } moon_trace_rays_indirect;
-static constexpr moon_trace_rays_indirect MOON_TRACE_RAYS_INDIRECT_INIT = {0};
 
 typedef struct moon_draw {
     u32                         vertex_count;
@@ -345,7 +308,6 @@ typedef struct moon_draw_indirect {
     u32                         draw_stride;
     bool                        is_indexed;
 } moon_draw_indirect;
-static constexpr moon_draw_indirect MOON_DRAW_INDIRECT_INIT = {0};
 
 typedef struct moon_draw_indirect_count {
     moon_buffer_id              indirect_buffer;
@@ -356,7 +318,6 @@ typedef struct moon_draw_indirect_count {
     u32                         draw_stride;
     bool                        is_indexed;
 } moon_draw_indirect_count;
-static constexpr moon_draw_indirect_count MOON_DRAW_INDIRECT_COUNT_INIT = {0};
 
 /** Compatible with `moon_dispatch`. */
 typedef struct moon_draw_mesh_tasks {
@@ -369,7 +330,6 @@ typedef struct moon_draw_mesh_tasks_indirect {
     u32                         draw_count;
     u32                         draw_stride;
 } moon_draw_mesh_tasks_indirect;
-static constexpr moon_draw_mesh_tasks_indirect MOON_DRAW_MESH_TASKS_INDIRECT_INIT = {0};
 
 typedef struct moon_draw_mesh_tasks_indirect_count {
     moon_buffer_id              indirect_buffer;
@@ -379,7 +339,6 @@ typedef struct moon_draw_mesh_tasks_indirect_count {
     u32                         max_draw_count;
     u32                         draw_stride;
 } moon_draw_mesh_tasks_indirect_count;
-static constexpr moon_draw_mesh_tasks_indirect_count MOON_DRAW_MESH_TASKS_INDIRECT_COUNT_INIT = {0};
 
 typedef struct moon_command_recorder_assembly {
     moon_queue_type             queue_type;
@@ -391,24 +350,24 @@ typedef struct moon_staged_command_list_assembly {
 } moon_staged_command_list_assembly;
 
 /** Assemble a command recorder. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_command_recorder_assembly)(moon_device device, moon_command_recorder_assembly const *assembly, moon_command_recorder *out_cmd);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_command_recorder_assembly)(struct moon_device_impl *device, moon_command_recorder_assembly const *assembly, struct moon_command_recorder_impl **out_cmd);
 #define FN_MOON_COMMAND_RECORDER_ASSEMBLY(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_command_recorder_assembly(moon_device device, moon_command_recorder_assembly const *assembly, moon_command_recorder *out_cmd)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_command_recorder_assembly(struct moon_device_impl *device, moon_command_recorder_assembly const *assembly, struct moon_command_recorder_impl **out_cmd)
 
 /** Destroy a command recorder. */
-PFN_LAKE_WORK(PFN_moon_command_recorder_zero_refcnt, moon_command_recorder cmd);
+PFN_LAKE_WORK(PFN_moon_command_recorder_zero_refcnt, struct moon_command_recorder_impl *cmd);
 #define FN_MOON_COMMAND_RECORDER_ZERO_REFCNT(backend) \
-    FN_LAKE_WORK(_moon_##backend##_command_recorder_zero_refcnt, moon_command_recorder cmd)
+    FN_LAKE_WORK(_moon_##backend##_command_recorder_zero_refcnt, struct moon_command_recorder_impl *cmd)
 
 /** Assemble a staged command list from a command recorder. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_staged_command_list_assembly)(moon_command_recorder cmd, moon_staged_command_list_assembly const *assembly, moon_staged_command_list *out_cmd_list);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_staged_command_list_assembly)(struct moon_command_recorder_impl *cmd, moon_staged_command_list_assembly const *assembly, struct moon_staged_command_list_impl **out_cmd_list);
 #define FN_MOON_STAGED_COMMAND_LIST_ASSEMBLY(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_staged_command_list_assembly(moon_command_recorder cmd, moon_staged_command_list_assembly const *assembly, moon_staged_command_list *out_cmd_list)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_staged_command_list_assembly(struct moon_command_recorder_impl *cmd, moon_staged_command_list_assembly const *assembly, struct moon_staged_command_list_impl **out_cmd_list)
 
 /** Destroy a staged command list. */
-PFN_LAKE_WORK(PFN_moon_staged_command_list_zero_refcnt, moon_staged_command_list cmd_list);
+PFN_LAKE_WORK(PFN_moon_staged_command_list_zero_refcnt, struct moon_staged_command_list_impl *cmd_list);
 #define FN_MOON_STAGED_COMMAND_LIST_ZERO_REFCNT(backend) \
-    FN_LAKE_WORK(_moon_##backend##_staged_command_list_zero_refcnt, moon_staged_command_list cmd_list)
+    FN_LAKE_WORK(_moon_##backend##_staged_command_list_zero_refcnt, struct moon_staged_command_list_impl *cmd_list)
 
 /** Copy data between buffer regions. */
 PFN_MOON_COMMAND_NO_DISCARD(copy_buffer, moon_copy_buffer const *work);
@@ -452,9 +411,14 @@ PFN_MOON_COMMAND_NO_DISCARD(clear_texture, moon_clear_texture const *work);
     FN_MOON_COMMAND_NO_DISCARD(clear_texture, backend, moon_clear_texture const *work)
 
 /** Build or update bottom-level and top-level acceleration structures. */
-PFN_MOON_COMMAND_NO_DISCARD(build_acceleration_structures, moon_build_acceleration_structures const *work);
+PFN_MOON_COMMAND_NO_DISCARD(build_acceleration_structures, moon_acceleration_structure_build_details const *work);
 #define FN_MOON_CMD_BUILD_ACCELERATION_STRUCTURES(backend) \
-    FN_MOON_COMMAND_NO_DISCARD(build_acceleration_structures, backend, moon_build_acceleration_structures const *work)
+    FN_MOON_COMMAND_NO_DISCARD(build_acceleration_structures, backend, moon_acceleration_structure_build_details const *work)
+
+/** Initialize scratch memory for a work graph dispatch commands. */
+PFN_MOON_COMMAND_NO_DISCARD(dispatch_graph_scratch_memory, moon_dispatch_graph_scratch_memory const *work);
+#define FN_MOON_CMD_DISPATCH_GRAPH_SCRATCH_MEMORY(backend) \
+    FN_MOON_COMMAND_NO_DISCARD(dispatch_graph_scratch_memory, backend, moon_dispatch_graph_scratch_memory const *work)
 
 /** Destroys a buffer after the GPU is finished executing the command list. */
 PFN_MOON_COMMAND_NO_DISCARD(destroy_buffer_deferred, moon_buffer_id buffer);
@@ -482,34 +446,34 @@ PFN_MOON_COMMAND_NO_DISCARD(push_constants, moon_push_constants const *work);
     FN_MOON_COMMAND_NO_DISCARD(push_constants, backend, moon_push_constants const *work)
 
 /** Bind compute pipeline for dispatch commands. */
-PFN_MOON_COMMAND_NO_DISCARD(set_compute_pipeline, moon_compute_pipeline pipeline);
+PFN_MOON_COMMAND_NO_DISCARD(set_compute_pipeline, struct moon_compute_pipeline_impl *pipeline);
 #define FN_MOON_CMD_SET_COMPUTE_PIPELINE(backend) \
-    FN_MOON_COMMAND_NO_DISCARD(set_compute_pipeline, backend, moon_compute_pipeline pipeline)
+    FN_MOON_COMMAND_NO_DISCARD(set_compute_pipeline, backend, struct moon_compute_pipeline_impl *pipeline)
 
 /** Bind ray tracing pipeline for trace commands. */
-PFN_MOON_COMMAND_NO_DISCARD(set_ray_tracing_pipeline, moon_ray_tracing_pipeline pipeline);
+PFN_MOON_COMMAND_NO_DISCARD(set_ray_tracing_pipeline, struct moon_ray_tracing_pipeline_impl *pipeline);
 #define FN_MOON_CMD_SET_RAY_TRACING_PIPELINE(backend) \
-    FN_MOON_COMMAND_NO_DISCARD(set_ray_tracing_pipeline, backend, moon_ray_tracing_pipeline pipeline)
+    FN_MOON_COMMAND_NO_DISCARD(set_ray_tracing_pipeline, backend, struct moon_ray_tracing_pipeline_impl *pipeline)
 
 /** Bind work graph pipeline for dispatch graph commands. */
-PFN_MOON_COMMAND_NO_DISCARD(set_work_graph_pipeline, moon_work_graph_pipeline pipeline);
+PFN_MOON_COMMAND_NO_DISCARD(set_work_graph_pipeline, struct moon_work_graph_pipeline_impl *pipeline);
 #define FN_MOON_CMD_SET_WORK_GRAPH_PIPELINE(backend) \
-    FN_MOON_COMMAND_NO_DISCARD(set_work_graph_pipeline, backend, moon_work_graph_pipeline pipeline)
+    FN_MOON_COMMAND_NO_DISCARD(set_work_graph_pipeline, backend, struct moon_work_graph_pipeline_impl *pipeline)
 
 /** Bind raster pipeline for draw commands. */
-PFN_MOON_COMMAND_NO_DISCARD(set_raster_pipeline, moon_raster_pipeline pipeline);
+PFN_MOON_COMMAND_NO_DISCARD(set_raster_pipeline, struct moon_raster_pipeline_impl *pipeline);
 #define FN_MOON_CMD_SET_RASTER_PIPELINE(backend) \
-    FN_MOON_COMMAND_NO_DISCARD(set_raster_pipeline, backend, moon_raster_pipeline pipeline)
+    FN_MOON_COMMAND_NO_DISCARD(set_raster_pipeline, backend, struct moon_raster_pipeline_impl *pipeline)
 
 /** Configure viewport transformation dimensions. */
-PFN_MOON_COMMAND(set_viewport, lake_viewport const *viewport);
+PFN_MOON_COMMAND(set_viewport, moon_set_viewport const *work);
 #define FN_MOON_CMD_SET_VIEWPORT(backend) \
-    FN_MOON_COMMAND(set_viewport, backend, lake_viewport const *viewport)
+    FN_MOON_COMMAND(set_viewport, backend, moon_set_viewport const *work)
 
 /** Configure scissor rectangle for fragment clipping. */
-PFN_MOON_COMMAND(set_scissor, lake_rect2d const *scissor);
+PFN_MOON_COMMAND(set_scissor, moon_set_scissor const *work);
 #define FN_MOON_CMD_SET_SCISSOR(backend) \
-    FN_MOON_COMMAND(set_scissor, backend, lake_rect2d const *scissor)
+    FN_MOON_COMMAND(set_scissor, backend, moon_set_scissor const *work)
 
 /** Configure depth bias constants for depth calculations. */
 PFN_MOON_COMMAND(set_depth_bias, moon_depth_bias const *work);
@@ -525,12 +489,6 @@ PFN_MOON_COMMAND_NO_DISCARD(set_index_buffer, moon_set_index_buffer const *work)
 PFN_MOON_COMMAND_NO_DISCARD(set_rasterization_samples, moon_sample_count sample_count);
 #define FN_MOON_CMD_SET_RASTERIZATION_SAMPLES(backend) \
     FN_MOON_COMMAND_NO_DISCARD(set_rasterization_samples, backend, moon_sample_count sample_count)
-
-/** Insert pipeline memory barriers and texture barriers for layout transitions. Successive barriers_and_transitions 
- *  calls are combined, as soon as any other command is recorder, the barrier batch is flushed. */
-PFN_MOON_COMMAND_NO_DISCARD(barriers_and_transitions, moon_barriers_and_transitions const *work);
-#define FN_MOON_CMD_BARRIERS_AND_TRANSITIONS(backend) \
-    FN_MOON_COMMAND_NO_DISCARD(barriers_and_transitions, backend, moon_barriers_and_transitions const *work)
 
 /** Start a renderpass with specified render targets for draw commands. */
 PFN_MOON_COMMAND_NO_DISCARD(begin_renderpass, moon_begin_renderpass const *work);
@@ -552,20 +510,27 @@ PFN_MOON_COMMAND(resolve_timestamps, moon_resolve_timestamps const *work);
 #define FN_MOON_CMD_RESOLVE_TIMESTAMPS(backend) \
     FN_MOON_COMMAND(resolve_timestamps, backend, moon_resolve_timestamps const *work)
 
-/** Signal an event. */
+/** Translate the passed in barrier definitions into a set of pipeline stages and internal API
+ *  memory barriers to be passed into the driver's command buffer. Successive pipeline barrier 
+ *  calls are combined, as soon as any other command is recorder, the barrier batch is flushed. */
+PFN_MOON_COMMAND_NO_DISCARD(pipeline_barrier, moon_pipeline_barrier const *work);
+#define FN_MOON_CMD_PIPELINE_BARRIER(backend) \
+    FN_MOON_COMMAND_NO_DISCARD(pipeline_barrier, backend, moon_pipeline_barrier const *work)
+
+/** Set an event when the accesses defined by src_accesses are completed. */
 PFN_MOON_COMMAND(signal_event, moon_signal_event const *work);
 #define FN_MOON_CMD_SIGNAL_EVENT(backend) \
     FN_MOON_COMMAND(signal_event, backend, moon_signal_event const *work)
 
-/** Wait on a list of events. */
-PFN_MOON_COMMAND(wait_on_events, u32 work_count, moon_wait_event const *work);
-#define FN_MOON_CMD_WAIT_ON_EVENTS(backend) \
-    FN_MOON_COMMAND(wait_on_events, backend, u32 work_count, moon_wait_event const *work)
-
-/** Reset an event. */
+/** Resets an event when the accesses defined by src_accesses are completed. */
 PFN_MOON_COMMAND(reset_event, moon_reset_event const *work);
 #define FN_MOON_CMD_RESET_EVENT(backend) \
     FN_MOON_COMMAND(reset_event, backend, moon_reset_event const *work)
+
+/** Includes the work of inserting a pipeline barrier with event sync. */
+PFN_MOON_COMMAND(wait_events, moon_wait_events const *work);
+#define FN_MOON_CMD_WAIT_EVENTS(backend) \
+    FN_MOON_COMMAND(wait_events, backend, moon_wait_events const *work)
 
 /** Begin a debug label. */
 PFN_MOON_COMMAND(begin_label, moon_begin_label const *work);

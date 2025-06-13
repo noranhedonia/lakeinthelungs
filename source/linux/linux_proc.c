@@ -1,4 +1,4 @@
-#include "../bedrock_internal.h"
+#include "../internal.h"
 
 #ifdef LAKE_PLATFORM_LINUX
 #include <fcntl.h>

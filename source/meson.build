@@ -4,6 +4,7 @@ engine_sources = files(
     'log.c',
     'malloc.c',
     'moon.c',
+    'tagged_heap.c',
     'work.c',
 )
 
@@ -106,17 +107,51 @@ if _graphics.contains('auto')
     with_webgpu = with_webgpu or with_platform_emscripten
 endif
 
-if not cpp.has_header('slang.h')
+if not cc.has_header('slang.h') or get_option('slang-runtime')
     slang = subproject('slang')
-    engine_deps += slang.get_variable('slang_include_dep')
+    if slang.get_option('default_library') == 'static'
+        engine_deps += slang.get_variable('slang_dep')
+    else
+        engine_deps += slang.get_variable('slang_headers_dep')
+    endif
 endif
 pre_args += ['-DLAKE_SLANG=1']
 
+if with_vulkan
+    engine_sources += files(
+        'vk_command_recorder.c',
+        'vk_device.c',
+        'vk_drivers.c',
+        'vk_pipelines.c',
+        'vk_render_resources.c',
+        'vk_swapchain.c',
+        'vk_timeline_sync.c',
+    )
+    pre_args += ['-DMOON_VULKAN=1']
+
+    if not cc.has_header('vulkan/vulkan.h')
+        vulkan_headers = subproject('vulkan-headers')
+        engine_deps += vulkan_headers.get_variable('vulkan_headers_dep')
+    endif
+
+    vulkan_memory_allocator = subproject('vulkan-memory-allocator')
+    engine_deps += vulkan_memory_allocator.get_variable('vma_dep')
+
+    spirv_headers_dep = dependency('SPIRV-Headers', fallback: ['spirv-headers', 'spirv_headers_dep'], required: false)
+    spirv_tools_dep = dependency('SPIRV-Tools', fallback: ['spirv-tools', 'spirv_tools_dep'], required: false)
+    if spirv_headers_dep.found() and spirv_tools_dep.found()
+        engine_deps += [spirv_headers_dep, spirv_tools_dep]
+        pre_args += ['-DMOON_SPIRV=1']
+    endif
+endif
+
 with_imgui = get_option('imgui')
 if with_imgui
+    engine_sources += files('imgui.c')
     cimgui = subproject('cimgui')
-    cimgui_dep = cimgui.get_variable('cimgui_dep')
-    engine_deps += cimgui_dep
+    engine_deps += cimgui.get_variable('cimgui_dep') 
+    include_dirs += cimgui.get_variable('include_dir')
+    pre_args += cimgui.get_variable('cimgui_pre_args')
     pre_args += ['-DLAKE_IMGUI=1']
 endif
 
@@ -136,20 +171,19 @@ subdir('emscripten')
 subdir('linux')
 subdir('math')
 subdir('unix')
-subdir('vulkan')
 subdir('windows')
 
-add_project_arguments(pre_args, language: ['c', 'cpp'])
+add_project_arguments(pre_args, language: ['c']) #, 'cpp'])
 add_project_arguments(c_args, language: ['c'])
-add_project_arguments(cpp_args, language: ['cpp'])
+#add_project_arguments(cpp_args, language: ['cpp'])
 
 amwengine = library(
     'amwengine', engine_sources,
     dependencies: engine_deps,
-    include_directories: include_dir,
+    include_directories: include_dirs,
     install: true)
 
 amwengine_dep = declare_dependency(
     link_with: amwengine,
     link_args: engine_link_args,
-    include_directories: include_dir)
+    include_directories: include_dirs)

@@ -1,7 +1,7 @@
-#include "../bedrock_internal.h"
+#include "../internal.h"
 
 #ifdef LAKE_PLATFORM_WINDOWS
-#include <lake/bedrock/private/windows.h>
+#include <lake/private/windows.h>
 
 u64 lake_rtc_counter(void)
 {

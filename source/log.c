@@ -1,4 +1,7 @@
-#include <lake/bedrock/log.h>
+#include "internal.h"
+
+#include <lake/log.h>
+#include <lake/data_structures/strbuf.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -95,6 +98,7 @@ lake_assert_status lake_assert_log_(
         lake_printv_(-4, fn, file, line, fmt, args);
         va_end(args);
     }
+    sys_dump_stack_trace(stderr);
     return lake_assert_status_trap;
 }
 

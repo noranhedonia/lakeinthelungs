@@ -58,8 +58,8 @@ enum PW_READY_FLAGS {
 #define PW_ID_TO_HANDLE(x) (void *)((uptr)x)
 #define PW_HANDLE_TO_ID(x) (u32)((uptr)x)
 
-struct soma_adapter_impl {
-    soma_interface_impl                 interface;
+struct soma_impl {
+    struct soma_interface_impl          interface;
 
     void                               *pipewire_library;
     PFN_pw_get_library_version          pw_get_library_version;

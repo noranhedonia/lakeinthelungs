@@ -3,7 +3,7 @@
 
 #include <stdio.h> /* sscanf */
 
-static bool load_pipewire_symbols(soma_adapter soma, char const *name)
+static bool load_pipewire_symbols(struct soma_impl *soma, char const *name)
 {
     lake_dbg_assert(soma->pw_get_library_version && soma->pw_init, 
             LAKE_ERROR_INITIALIZATION_FAILED, "Assumed pipewire procedures are not present.");
@@ -79,9 +79,9 @@ static bool load_pipewire_symbols(soma_adapter soma, char const *name)
 }
 
 /** Only one pipewire backend is allowed to exist at a time. */
-static soma_adapter g_soma = nullptr;
+static struct soma_impl *g_soma = nullptr;
 
-static FN_LAKE_WORK(_soma_pipewire_zero_refcnt, soma_adapter soma)
+static FN_LAKE_WORK(_soma_pipewire_zero_refcnt, struct soma_impl *soma)
 {
     if (soma == nullptr) return;
 
@@ -131,7 +131,7 @@ FN_LAKE_INTERFACE_IMPL(soma, pipewire, lake_framework)
     }
     _pw_init(nullptr, nullptr);
 
-    soma_adapter soma = __lake_malloc_t(struct soma_adapter_impl);
+    struct soma_impl *soma = __lake_malloc_t(struct soma_impl);
     lake_zerop(soma);
     g_soma = soma;
 

@@ -5,7 +5,7 @@
  *
  *  TODO docs
  */
-#include <lake/renderer/moon_adapter.h>
+#include <lake/renderer/render_resources.h>
 #include <lake/renderer/timeline_sync.h>
 
 typedef enum moon_device_type : s16 {
@@ -15,53 +15,6 @@ typedef enum moon_device_type : s16 {
     moon_device_type_virtual_gpu,
     moon_device_type_cpu,
 } moon_device_type;
-
-#define MOON_MAX_COMPUTE_QUEUE_COUNT            8
-#define MOON_MAX_TRANSFER_QUEUE_COUNT           2
-#define MOON_MAX_SPARSE_BINDING_QUEUE_COUNT     1
-#define MOON_MAX_VIDEO_DECODE_QUEUE_COUNT       1
-#define MOON_MAX_VIDEO_ENCODE_QUEUE_COUNT       1
-
-#define MOON_QUEUE_MAIN_BEGIN_INDEX             0
-#define MOON_QUEUE_COMPUTE_BEGIN_INDEX          1
-#define MOON_QUEUE_TRANSFER_BEGIN_INDEX         (MOON_QUEUE_COMPUTE_BEGIN_INDEX + MOON_MAX_COMPUTE_QUEUE_COUNT)
-#define MOON_QUEUE_SPARSE_BINDING_BEGIN_INDEX   (MOON_QUEUE_TRANSFER_BEGIN_INDEX + MOON_MAX_TRANSFER_QUEUE_COUNT)
-#define MOON_QUEUE_VIDEO_DECODE_BEGIN_INDEX     (MOON_QUEUE_SPARSE_BINDING_BEGIN_INDEX + MOON_MAX_SPARSE_BINDING_QUEUE_COUNT)
-#define MOON_QUEUE_VIDEO_ENCODE_BEGIN_INDEX     (MOON_QUEUE_VIDEO_DECODE_BEGIN_INDEX + MOON_MAX_VIDEO_DECODE_QUEUE_COUNT)
-#define MOON_QUEUE_INDEX_COUNT                  (MOON_QUEUE_VIDEO_ENCODE_BEGIN_INDEX + MOON_MAX_VIDEO_ENCODE_QUEUE_COUNT)
-
-/** Queue types used for scheduling different type of GPU work. */
-typedef s8 moon_queue_mask;
-typedef enum moon_queue_type : moon_queue_mask {
-    moon_queue_type_main,
-    moon_queue_type_compute,
-    moon_queue_type_transfer,
-    moon_queue_type_sparse_binding,
-    moon_queue_type_video_decode,
-    moon_queue_type_video_encode,
-    moon_queue_type_count,
-    moon_queue_type_none = -1,
-} moon_queue_type;
-
-typedef struct moon_queue {
-    moon_queue_type type;
-    s8              idx;
-} moon_queue;
-
-static constexpr moon_queue MOON_QUEUE_MAIN = {moon_queue_type_main, MOON_QUEUE_MAIN_BEGIN_INDEX};
-static constexpr moon_queue MOON_QUEUE_COMPUTE_0 = {moon_queue_type_compute, MOON_QUEUE_COMPUTE_BEGIN_INDEX + 0};
-static constexpr moon_queue MOON_QUEUE_COMPUTE_1 = {moon_queue_type_compute, MOON_QUEUE_COMPUTE_BEGIN_INDEX + 1};
-static constexpr moon_queue MOON_QUEUE_COMPUTE_2 = {moon_queue_type_compute, MOON_QUEUE_COMPUTE_BEGIN_INDEX + 2};
-static constexpr moon_queue MOON_QUEUE_COMPUTE_3 = {moon_queue_type_compute, MOON_QUEUE_COMPUTE_BEGIN_INDEX + 3};
-static constexpr moon_queue MOON_QUEUE_COMPUTE_4 = {moon_queue_type_compute, MOON_QUEUE_COMPUTE_BEGIN_INDEX + 4};
-static constexpr moon_queue MOON_QUEUE_COMPUTE_5 = {moon_queue_type_compute, MOON_QUEUE_COMPUTE_BEGIN_INDEX + 5};
-static constexpr moon_queue MOON_QUEUE_COMPUTE_6 = {moon_queue_type_compute, MOON_QUEUE_COMPUTE_BEGIN_INDEX + 6};
-static constexpr moon_queue MOON_QUEUE_COMPUTE_7 = {moon_queue_type_compute, MOON_QUEUE_COMPUTE_BEGIN_INDEX + 7};
-static constexpr moon_queue MOON_QUEUE_TRANSFER_0 = {moon_queue_type_transfer, MOON_QUEUE_TRANSFER_BEGIN_INDEX + 0};
-static constexpr moon_queue MOON_QUEUE_TRANSFER_1 = {moon_queue_type_transfer, MOON_QUEUE_TRANSFER_BEGIN_INDEX + 1};
-static constexpr moon_queue MOON_QUEUE_SPARSE_BINDING = {moon_queue_type_sparse_binding, MOON_QUEUE_SPARSE_BINDING_BEGIN_INDEX};
-static constexpr moon_queue MOON_QUEUE_VIDEO_DECODE = {moon_queue_type_video_decode, MOON_QUEUE_VIDEO_DECODE_BEGIN_INDEX};
-static constexpr moon_queue MOON_QUEUE_VIDEO_ENCODE = {moon_queue_type_video_encode, MOON_QUEUE_VIDEO_ENCODE_BEGIN_INDEX};
 
 /* Is ABI compatible with Vulkan's VkPhysicalDeviceLimits. */
 typedef struct moon_device_limits {
@@ -345,28 +298,28 @@ static constexpr moon_device_assembly MOON_DEVICE_ASSEMBLY_INIT = {
 
 /** Describes a submit. */
 typedef struct moon_device_submit {
-    moon_queue                      queue;
-    moon_pipeline_stages            wait_stages;
-    moon_staged_command_list const *staged_command_lists;
-    usize                           staged_command_list_count;
-    moon_binary_semaphore const    *wait_binary_semaphores;
-    usize                           wait_binary_semaphore_count;
-    moon_binary_semaphore const    *signal_binary_semaphores;
-    usize                           signal_binary_semaphore_count;
-    moon_timeline_pair const       *wait_timeline_semaphores;
-    usize                           wait_timeline_semaphore_count;
-    moon_timeline_pair const       *signal_timeline_semaphores;
-    usize                           signal_timeline_semaphore_count;
+    moon_queue                                      queue;
+    moon_access                                     wait_stages;
+    struct moon_staged_command_list_impl const    **staged_command_lists;
+    usize                                           staged_command_list_count;
+    struct moon_binary_semaphore_impl const       **wait_binary_semaphores;
+    usize                                           wait_binary_semaphore_count;
+    struct moon_binary_semaphore_impl const       **signal_binary_semaphores;
+    usize                                           signal_binary_semaphore_count;
+    moon_timeline_pair const                       *wait_timeline_semaphores;
+    usize                                           wait_timeline_semaphore_count;
+    moon_timeline_pair const                       *signal_timeline_semaphores;
+    usize                                           signal_timeline_semaphore_count;
 } moon_device_submit;
 static constexpr moon_device_submit MOON_DEVICE_SUBMIT_INIT = {0};
 
 /** Describes a present. */
 typedef struct moon_device_present {
-    moon_binary_semaphore const    *wait_binary_semaphores;
-    moon_swapchain const           *swapchains;
-    u32                             wait_binary_semaphore_count;
-    u16                             swapchain_count;
-    moon_queue                      queue;
+    struct moon_binary_semaphore_impl const   **wait_binary_semaphores;
+    struct moon_swapchain_impl const          **swapchains;
+    u32                                         wait_binary_semaphore_count;
+    u16                                         swapchain_count;
+    moon_queue                                  queue;
 } moon_device_present;
 static constexpr moon_device_present MOON_DEVICE_PRESENT_INIT = {0};
 
@@ -400,7 +353,7 @@ typedef struct moon_memory_blas_size_pair {
 } moon_memory_blas_size_pair;
 
 typedef struct moon_memory_heap_size_pair {
-    moon_memory_heap                heap;
+    struct moon_memory_heap_impl   *heap;
     u64                             size;
 } moon_memory_heap_size_pair;
 
@@ -410,7 +363,7 @@ typedef struct moon_memory_report {
     u64                             total_texture_memory_use;
     u64                             total_aliased_tlas_memory_use;
     u64                             total_aliased_blas_memory_use;
-    u64                             total_device_memory_use;
+    u64                             total_heap_memory_use;
     u32                             buffer_count;
     u32                             texture_count;
     u32                             tlas_count;
@@ -425,211 +378,241 @@ typedef struct moon_memory_report {
 
 /** List properties of available physical devices. The `out_details` argument may be nullptr to query 
  *  the details count and allocate an array of pointers to grab the device details with a second call. */
-typedef void (LAKECALL *PFN_moon_list_device_details)(moon_adapter moon, u32 *out_device_count, moon_device_details const **out_details);
+typedef void (LAKECALL *PFN_moon_list_device_details)(struct moon_impl *moon, u32 *out_device_count, moon_device_details const **out_details);
 #define FN_MOON_LIST_DEVICE_DETAILS(backend) \
-    void LAKECALL _moon_##backend##_list_device_details(moon_adapter moon, u32 *out_device_count, moon_device_details const **out_details)
+    void LAKECALL _moon_##backend##_list_device_details(struct moon_impl *moon, u32 *out_device_count, moon_device_details const **out_details)
 
 /** Assemble a rendering device from given details. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_assembly)(moon_adapter moon, moon_device_assembly const *assembly, moon_device *out_device);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_assembly)(struct moon_impl *moon, moon_device_assembly const *assembly, struct moon_device_impl **out_device);
 #define FN_MOON_DEVICE_ASSEMBLY(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_assembly(moon_adapter moon, moon_device_assembly const *assembly, moon_device *out_device)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_assembly(struct moon_impl *moon, moon_device_assembly const *assembly, struct moon_device_impl **out_device)
 
 /** Destroy a rendering device. */
-PFN_LAKE_WORK(PFN_moon_device_zero_refcnt, moon_device device);
+PFN_LAKE_WORK(PFN_moon_device_zero_refcnt, struct moon_device_impl *device);
 #define FN_MOON_DEVICE_ZERO_REFCNT(backend) \
-    FN_LAKE_WORK(_moon_##backend##_device_zero_refcnt, moon_device device)
+    FN_LAKE_WORK(_moon_##backend##_device_zero_refcnt, struct moon_device_impl *device)
 
 /** Retrieve the number of queues available for a given queue type. Writes 0 if the command queue is unavailable. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_queue_count)(moon_device device, moon_queue_type queue_type, u32 *out_queue_count);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_queue_count)(struct moon_device_impl *device, moon_queue_type queue_type, u32 *out_queue_count);
 #define FN_MOON_DEVICE_QUEUE_COUNT(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_queue_count(moon_device device, moon_queue_type queue_type, u32 *out_queue_count)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_queue_count(struct moon_device_impl *device, moon_queue_type queue_type, u32 *out_queue_count)
 
 /** Wait until GPU work on a given command queue is done. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_queue_wait_idle)(moon_device device, moon_queue queue);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_queue_wait_idle)(struct moon_device_impl *device, moon_queue queue);
 #define FN_MOON_DEVICE_QUEUE_WAIT_IDLE(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_queue_wait_idle(moon_device device, moon_queue queue)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_queue_wait_idle(struct moon_device_impl *device, moon_queue queue)
 
 /** Wait until all GPU work is done. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_wait_idle)(moon_device device);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_wait_idle)(struct moon_device_impl *device);
 #define FN_MOON_DEVICE_WAIT_IDLE(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_wait_idle(moon_device device)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_wait_idle(struct moon_device_impl *device)
 
 /** Submit work into a command queue. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_submit_commands)(moon_device device, moon_device_submit const *submit);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_submit_commands)(struct moon_device_impl *device, moon_device_submit const *submit);
 #define FN_MOON_DEVICE_SUBMIT_COMMANDS(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_submit_commands(moon_device device, moon_device_submit const *submit)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_submit_commands(struct moon_device_impl *device, moon_device_submit const *submit)
 
 /** Present swapchain images. Used by a primary device that supports presentation to a window surface. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_present_frames)(moon_device device, moon_device_present const *present);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_present_frames)(struct moon_device_impl *device, moon_device_present const *present);
 #define FN_MOON_DEVICE_PRESENT_FRAMES(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_present_frames(moon_device device, moon_device_present const *present)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_present_frames(struct moon_device_impl *device, moon_device_present const *present)
 
 /** Destroys all resources that were zombified and are ready to be destroyed. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_commit_deferred_destructors)(moon_device device);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_commit_deferred_destructors)(struct moon_device_impl *device);
 #define FN_MOON_DEVICE_COMMIT_DEFERRED_DESTRUCTORS(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_commit_deferred_destructors(moon_device device)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_commit_deferred_destructors(struct moon_device_impl *device)
 
 /** Get GPU memory requirements for a buffer. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_buffer_memory_requirements)(moon_device device, moon_buffer_assembly const *assembly, moon_memory_requirements *out_requirements);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_buffer_memory_requirements)(struct moon_device_impl *device, moon_buffer_assembly const *assembly, moon_memory_requirements *out_requirements);
 #define FN_MOON_DEVICE_BUFFER_MEMORY_REQUIREMENTS(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_buffer_memory_requirements(moon_device device, moon_buffer_assembly const *assembly, moon_memory_requirements *out_requirements)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_buffer_memory_requirements(struct moon_device_impl *device, moon_buffer_assembly const *assembly, moon_memory_requirements *out_requirements)
 
 /** Get GPU memory requirements for a texture. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_texture_memory_requirements)(moon_device device, moon_texture_assembly const *assembly, moon_memory_requirements *out_requirements);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_texture_memory_requirements)(struct moon_device_impl *device, moon_texture_assembly const *assembly, moon_memory_requirements *out_requirements);
 #define FN_MOON_DEVICE_TEXTURE_MEMORY_REQUIREMENTS(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_texture_memory_requirements(moon_device device, moon_texture_assembly const *assembly, moon_memory_requirements *out_requirements)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_texture_memory_requirements(struct moon_device_impl *device, moon_texture_assembly const *assembly, moon_memory_requirements *out_requirements)
 
 /** Query device acceleration structure build sizes for a top-level. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_tlas_build_sizes)(moon_device device, moon_tlas_assembly const *assembly, moon_build_acceleration_structure_sizes *out_sizes);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_tlas_build_sizes)(struct moon_device_impl *device, moon_tlas_build_details const *details, moon_acceleration_structure_build_sizes *out_sizes);
 #define FN_MOON_DEVICE_TLAS_BUILD_SIZES(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_tlas_build_sizes(moon_device device, moon_tlas_assembly const *assembly, moon_build_acceleration_structure_sizes *out_sizes)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_tlas_build_sizes(struct moon_device_impl *device, moon_tlas_build_details const *details, moon_acceleration_structure_build_sizes *out_sizes)
 
 /** Query device acceleration structure build sizes for a bottom-level. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_blas_build_sizes)(moon_device device, moon_blas_assembly const *assembly, moon_build_acceleration_structure_sizes *out_sizes);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_blas_build_sizes)(struct moon_device_impl *device, moon_blas_build_details const *details, moon_acceleration_structure_build_sizes *out_sizes);
 #define FN_MOON_DEVICE_BLAS_BUILD_SIZES(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_blas_build_sizes(moon_device device, moon_blas_assembly const *assembly, moon_build_acceleration_structure_sizes *out_sizes)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_blas_build_sizes(struct moon_device_impl *device, moon_blas_build_details const *details, moon_acceleration_structure_build_sizes *out_sizes)
 
 /** Writes statistics of all device heap memory in use. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_memory_report)(moon_device device, moon_memory_report *out_report);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_device_memory_report)(struct moon_device_impl *device, moon_memory_report *report);
 #define FN_MOON_DEVICE_MEMORY_REPORT(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_memory_report(moon_device device, moon_memory_report *out_report)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_device_memory_report(struct moon_device_impl *device, moon_memory_report *report)
 
 /** Assemble and allocate heap memory on a device. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_memory_heap_assembly)(moon_device device, moon_memory_heap_assembly const *assembly, moon_memory_heap *out_heap);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_memory_heap_assembly)(struct moon_device_impl *device, moon_memory_heap_assembly const *assembly, struct moon_memory_heap_impl **out_heap);
 #define FN_MOON_MEMORY_HEAP_ASSEMBLY(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_memory_heap_assembly(moon_device device, moon_memory_heap_assembly const *assembly, moon_memory_heap *out_heap)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_memory_heap_assembly(struct moon_device_impl *device, moon_memory_heap_assembly const *assembly, struct moon_memory_heap_impl **out_heap)
 
 /** Destroy and deallocate heap memory on a device. */
-PFN_LAKE_WORK(PFN_moon_memory_heap_zero_refcnt, moon_memory_heap heap);
+PFN_LAKE_WORK(PFN_moon_memory_heap_zero_refcnt, struct moon_memory_heap_impl *heap);
 #define FN_MOON_MEMORY_HEAP_ZERO_REFCNT(backend) \
-    FN_LAKE_WORK(_moon_##backend##_memory_heap_zero_refcnt, moon_memory_heap heap)
+    FN_LAKE_WORK(_moon_##backend##_memory_heap_zero_refcnt, struct moon_memory_heap_impl *heap)
 
 /** Create a buffer on device. The handle allows for one-to-many cardinality. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_buffer)(moon_device device, moon_buffer_assembly const *assembly, moon_buffer_id *out_buffer);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_buffer)(struct moon_device_impl *device, moon_buffer_assembly const *assembly, moon_buffer_id *out_buffer);
 #define FN_MOON_CREATE_BUFFER(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_buffer(moon_device device, moon_buffer_assembly const *assembly, moon_buffer_id *out_buffer)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_buffer(struct moon_device_impl *device, moon_buffer_assembly const *assembly, moon_buffer_id *out_buffer)
 
 /** Create a buffer from memory on device. The handle allows for one-to-many cardinality. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_buffer_from_memory_heap)(moon_device device, moon_buffer_assembly_from_memory_heap const *assembly, moon_buffer_id *out_buffer);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_buffer_from_memory_heap)(struct moon_device_impl *device, moon_buffer_assembly_from_memory_heap const *assembly, moon_buffer_id *out_buffer);
 #define FN_MOON_CREATE_BUFFER_FROM_MEMORY_HEAP(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_buffer_from_memory_heap(moon_device device, moon_buffer_assembly_from_memory_heap const *assembly, moon_buffer_id *out_buffer)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_buffer_from_memory_heap(struct moon_device_impl *device, moon_buffer_assembly_from_memory_heap const *assembly, moon_buffer_id *out_buffer)
 
 /** Create a texture on device. The handle allows for one-to-many cardinality. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_texture)(moon_device device, moon_texture_assembly const *assembly, moon_texture_id *out_texture);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_texture)(struct moon_device_impl *device, moon_texture_assembly const *assembly, moon_texture_id *out_texture);
 #define FN_MOON_CREATE_TEXTURE(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_texture(moon_device device, moon_texture_assembly const *assembly, moon_texture_id *out_texture)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_texture(struct moon_device_impl *device, moon_texture_assembly const *assembly, moon_texture_id *out_texture)
 
 /** Create a texture from memory on device. The handle allows for one-to-many cardinality. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_texture_from_memory_heap)(moon_device device, moon_texture_assembly_from_memory_heap const *assembly, moon_texture_id *out_texture);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_texture_from_memory_heap)(struct moon_device_impl *device, moon_texture_assembly_from_memory_heap const *assembly, moon_texture_id *out_texture);
 #define FN_MOON_CREATE_TEXTURE_FROM_MEMORY_HEAP(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_texture_from_memory_heap(moon_device device, moon_texture_assembly_from_memory_heap const *assembly, moon_texture_id *out_texture)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_texture_from_memory_heap(struct moon_device_impl *device, moon_texture_assembly_from_memory_heap const *assembly, moon_texture_id *out_texture)
 
 /** Create a texture view on device. The handle allows for one-to-many cardinality. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_texture_view)(moon_device device, moon_texture_view_assembly const *assembly, moon_texture_view_id *out_texture_view);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_texture_view)(struct moon_device_impl *device, moon_texture_view_assembly const *assembly, moon_texture_view_id *out_texture_view);
 #define FN_MOON_CREATE_TEXTURE_VIEW(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_texture_view(moon_device device, moon_texture_view_assembly const *assembly, moon_texture_view_id *out_texture_view)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_texture_view(struct moon_device_impl *device, moon_texture_view_assembly const *assembly, moon_texture_view_id *out_texture_view)
 
 /** Create a sampler on device. The handle allows for one-to-many cardinality. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_sampler)(moon_device device, moon_sampler_assembly const *assembly, moon_sampler_id *out_sampler);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_sampler)(struct moon_device_impl *device, moon_sampler_assembly const *assembly, moon_sampler_id *out_sampler);
 #define FN_MOON_CREATE_SAMPLER(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_sampler(moon_device device, moon_sampler_assembly const *assembly, moon_sampler_id *out_sampler)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_sampler(struct moon_device_impl *device, moon_sampler_assembly const *assembly, moon_sampler_id *out_sampler)
 
 /** Create a top-level on device. The handle allows for one-to-many cardinality. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_tlas)(moon_device device, moon_tlas_assembly const *assembly, moon_tlas_id *out_tlas);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_tlas)(struct moon_device_impl *device, moon_tlas_assembly const *assembly, moon_tlas_id *out_tlas);
 #define FN_MOON_CREATE_TLAS(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_tlas(moon_device device, moon_tlas_assembly const *assembly, moon_tlas_id *out_tlas)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_tlas(struct moon_device_impl *device, moon_tlas_assembly const *assembly, moon_tlas_id *out_tlas)
 
 /** Create a top-level from buffer on device. The handle allows for one-to-many cardinality. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_tlas_from_buffer)(moon_device device, moon_tlas_assembly_from_buffer const *assembly, moon_tlas_id *out_tlas);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_tlas_from_buffer)(struct moon_device_impl *device, moon_buffer_tlas_assembly const *assembly, moon_tlas_id *out_tlas);
 #define FN_MOON_CREATE_TLAS_FROM_BUFFER(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_tlas_from_buffer(moon_device device, moon_tlas_assembly_from_buffer const *assembly, moon_tlas_id *out_tlas)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_tlas_from_buffer(struct moon_device_impl *device, moon_buffer_tlas_assembly const *assembly, moon_tlas_id *out_tlas)
 
 /** Create a bottom-level on device. The handle allows for one-to-many cardinality. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_blas)(moon_device device, moon_blas_assembly const *assembly, moon_blas_id *out_blas);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_blas)(struct moon_device_impl *device, moon_blas_assembly const *assembly, moon_blas_id *out_blas);
 #define FN_MOON_CREATE_BLAS(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_blas(moon_device device, moon_blas_assembly const *assembly, moon_blas_id *out_blas)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_blas(struct moon_device_impl *device, moon_blas_assembly const *assembly, moon_blas_id *out_blas)
 
 /** Create a bottom-level from buffer on device. The handle allows for one-to-many cardinality. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_blas_from_buffer)(moon_device device, moon_blas_assembly_from_buffer const *assembly, moon_blas_id *out_blas);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_create_blas_from_buffer)(struct moon_device_impl *device, moon_buffer_blas_assembly const *assembly, moon_blas_id *out_blas);
 #define FN_MOON_CREATE_BLAS_FROM_BUFFER(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_blas_from_buffer(moon_device device, moon_blas_assembly_from_buffer const *assembly, moon_blas_id *out_blas)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_create_blas_from_buffer(struct moon_device_impl *device, moon_buffer_blas_assembly const *assembly, moon_blas_id *out_blas)
 
 /** The buffer handle is valid as long as it was created by the device and not yet destroyed. */
-typedef LAKE_NODISCARD bool (LAKECALL *PFN_moon_is_buffer_valid)(moon_device device, moon_buffer_id buffer);
+typedef LAKE_NODISCARD bool (LAKECALL *PFN_moon_is_buffer_valid)(struct moon_device_impl *device, moon_buffer_id buffer);
 #define FN_MOON_IS_BUFFER_VALID(backend) \
-    LAKE_NODISCARD bool LAKECALL _moon_##backend##_is_buffer_valid(moon_device device, moon_buffer_id buffer)
+    LAKE_NODISCARD bool LAKECALL _moon_##backend##_is_buffer_valid(struct moon_device_impl *device, moon_buffer_id buffer)
 
 /** The texture handle is valid as long as it was created by the device and not yet destroyed. */
-typedef LAKE_NODISCARD bool (LAKECALL *PFN_moon_is_texture_valid)(moon_device device, moon_texture_id texture);
+typedef LAKE_NODISCARD bool (LAKECALL *PFN_moon_is_texture_valid)(struct moon_device_impl *device, moon_texture_id texture);
 #define FN_MOON_IS_TEXTURE_VALID(backend) \
-    LAKE_NODISCARD bool LAKECALL _moon_##backend##_is_texture_valid(moon_device device, moon_texture_id texture)
+    LAKE_NODISCARD bool LAKECALL _moon_##backend##_is_texture_valid(struct moon_device_impl *device, moon_texture_id texture)
 
 /** The texture view handle is valid as long as it was created by the device and not yet destroyed. */
-typedef LAKE_NODISCARD bool (LAKECALL *PFN_moon_is_texture_view_valid)(moon_device device, moon_texture_view_id texture_view);
+typedef LAKE_NODISCARD bool (LAKECALL *PFN_moon_is_texture_view_valid)(struct moon_device_impl *device, moon_texture_view_id texture_view);
 #define FN_MOON_IS_TEXTURE_VIEW_VALID(backend) \
-    LAKE_NODISCARD bool LAKECALL _moon_##backend##_is_texture_view_valid(moon_device device, moon_texture_view_id texture_view)
+    LAKE_NODISCARD bool LAKECALL _moon_##backend##_is_texture_view_valid(struct moon_device_impl *device, moon_texture_view_id texture_view)
 
 /** The sampler handle is valid as long as it was created by the device and not yet destroyed. */
-typedef LAKE_NODISCARD bool (LAKECALL *PFN_moon_is_sampler_valid)(moon_device device, moon_sampler_id sampler);
+typedef LAKE_NODISCARD bool (LAKECALL *PFN_moon_is_sampler_valid)(struct moon_device_impl *device, moon_sampler_id sampler);
 #define FN_MOON_IS_SAMPLER_VALID(backend) \
-    LAKE_NODISCARD bool LAKECALL _moon_##backend##_is_sampler_valid(moon_device device, moon_sampler_id sampler)
+    LAKE_NODISCARD bool LAKECALL _moon_##backend##_is_sampler_valid(struct moon_device_impl *device, moon_sampler_id sampler)
 
 /** The tlas-level handle is valid as long as it was created by the device and not yet destroyed. */
-typedef LAKE_NODISCARD bool (LAKECALL *PFN_moon_is_tlas_valid)(moon_device device, moon_tlas_id tlas);
+typedef LAKE_NODISCARD bool (LAKECALL *PFN_moon_is_tlas_valid)(struct moon_device_impl *device, moon_tlas_id tlas);
 #define FN_MOON_IS_TLAS_VALID(backend) \
-    LAKE_NODISCARD bool LAKECALL _moon_##backend##_is_tlas_valid(moon_device device, moon_tlas_id tlas)
+    LAKE_NODISCARD bool LAKECALL _moon_##backend##_is_tlas_valid(struct moon_device_impl *device, moon_tlas_id tlas)
 
 /** The bottom-level handle is valid as long as it was created by the device and not yet destroyed. */
-typedef LAKE_NODISCARD bool (LAKECALL *PFN_moon_is_blas_valid)(moon_device device, moon_blas_id blas);
+typedef LAKE_NODISCARD bool (LAKECALL *PFN_moon_is_blas_valid)(struct moon_device_impl *device, moon_blas_id blas);
 #define FN_MOON_IS_BLAS_VALID(backend) \
-    LAKE_NODISCARD bool LAKECALL _moon_##backend##_is_blas_valid(moon_device device, moon_blas_id blas)
+    LAKE_NODISCARD bool LAKECALL _moon_##backend##_is_blas_valid(struct moon_device_impl *device, moon_blas_id blas)
 
 /** Returns the host address of a mapped buffer handle loaded in a given device. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_buffer_host_address)(moon_device device, moon_buffer_id buffer, void **out_host_address);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_buffer_host_address)(struct moon_device_impl *device, moon_buffer_id buffer, void **out_host_address);
 #define FN_MOON_BUFFER_HOST_ADDRESS(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_buffer_host_address(moon_device device, moon_buffer_id buffer, void **out_host_address)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_buffer_host_address(struct moon_device_impl *device, moon_buffer_id buffer, void **out_host_address)
 
 /** Returns the device address of a buffer handle loaded in a given device. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_buffer_device_address)(moon_device device, moon_buffer_id buffer, moon_device_address *out_device_address);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_buffer_device_address)(struct moon_device_impl *device, moon_buffer_id buffer, moon_device_address *out_device_address);
 #define FN_MOON_BUFFER_DEVICE_ADDRESS(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_buffer_device_address(moon_device device, moon_buffer_id buffer, moon_device_address *out_device_address)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_buffer_device_address(struct moon_device_impl *device, moon_buffer_id buffer, moon_device_address *out_device_address)
 
 /** Returns the device address of an top-level acceleration structure handle loaded in a given device. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_tlas_device_address)(moon_device device, moon_tlas_id tlas, moon_device_address *out_device_address);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_tlas_device_address)(struct moon_device_impl *device, moon_tlas_id tlas, moon_device_address *out_device_address);
 #define FN_MOON_TLAS_DEVICE_ADDRESS(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_tlas_device_address(moon_device device, moon_tlas_id tlas, moon_device_address *out_device_address)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_tlas_device_address(struct moon_device_impl *device, moon_tlas_id tlas, moon_device_address *out_device_address)
 
 /** Returns the device address of an bottom-level acceleration structure handle loaded in a given device. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_blas_device_address)(moon_device device, moon_blas_id blas, moon_device_address *out_device_address);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_blas_device_address)(struct moon_device_impl *device, moon_blas_id blas, moon_device_address *out_device_address);
 #define FN_MOON_BLAS_DEVICE_ADDRESS(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_blas_device_address(moon_device device, moon_blas_id blas, moon_device_address *out_device_address)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_blas_device_address(struct moon_device_impl *device, moon_blas_id blas, moon_device_address *out_device_address)
+
+/** Get a copy of a buffer assembly structure for a valid buffer id, returns null if id is invalid. */
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_read_buffer_assembly)(struct moon_device_impl *device, moon_buffer_id buffer, moon_buffer_assembly *out_assembly);
+#define FN_MOON_READ_BUFFER_ASSEMBLY(backend) \
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_read_buffer_assembly(struct moon_device_impl *device, moon_buffer_id buffer, moon_buffer_assembly *out_assembly)
+
+/** Get a copy of a texture assembly structure for a valid texture id. */
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_read_texture_assembly)(struct moon_device_impl *device, moon_texture_id texture, moon_texture_assembly *out_assembly);
+#define FN_MOON_READ_TEXTURE_ASSEMBLY(backend) \
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_read_texture_assembly(struct moon_device_impl *device, moon_texture_id texture, moon_texture_assembly *out_assembly)
+
+/** Get a copy of a texture view assembly structure for a valid texture view id. */
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_read_texture_view_assembly)(struct moon_device_impl *device, moon_texture_view_id texture_view, moon_texture_view_assembly *out_assembly);
+#define FN_MOON_READ_TEXTURE_VIEW_ASSEMBLY(backend) \
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_read_texture_view_assembly(struct moon_device_impl *device, moon_texture_view_id texture_view, moon_texture_view_assembly *out_assembly)
+
+/** Get a copy of a sampler assembly structure for a valid sampler id, returns null if id is invalid. */
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_read_sampler_assembly)(struct moon_device_impl *device, moon_sampler_id sampler, moon_sampler_assembly *out_assembly);
+#define FN_MOON_READ_SAMPLER_ASSEMBLY(backend) \
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_read_sampler_assembly(struct moon_device_impl *device, moon_sampler_id sampler, moon_sampler_assembly *out_assembly)
+
+/** Get a copy of an tlas assembly structure for a valid tlas id. */
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_read_tlas_assembly)(struct moon_device_impl *device, moon_tlas_id tlas, moon_tlas_assembly *out_assembly);
+#define FN_MOON_READ_TLAS_ASSEMBLY(backend) \
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_read_tlas_assembly(struct moon_device_impl *device, moon_tlas_id tlas, moon_tlas_assembly *out_assembly)
+
+/** Get a copy of an blas assembly structure for a valid blas id. */
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_read_blas_assembly)(struct moon_device_impl *device, moon_blas_id blas, moon_blas_assembly *out_assembly);
+#define FN_MOON_READ_BLAS_ASSEMBLY(backend) \
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_read_blas_assembly(struct moon_device_impl *device, moon_blas_id blas, moon_blas_assembly *out_assembly)
 
 /** The buffer will be zombified and destroyed after `PFN_moon_device_commit_deferred_destructors` is called. */
-typedef void (LAKECALL *PFN_moon_destroy_buffer)(moon_device device, moon_buffer_id buffer);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_destroy_buffer)(struct moon_device_impl *device, moon_buffer_id buffer);
 #define FN_MOON_DESTROY_BUFFER(backend) \
-    void LAKECALL _moon_##backend##_destroy_buffer(moon_device device, moon_buffer_id buffer)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_destroy_buffer(struct moon_device_impl *device, moon_buffer_id buffer)
 
 /** The texture will be zombified and destroyed after `PFN_moon_device_commit_deferred_destructors` is called. */
-typedef void (LAKECALL *PFN_moon_destroy_texture)(moon_device device, moon_texture_id texture);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_destroy_texture)(struct moon_device_impl *device, moon_texture_id texture);
 #define FN_MOON_DESTROY_TEXTURE(backend) \
-    void LAKECALL _moon_##backend##_destroy_texture(moon_device device, moon_texture_id texture)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_destroy_texture(struct moon_device_impl *device, moon_texture_id texture)
 
 /** The texture view will be zombified and destroyed after `PFN_moon_device_commit_deferred_destructors` is called. */
-typedef void (LAKECALL *PFN_moon_destroy_texture_view)(moon_device device, moon_texture_view_id texture_view);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_destroy_texture_view)(struct moon_device_impl *device, moon_texture_view_id texture_view);
 #define FN_MOON_DESTROY_TEXTURE_VIEW(backend) \
-    void LAKECALL _moon_##backend##_destroy_texture_view(moon_device device, moon_texture_view_id texture_view)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_destroy_texture_view(struct moon_device_impl *device, moon_texture_view_id texture_view)
 
 /** The sampler will be zombified and destroyed after `PFN_moon_device_commit_deferred_destructors` is called. */
-typedef void (LAKECALL *PFN_moon_destroy_sampler)(moon_device device, moon_sampler_id sampler);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_destroy_sampler)(struct moon_device_impl *device, moon_sampler_id sampler);
 #define FN_MOON_DESTROY_SAMPLER(backend) \
-    void LAKECALL _moon_##backend##_destroy_sampler(moon_device device, moon_sampler_id sampler)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_destroy_sampler(struct moon_device_impl *device, moon_sampler_id sampler)
 
 /** The top-level will be zombified and destroyed after `PFN_moon_device_commit_deferred_destructors` is called. */
-typedef void (LAKECALL *PFN_moon_destroy_tlas)(moon_device device, moon_tlas_id tlas);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_destroy_tlas)(struct moon_device_impl *device, moon_tlas_id tlas);
 #define FN_MOON_DESTROY_TLAS(backend) \
-    void LAKECALL _moon_##backend##_destroy_tlas(moon_device device, moon_tlas_id tlas)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_destroy_tlas(struct moon_device_impl *device, moon_tlas_id tlas)
 
 /** The bottom-level will be zombified and destroyed after `PFN_moon_device_commit_deferred_destructors` is called. */
-typedef void (LAKECALL *PFN_moon_destroy_blas)(moon_device device, moon_blas_id blas);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_destroy_blas)(struct moon_device_impl *device, moon_blas_id blas);
 #define FN_MOON_DESTROY_BLAS(backend) \
-    void LAKECALL _moon_##backend##_destroy_blas(moon_device device, moon_blas_id blas)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_destroy_blas(struct moon_device_impl *device, moon_blas_id blas)

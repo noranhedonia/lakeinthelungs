@@ -1,1 +1,4 @@
-#engine_sources += files()
+engine_sources += files(
+    'ffsbit.c',
+    'popcnt.c',
+)

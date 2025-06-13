@@ -1,4 +1,4 @@
-project('lakeinthelungs', ['c', 'cpp'],
+project('lakeinthelungs', ['c'],
     version: files('VERSION'),
     license: 'MIT',
     meson_version: '>= 1.5.0',
@@ -8,7 +8,7 @@ project('lakeinthelungs', ['c', 'cpp'],
         'default_library=shared',
         'warning_level=3',
         'c_std=c23',
-        'cpp_std=c++23',
+        'cimgui:default_library=static',
     ],
 )
 
@@ -23,7 +23,7 @@ else
 endif
 
 cc = meson.get_compiler('c')
-cpp = meson.get_compiler('cpp')
+#cpp = meson.get_compiler('cpp')
 fs = import('fs')
 
 if get_option('layout') != 'mirror'
@@ -38,6 +38,7 @@ relative_dir = fs.relative_to(meson.global_source_root(), meson.global_build_roo
 
 # arguments for the preprocessor, they need to be added to the default arguments for both C and C++
 pre_args = [
+    '-Werror=all',
     '-D__STDC_CONSTANT_MACROS',
     '-D__STDC_FORMAT_MACROS',
     '-D__STDC_LIMIT_MACROS',
@@ -52,14 +53,16 @@ endif
 
 # arguments for C or C++ compilers
 c_args = ['-Wno-pedantic']
-cpp_args = ['-Wno-pedantic']
-include_dir = include_directories('include')
+#cpp_args = ['-Wno-pedantic']
+include_dirs = [ include_directories('include') ]
 
 subdir('source')
 if get_option('build-main')
     subdir('main')
 endif
-# TODO tests
+if get_option('build-tests')
+    subdir('tests')
+endif
 
 doxygen = find_program('doxygen', required : get_option('build-docs'))
 if doxygen.found()

@@ -28,7 +28,7 @@ FN_HADAL_VULKAN_PRESENTATION_SUPPORT(wayland)
 
 FN_HADAL_VULKAN_CREATE_SURFACE(wayland)
 {
-    hadal_adapter hadal = window->header.hadal.adapter;
+    struct hadal_impl *hadal = window->header.hadal.impl;
     lake_dbg_assert(hadal->vulkan.vkCreateWaylandSurfaceKHR != nullptr, LAKE_ERROR_FEATURE_NOT_PRESENT, nullptr);
 
     struct VkWaylandSurfaceCreateInfoKHR surface_info = {
@@ -38,7 +38,7 @@ FN_HADAL_VULKAN_CREATE_SURFACE(wayland)
         .display = hadal->wl_display,
         .surface = window->surface,
     };
-    s32 result = hadal->vulkan.vkCreateWaylandSurfaceKHR(hadal->vulkan.vk_instance, &surface_info, callbacks, out_vk_surface);
+    s32 result = hadal->vulkan.vkCreateWaylandSurfaceKHR(hadal->vulkan.vk_instance, &surface_info, callbacks, out_surface);
 
     if (result == -1)
         return LAKE_ERROR_OUT_OF_HOST_MEMORY;

@@ -38,7 +38,7 @@ option(
     'graphics',
     type: 'array',
     value: ['auto'],
-    choices: [
+    choices: [ 
         'auto', 'vulkan', 'd3d12', 'metal', 'webgpu',
     ],
     description: 'Rendering backends to support. If this is set to `auto`, all rendering backends applicable will be enabled.'
@@ -52,6 +52,13 @@ option(
         'auto', 'openxr',
     ],
     description: 'XR runtimes and hardware interfaces to support. If this is set to `auto`, all runtimes applicable will be enabled.'
+)
+
+option(
+    'slang-runtime',
+    type: 'boolean',
+    value: false,
+    description: 'Embed the Slang compiler as a static library subproject, instead of relying on host shared libraries provided by VulkanSDK.'
 )
 
 option(
@@ -84,8 +91,8 @@ option(
 
 option(
     'build-tests',
-    type: 'feature',
-    value: 'disabled',
+    type: 'boolean',
+    value: false,
     description: 'Build unit tests and included benchmark/example apps.'
 )
 

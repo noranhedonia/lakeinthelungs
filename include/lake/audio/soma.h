@@ -5,11 +5,14 @@
  *
  *  TODO docs
  */
-#include <lake/audio/soma_adapter.h>
+#include <lake/bedrock.h>
 
-typedef struct soma_interface_impl {
+/** The audio interface implementation. */
+LAKE_DECL_INTERFACE(soma);
+
+struct soma_interface_impl {
     lake_interface_header   header;
-} soma_interface_impl;
+};
 
 #ifdef __cplusplus
 extern "C" {

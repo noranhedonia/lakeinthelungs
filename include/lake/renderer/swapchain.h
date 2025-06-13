@@ -5,8 +5,11 @@
  *
  *  TODO docs
  */
-#include <lake/renderer/moon_adapter.h>
+#include <lake/renderer/render_resources.h>
 #include <lake/renderer/device.h>
+
+struct hadal_impl;
+struct hadal_window_impl;
 
 typedef enum moon_present_mode : s8 {
     moon_present_mode_immediate = 0,
@@ -62,69 +65,74 @@ static constexpr moon_swapchain_assembly MOON_SWAPCHAIN_ASSEMBLY_INIT = {
 };
 
 /** Assemble a swapchain. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_swapchain_assembly)(moon_device device, moon_swapchain_assembly const *assembly, moon_swapchain *out_swapchain);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_swapchain_assembly)(struct moon_device_impl *device, moon_swapchain_assembly const *assembly, struct moon_swapchain_impl **out_swapchain);
 #define FN_MOON_SWAPCHAIN_ASSEMBLY(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_swapchain_assembly(moon_device device, moon_swapchain_assembly const *assembly, moon_swapchain *out_swapchain)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_swapchain_assembly(struct moon_device_impl *device, moon_swapchain_assembly const *assembly, struct moon_swapchain_impl **out_swapchain)
 
 /** Destroy a swapchain. */
-PFN_LAKE_WORK(PFN_moon_swapchain_zero_refcnt, moon_swapchain swapchain);
+PFN_LAKE_WORK(PFN_moon_swapchain_zero_refcnt, struct moon_swapchain_impl *swapchain);
 #define FN_MOON_SWAPCHAIN_ZERO_REFCNT(backend) \
-    FN_LAKE_WORK(_moon_##backend##_swapchain_zero_refcnt, moon_swapchain swapchain)
+    FN_LAKE_WORK(_moon_##backend##_swapchain_zero_refcnt, struct moon_swapchain_impl *swapchain)
 
 /** Limits frames in flight. Blocks until GPU catches up to the max number of frames in flight.
  *  DOES NOT WAIT for the swapchain image to be available, one must STILL use the acquire semaphore.
  *  This function DOES WAIT until there is a frame in flight available to prepare on the CPU. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_swapchain_wait_for_next_frame)(moon_swapchain swapchain);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_swapchain_wait_for_next_frame)(struct moon_swapchain_impl *swapchain);
 #define FN_MOON_SWAPCHAIN_WAIT_FOR_NEXT_FRAME(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_swapchain_wait_for_next_frame(moon_swapchain swapchain)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_swapchain_wait_for_next_frame(struct moon_swapchain_impl *swapchain)
 
 /** The texture handle may change between calls. This must be called to obtain a new swapchain image 
  *  to be used for rendering. WARNING: texture handles returned from the swapchain are INVALID after 
  *  the swapchain is destroyed, or either resize or set_present_mode is called. This function may 
  *  internally call into `PFN_moon_swapchain_wait_for_next_frame`. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_swapchain_acquire_next_image)(moon_swapchain swapchain, moon_texture_id *out_texture);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_swapchain_acquire_next_image)(struct moon_swapchain_impl *swapchain, moon_texture_id *out_texture);
 #define FN_MOON_SWAPCHAIN_ACQUIRE_NEXT_IMAGE(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_swapchain_acquire_next_image(moon_swapchain swapchain, moon_texture_id *out_texture)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_swapchain_acquire_next_image(struct moon_swapchain_impl *swapchain, moon_texture_id *out_texture)
 
 /** The acquire semaphore must be waited on in the first submission that uses the last acquired image. 
  *  This semaphore may change between acquires, so it needs to be re-queried after every current_acquire_semaphore call. */
-typedef LAKE_NODISCARD moon_binary_semaphore (LAKECALL *PFN_moon_swapchain_current_acquire_semaphore)(moon_swapchain swapchain);
+typedef LAKE_NODISCARD struct moon_binary_semaphore_impl *(LAKECALL *PFN_moon_swapchain_current_acquire_semaphore)(struct moon_swapchain_impl *swapchain);
 #define FN_MOON_SWAPCHAIN_CURRENT_ACQUIRE_SEMAPHORE(backend) \
-    LAKE_NODISCARD moon_binary_semaphore LAKECALL _moon_##backend##_swapchain_current_acquire_semaphore(moon_swapchain swapchain)
+    LAKE_NODISCARD struct moon_binary_semaphore_impl *LAKECALL _moon_##backend##_swapchain_current_acquire_semaphore(struct moon_swapchain_impl *swapchain)
 
 /** The present semaphore must be signaled in the last submission that uses the last acquired swapchain image.
  *  The present semaphore must be waited on in the present of the last acquired image. This semaphore may 
  *  change between acquires, so it needs to be re-queried after every current_acquire_semaphore call. */
-typedef LAKE_NODISCARD moon_binary_semaphore (LAKECALL *PFN_moon_swapchain_current_present_semaphore)(moon_swapchain swapchain);
+typedef LAKE_NODISCARD struct moon_binary_semaphore_impl *(LAKECALL *PFN_moon_swapchain_current_present_semaphore)(struct moon_swapchain_impl *swapchain);
 #define FN_MOON_SWAPCHAIN_CURRENT_PRESENT_SEMAPHORE(backend) \
-    LAKE_NODISCARD moon_binary_semaphore LAKECALL _moon_##backend##_swapchain_current_present_semaphore(moon_swapchain swapchain)
+    LAKE_NODISCARD struct moon_binary_semaphore_impl *LAKECALL _moon_##backend##_swapchain_current_present_semaphore(struct moon_swapchain_impl *swapchain)
 
 /** The last submission that uses the swapchain image needs to signal the timeline with the CPU value. */
-typedef LAKE_NODISCARD u64 (LAKECALL *PFN_moon_swapchain_current_cpu_timeline_value)(moon_swapchain swapchain);
+typedef LAKE_NODISCARD u64 (LAKECALL *PFN_moon_swapchain_current_cpu_timeline_value)(struct moon_swapchain_impl *swapchain);
 #define FN_MOON_SWAPCHAIN_CURRENT_CPU_TIMELINE_VALUE(backend) \
-    LAKE_NODISCARD u64 LAKECALL _moon_##backend##_swapchain_current_cpu_timeline_value(moon_swapchain swapchain)
+    LAKE_NODISCARD u64 LAKECALL _moon_##backend##_swapchain_current_cpu_timeline_value(struct moon_swapchain_impl *swapchain)
 
 /** The swapchain needs to know when the last use of the swapchain happens to limit the frames in flight. In the last 
  *  submission that uses the swapchain image, signal this timeline semaphore with the CPU timeline value. The CPU value 
  *  timeline is incremented whenever acquire is called. The GPU timeline must be manually incremented by the user via 
  *  a submit. The difference between CPU and GPU timeline describes how many frames in flight the GPU is behind the CPU. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_swapchain_current_timeline_pair)(moon_swapchain swapchain, moon_timeline_pair *out_timeline);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_swapchain_current_timeline_pair)(struct moon_swapchain_impl *swapchain, moon_timeline_pair *out_timeline);
 #define FN_MOON_SWAPCHAIN_CURRENT_TIMELINE_PAIR(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_swapchain_current_timeline_pair(moon_swapchain swapchain, moon_timeline_pair *out_timeline)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_swapchain_current_timeline_pair(struct moon_swapchain_impl *swapchain, moon_timeline_pair *out_timeline)
 
 /** The swapchain needs to know when the last use of the swapchain happens to limit the frames in flight.
  *  In the last submission that uses the swapchain image, signal this timeline semaphore with the CPU timeline value. */
-typedef LAKE_NODISCARD moon_timeline_semaphore (LAKECALL *PFN_moon_swapchain_gpu_timeline_semaphore)(moon_swapchain swapchain);
+typedef LAKE_NODISCARD struct moon_timeline_semaphore_impl *(LAKECALL *PFN_moon_swapchain_gpu_timeline_semaphore)(struct moon_swapchain_impl *swapchain);
 #define FN_MOON_SWAPCHAIN_GPU_TIMELINE_SEMAPHORE(backend) \
-    LAKE_NODISCARD moon_timeline_semaphore LAKECALL _moon_##backend##_swapchain_gpu_timeline_semaphore(moon_swapchain swapchain)
+    LAKE_NODISCARD struct moon_timeline_semaphore_impl *LAKECALL _moon_##backend##_swapchain_gpu_timeline_semaphore(struct moon_swapchain_impl *swapchain)
 
 /** Recreates the swapchain with new present mode. Due to wsi limitations this function will WAIT IDLE the device. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_swapchain_set_present_mode)(moon_swapchain swapchain, moon_present_mode present_mode);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_swapchain_set_present_mode)(struct moon_swapchain_impl *swapchain, moon_present_mode present_mode);
 #define FN_MOON_SWAPCHAIN_SET_PRESENT_MODE(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_swapchain_set_present_mode(moon_swapchain swapchain, moon_present_mode present_mode)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_swapchain_set_present_mode(struct moon_swapchain_impl *swapchain, moon_present_mode present_mode)
 
 /** When the window size changes the swapchain is in an invalid state for new commands.
  *  Calling resize will recreate the swapchain using the updated window size. */
-typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_swapchain_resize)(moon_swapchain swapchain);
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_swapchain_resize)(struct moon_swapchain_impl *swapchain);
 #define FN_MOON_SWAPCHAIN_RESIZE(backend) \
-    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_swapchain_resize(moon_swapchain swapchain)
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_swapchain_resize(struct moon_swapchain_impl *swapchain)
+
+/** Calls into the display backend to setup windowing support, necessary to use the swapchain. */
+typedef LAKE_NODISCARD lake_result (LAKECALL *PFN_moon_connect_to_display)(struct moon_impl *moon, struct hadal_impl *hadal);
+#define FN_MOON_CONNECT_TO_DISPLAY(backend) \
+    LAKE_NODISCARD lake_result LAKECALL _moon_##backend##_connect_to_display(struct moon_impl *moon, struct hadal_impl *hadal)

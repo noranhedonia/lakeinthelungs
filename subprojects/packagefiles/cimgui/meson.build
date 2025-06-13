@@ -4,7 +4,7 @@ project(
     license: 'MIT', 
     version: '1.91.9b', 
     meson_version: '>=0.50.0',
-    default_options: ['cpp_std=c++11'],
+    default_options: ['cpp_std=c++17'],
 )
 
 include_dir = include_directories('.')
@@ -18,33 +18,20 @@ sources = files(
     'imgui/misc/freetype/imgui_freetype.cpp',
 )
 
-api = '-DIMGUI_API=__attribute__((visibility("default")))'
-if host_machine.system() == 'windows'
-    api = '-DIMGUI_API=@0@'.format(
-        get_option('default_library') != 'static' ? '__declspec(dllexport)' : '',
-    )
-endif
-
 freetype_dep = dependency('freetype2', fallback: ['freetype', 'freetype_dep'])
 
-cimgui = library(
+cimgui = static_library(
     'cimgui',
     sources,
-    cpp_args: api,
+    cpp_args: [ '-DCIMGUI_NO_EXPORT' ],
     gnu_symbol_visibility: 'hidden',
     dependencies: freetype_dep,
     include_directories: [ include_dir, 'imgui' ],
-    install : true,
+    install : false,
 )
 
-if host_machine.system() == 'windows'
-    api = '-DIMGUI_API=@0@'.format(
-        get_option('default_library') != 'static' ? '__declspec(dllimport)' : '',
-    )
-endif
-
+cimgui_pre_args = [ '-DCIMGUI_NO_EXPORT', '-DCIMGUI_DEFINE_ENUMS_AND_STRUCTS' ]
 cimgui_dep = declare_dependency(
-    compile_args: api,
     include_directories: include_dir,
     link_with: cimgui,
 )

@@ -2,8 +2,8 @@
 #define _GNU_SOURCE
 #endif
 
-#include <lake/bedrock/time.h>
-#include <lake/bedrock/log.h>
+#include <lake/time.h>
+#include <lake/log.h>
 
 #if defined(LAKE_PLATFORM_UNIX)
 #include <sys/time.h>

@@ -1,5 +1,5 @@
-#include <lake/bedrock/time.h>
-#include <lake/bedrock/log.h>
+#include <lake/time.h>
+#include <lake/log.h>
 
 #define FRAME_TIME_COUNT (128)
 
