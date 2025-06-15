@@ -9,10 +9,9 @@ void lake_darray_init_w_dbg(lake_darray *da, s32 stride, s32 align, s32 n, char 
     n = lake_bits_next_pow2(n);
     if (n < 2) n = 2;
 
-    da->v = nullptr;
     da->size = 0;
-    if (n) da->v = __lake_malloc(stride * n, align);
     da->alloc = n;
+    da->v = __lake_malloc(stride * n, align);
 }
 
 lake_darray lake_darray_copy(lake_darray const *da, s32 stride, s32 align)

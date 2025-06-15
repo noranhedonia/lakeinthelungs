@@ -109,6 +109,10 @@ LAKE_FORCE_INLINE void lake_release_chain(lake_work_chain chain)
 LAKEAPI LAKE_HOT_FN LAKE_PURE_FN 
 u32 LAKECALL lake_worker_thread_index(void);
 
+/** Returns the name of the work of the currently executing fiber (for this worker thread). */
+LAKEAPI LAKE_HOT_FN LAKE_PURE_FN
+char const *LAKECALL lake_fiber_name(void);
+
 /** Submits `work_count` of work to the job queue, using details provided by the array of `work`.
  *  This function will return IMMEDIATELY, and the given work will be resolved in the background 
  *  running on different worker threads. If `out_chain` is not nullptr, it will be set to a value 
@@ -149,6 +153,11 @@ void *LAKECALL lake_drift(usize size, usize align);
     lake_reinterpret_cast(T *, lake_drift(sizeof(T), alignof(T)))
 #define lake_drift_n(T, n) \
     lake_reinterpret_cast(T *, lake_drift(sizeof(T) * (n), alignof(T)))
+
+/** An alias will not append to the drifters offset. This call will be similar to calling 
+ *  push, drift and pop in sequence. Any other drift allocation will overwrite it, so beware. */
+LAKEAPI LAKE_HOT_FN
+void *LAKECALL lake_drift_alias(usize size, usize align);
 
 enum : s32 {
     __lake_drift_depth_op_entry__ = 0,

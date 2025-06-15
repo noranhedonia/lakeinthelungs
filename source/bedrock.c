@@ -2,8 +2,6 @@
 
 struct bedrock *g_bedrock = nullptr;
 
-#define HEAP_BLOCK_SIZE (256lu*1024)
-
 static LAKE_NORETURN void LAKECALL d4c_love_train(void *stub)
 {
     (void)stub;
@@ -20,14 +18,13 @@ static LAKE_NORETURN void LAKECALL d4c_love_train(void *stub)
 
 struct application {
     PFN_lake_framework  main;
-    void               *argument;
     lake_framework     *framework;
 };
 
 static LAKE_NORETURN void LAKECALL funny_valentine(void *raw_app)
 {
     struct application *app = (struct application *)raw_app;
-    app->main(app->argument, app->framework);
+    app->main(app->framework);
 
     /* tell all threads to die, type shit */
     for (s32 i = 0; i < g_bedrock->thread_count; i++) {
@@ -44,7 +41,7 @@ static void bedrock_init(lake_framework *framework)
     usize ram_budget, page_size, huge_page_size = 0;
     sys_meminfo(&ram_budget, &page_size);
     if (framework->hints.memory_budget == 0)
-        framework->hints.memory_budget = lake_align(((ram_budget) & ~(HEAP_BLOCK_SIZE - 1)), 8lu * HEAP_BLOCK_SIZE);
+        framework->hints.memory_budget = lake_align(ram_budget, 8lu*LAKE_TAGGED_HEAP_BLOCK_SIZE);
 
     s32 cpu_count = 0;
     sys_cpuinfo(&cpu_count, nullptr, nullptr);
@@ -54,8 +51,7 @@ static void bedrock_init(lake_framework *framework)
     if (framework->hints.huge_page_size == 0)
         framework->hints.huge_page_size = 4lu*1024*1024;
     sys_hugetlbinfo(&huge_page_size, framework->hints.huge_page_size);
-    if (huge_page_size != framework->hints.huge_page_size)
-        framework->hints.huge_page_size = huge_page_size;
+    framework->hints.huge_page_size = huge_page_size;
 
     if (framework->hints.tagged_heap_count == 0)
         framework->hints.tagged_heap_count = 32;
@@ -108,7 +104,7 @@ static void bedrock_init(lake_framework *framework)
         heap_bitmap_bytes +
         stack_heap_bytes;
     usize const roots_block_aligned = lake_align(roots_bytes, LAKE_TAGGED_HEAP_BLOCK_SIZE);
-    usize const commitment = lake_min(lake_align(roots_block_aligned, framework->hints.huge_page_size), framework->hints.memory_budget);
+    usize commitment = lake_min(lake_align(roots_block_aligned, 8lu*LAKE_TAGGED_HEAP_BLOCK_SIZE), framework->hints.memory_budget);
 
     g_bedrock = sys_mmap(framework->hints.memory_budget, framework->hints.huge_page_size);
     if (g_bedrock == nullptr || !sys_madvise(g_bedrock, 0u, commitment, true)) {
@@ -152,14 +148,10 @@ static void bedrock_init(lake_framework *framework)
         g_bedrock->tagged_heaps[i] = (struct tagged_heap *)&raw[o];
         o += heap_bytes;
     }
-    g_bedrock->heap_bitmap = (atomic_u8 *)&raw[o];
+    g_bedrock->bitmap = (atomic_u8 *)&raw[o];
     o += heap_bitmap_bytes;
     g_bedrock->stack = (u8 *)&raw[o];
     o += stack_heap_bytes;
-
-    /* bits set to 1 means free blocks */
-    usize const roots_bitmap_end = __index_from_range(roots_block_aligned);
-    lake_memset((void *)&g_bedrock->heap_bitmap[roots_bitmap_end], 0xff, heap_bitmap_bytes);
 
     g_bedrock->roots.tail = &g_bedrock->roots.head;
     for (u32 i = 0; i < roots_page_count; i++)
@@ -168,6 +160,11 @@ static void bedrock_init(lake_framework *framework)
     g_bedrock->roots.head.offset = roots_bytes;
     g_bedrock->roots.head.alloc = roots_block_aligned;
     g_bedrock->roots.tail = &g_bedrock->roots.head;
+
+    /* bits set to 1 means free blocks */
+    lake_memset(g_bedrock->bitmap, 0xff, heap_bitmap_bytes);
+    acquire_heap_bitmap(g_bedrock->bitmap, 0, roots_block_aligned);
+    //release_heap_bitmap(g_bedrock->bitmap, roots_block_aligned, g_bedrock->budget-roots_block_aligned);
 
     lake_dbg_assert(!(((sptr)work_nodes)                & 15), LAKE_PANIC, nullptr);
     lake_dbg_assert(!(((sptr)roots_pages)               & 15), LAKE_PANIC, nullptr);
@@ -179,7 +176,7 @@ static void bedrock_init(lake_framework *framework)
     lake_dbg_assert(!(((sptr)g_bedrock->free)           & 15), LAKE_PANIC, nullptr);
     lake_dbg_assert(!(((sptr)g_bedrock->locks)          & 15), LAKE_PANIC, nullptr);
     lake_dbg_assert(!(((sptr)g_bedrock->tagged_heaps)   & 15), LAKE_PANIC, nullptr);
-    lake_dbg_assert(!(((sptr)g_bedrock->heap_bitmap)    & 15), LAKE_PANIC, nullptr);
+    lake_dbg_assert(!(((sptr)g_bedrock->bitmap)         & 15), LAKE_PANIC, nullptr);
     lake_dbg_assert(!(((sptr)g_bedrock->stack)          & 15), LAKE_PANIC, nullptr);
 
     lake_mpmc_init_t(&g_bedrock->work_queue.ring, work_queue_node, work_count, work_nodes);
@@ -208,14 +205,12 @@ static void bedrock_init(lake_framework *framework)
 
 s32 lake_in_the_lungs(
     PFN_lake_framework main, 
-    void              *userdata,
     lake_framework    *framework)
 {
     bedrock_init(framework);
 
     struct application app = {
         .main = main,
-        .argument = userdata,
         .framework = framework,
     };
     lake_work_details work = {

@@ -22,7 +22,11 @@ typedef struct lake_strbuf {
     s32   alloc;    /**< A "private" member describing the capacity of the buffer. */
 } lake_strbuf;
 
-/* TODO */
+LAKEAPI void LAKECALL 
+lake_strbuf_appendstrn(
+        lake_strbuf    *buf, 
+        char const     *str, 
+        s32             n);
 
 #ifdef __cplusplus
 }

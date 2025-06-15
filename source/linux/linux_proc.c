@@ -129,26 +129,30 @@ void sys_hugetlbinfo(usize *out_hugepage_size, usize ceiling)
 #include <execinfo.h>
 #define STACK_TRACE_BUF_SIZE 100
 
-void sys_dump_stack_trace(void *stream)
+void sys_dump_stack_trace(lake_strbuf *buf)
 {
     s32 nptrs;
     void *buffer[STACK_TRACE_BUF_SIZE];
     char **strings;
 
-    nptrs = backtrace(buffer, STACK_TRACE_BUF_SIZE);
+    if (buf->alloc <= 0) 
+        lake_debugtrap();
 
+    nptrs = backtrace(buffer, STACK_TRACE_BUF_SIZE);
     strings = backtrace_symbols(buffer, nptrs);
     if (strings == nullptr) 
         return;
 
-    for (s32 j = 1; j < nptrs; fprintf(stream, "%s\n", strings[j++]));
+    buf->len += snprintf(buf->v + buf->len, buf->alloc - buf->len, "\n");
+    for (s32 j = 1; j < nptrs; buf->len += snprintf(buf->v + buf->len, buf->alloc - buf->len, "%s\n", strings[j++]));
+    buf->len += snprintf(buf->v + buf->len, buf->alloc - buf->len, "\n");
 
     free(strings);
 }
 #else
-void sys_dump_stack_trace(void *stream)
+void sys_dump_stack_trace(lake_strbuf *buf)
 {
-    (void)stream;
+    (void)buf;
 }
 #endif /* LAKE_HAS_EXECINFO */
 

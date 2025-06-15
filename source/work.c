@@ -18,6 +18,12 @@ u32 lake_worker_thread_index(void)
     return 0;
 }
 
+char const *lake_fiber_name(void)
+{
+    struct tls *tls = get_thread_local_storage();
+    return g_bedrock->fibers[tls->fiber_in_use].work.details.name;
+}
+
 /* XXX a lot of false sharing around index 0 is expected, there probably should be a better
  * way to acquire a free fiber than this primitive method - but it works so i don't care now */
 extern usize get_free_fiber(void)
@@ -126,9 +132,14 @@ struct tls *fiber_search(struct tls *tls, fcontext *context)
             struct fiber *fiber = &g_bedrock->fibers[fiber_idx];
             tls->fiber_in_use = (u32)fiber_idx;
 
-            /* inherit the drifter if any */
-            if (old != nullptr && old->drifter.head) {
-                fiber->drifter = old->drifter;
+            /* inherit information from the last fiber */
+            if (old != nullptr) {
+                if (old->drifter.head) 
+                    fiber->drifter = old->drifter;
+                fiber->logger.depth = 1 + old->logger.depth;
+                if (old->logger.should_flush)
+                    flush_logger(&old->logger);
+                fiber->logger.buf = old->logger.buf;
             }
             return (struct tls *)jump_fiber_context(tls, context, &fiber->context);
         }
@@ -178,14 +189,19 @@ static LAKE_NORETURN void LAKECALL the_work(sptr raw_tls)
     fiber->cursor.offset = fiber->cursor.tail ? fiber->drifter.tail_page->offset : 0lu;
     fiber->cursor.prev = fiber->drifter.tail_cursor;
     fiber->drifter.tail_cursor = &fiber->cursor;
+    fiber->logger.buf = (lake_strbuf){0};
+    fiber->logger.tail_cursor = nullptr;
+    fiber->logger.should_flush = false;
 
     for (;;) { /* do the work */
         fiber->work.details.procedure(fiber->work.details.argument);
 
+        if (fiber->logger.should_flush) 
+            flush_logger(&fiber->logger);
         /* release unnecessary resources */
         if (fiber->drifter.head != nullptr) {
             for (struct region *page = fiber->drifter.tail_page->next; page != nullptr; page = page->next)
-                if (page->alloc) release_heap_bitmap(g_bedrock->heap_bitmap, __position_from_block(page->v), page->alloc);
+                if (page->alloc) release_heap_bitmap(g_bedrock->bitmap, page->v, page->alloc);
             if (fiber->cursor.tail) {
                 fiber->drifter.tail_page = fiber->cursor.tail;
                 fiber->drifter.tail_page->offset = fiber->cursor.offset;
@@ -208,7 +224,8 @@ static LAKE_NORETURN void LAKECALL the_work(sptr raw_tls)
         fiber->drifter.tail_cursor = fiber->cursor.prev;
         /* if we own the drifter, destroy it */
         if (fiber->drifter.tail_cursor == nullptr && fiber->drifter.head) {
-            release_heap_bitmap(g_bedrock->heap_bitmap, __position_from_block(fiber->drifter.head->v), fiber->drifter.head->alloc);
+            struct region *page = fiber->drifter.head;
+            release_heap_bitmap(g_bedrock->bitmap, page->v, page->alloc);
             fiber->drifter = (struct drifter){0};
         }
 
@@ -281,6 +298,8 @@ void lake_yield(lake_work_chain chain)
     if (wait_value) {
         struct tls *tls = get_thread_local_storage();
         struct fiber *old = &g_bedrock->fibers[tls->fiber_in_use];
+        if (old->logger.should_flush)
+            flush_logger(&old->logger);
 
         old->wait_counter = chain;
         tls->fiber_old = tls->fiber_in_use | tls_to_wait;
@@ -332,14 +351,35 @@ static void *LAKECALL drift_allocation(struct drifter *d, usize size, usize alig
 void *lake_drift(usize size, usize align)
 {
     struct tls *tls = get_thread_local_storage();
-    struct drifter *d = &g_bedrock->fibers[tls->fiber_in_use].drifter;
+    struct fiber *f = &g_bedrock->fibers[tls->fiber_in_use];
+    struct drifter *d = &f->drifter;
     return drift_allocation(d, size, align);
 }
 
-void lake_drift_depth(s32 depth)
+void *lake_drift_alias(usize size, usize align)
 {
     struct tls *tls = get_thread_local_storage();
-    struct drifter *d = &g_bedrock->fibers[tls->fiber_in_use].drifter;
+    struct fiber *f = &g_bedrock->fibers[tls->fiber_in_use];
+    struct drifter *d = &f->drifter;
+    struct region *tail = d->tail_page;
+    usize offset = 0;
+    void *ret = drift_allocation(d, size, align); 
+
+    if (lake_likely(tail != nullptr))
+        offset = d->tail_page->offset;
+    if (lake_likely(!tail || tail == d->tail_page)) {
+        d->tail_page->offset = offset;
+    } else {
+        d->tail_page->offset = 0;
+    }
+    return ret;
+}
+
+void lake_drift_depth_op(s32 depth)
+{
+    struct tls *tls = get_thread_local_storage();
+    struct fiber *f = &g_bedrock->fibers[tls->fiber_in_use];
+    struct drifter *d = &f->drifter;
 
     if (depth == __lake_drift_depth_op_entry__) {
         struct drifter_cursor *cursor = (struct drifter_cursor *)
@@ -350,16 +390,19 @@ void lake_drift_depth(s32 depth)
         d->tail_cursor = cursor;
     } else if (depth == __lake_drift_depth_op_leave__) {
         struct drifter_cursor *cursor = d->tail_cursor;
+
         d->tail_cursor = cursor->prev;
         d->tail_page = cursor->tail;
         d->tail_page->offset = cursor->offset;
 
-        for (struct region *page = cursor->tail->next; page != nullptr; page = page->next) {
-            if (page->alloc) {
-                usize const pos = __position_from_block((usize)((uptr)page->v - (uptr)g_bedrock));
-                release_heap_bitmap(g_bedrock->heap_bitmap, pos, page->alloc);
-            }
+        if (f->logger.should_flush) 
+            flush_logger(&f->logger);
+        if (f->logger.tail_cursor == cursor) {
+            f->logger.tail_cursor = nullptr;
+            f->logger.buf = (lake_strbuf){0};
         }
+        for (struct region *page = cursor->tail->next; page != nullptr; page = page->next)
+            if (page->alloc) release_heap_bitmap(g_bedrock->bitmap, page->v, page->alloc);
         d->tail_page->next = nullptr;
 #ifndef LAKE_NDEBUG
     } else {

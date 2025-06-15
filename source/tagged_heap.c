@@ -7,12 +7,13 @@
     LAKE_HOT_FN LAKE_NONNULL_ALL                                                    \
     void LAKECALL FUNC##_heap_bitmap(                                               \
         atomic_u8  *bitmap,                                                         \
-        usize const position,                                                       \
+        usize const offset,                                                         \
         usize const size)                                                           \
 {                                                                                   \
     if (size == 0) return;                                                          \
+    usize const position   = __position_from_block(offset);                         \
     usize const head_index = __index_from_position(position);                       \
-    usize const count      = __index_from_range(size);                              \
+    usize const count      = 1 + __index_from_page(size);                           \
     usize const tail_index = head_index + count - 1;                                \
                                                                                     \
     u8 bitmask = ~((1 << (position & 0x07)) - 1);                                   \
@@ -38,13 +39,13 @@ IMPL_HEAP_BITMAP_TEMPLATE(release, lake_atomic_or_explicit(&bitmap[index], bitma
  *  sync here and NEVER wait on it, instead the sync value is passed in as the ceiling 
  *  for bitmap query. If a free block is found, we commit it to the bitmap immediately. */
 LAKE_HOT_FN LAKE_PURE_FN
-static usize LAKECALL find_free_block(usize const position, usize const ceiling)
+static usize LAKECALL find_free_block(usize const offset, usize const ceiling)
 {
-    if (position >= ceiling) return 0lu;
+    if (offset >= ceiling) return 0lu;
 
-    atomic_u8 *bitmap = g_bedrock->heap_bitmap;
-    usize const index = __index_from_position(position);
-    usize const range = 1 + __index_from_range(ceiling) - index;
+    atomic_u8 *bitmap = g_bedrock->bitmap;
+    usize const index = __index_from_page(offset);
+    usize const range = 1 + __index_from_page(ceiling) - index;
 
     /* try until we either succeed or hit the ceiling */
     for (;;) {
@@ -79,18 +80,18 @@ static usize LAKECALL find_free_block(usize const position, usize const ceiling)
  *  If this function was called, it's assumed we own the sync counter. */
 LAKE_HOT_FN LAKE_PURE_FN LAKE_NONNULL_ALL
 static usize LAKECALL find_free_blocks_range(
-        usize const   position,
+        usize const   offset,
         usize const   request, 
         usize const   ceiling, 
         atomic_usize *sync)
 {
-    atomic_u8 const *bitmap = g_bedrock->heap_bitmap; /* we won't write to it here */
-    usize const range = __position_from_block(request);
-    usize const head_index = __index_from_position(position);
-    usize const tail_index = __index_from_range(ceiling);
+    atomic_u8 const *bitmap = g_bedrock->bitmap; /* we won't write to it here */
+    usize const blocks = __position_from_block(request);
+    usize const head_index = __index_from_page(offset);
+    usize const tail_index = __index_from_page(ceiling);
 
     /* early checks to invalidate the request */
-    if (head_index > tail_index || !range || range < __position_from_block(ceiling) - position)
+    if (head_index > tail_index || !blocks || blocks < __position_from_block((ceiling - offset)))
         return 0lu;
 
     usize candidate = 0lu;
@@ -106,7 +107,7 @@ static usize LAKECALL find_free_blocks_range(
             if (current == 0lu)
                 candidate = __position_from_index(i);
             current += 8;
-            if (current >= range) return __block_from_position(candidate);
+            if (current >= blocks) return __block_from_position(candidate);
         } else if (byte != 0) {
             u8 bitmask = 0xff;
             usize bit = 0;
@@ -124,11 +125,11 @@ static usize LAKECALL find_free_blocks_range(
                     current = 0lu;
                     bitmask = 0lu;
                 }
-                if (current >= range) return __block_from_position(candidate);
+                if (current >= blocks) return __block_from_position(candidate);
             }
         } else {
             /* currently queried free memory range does not satisfy our request */
-            lake_atomic_write(sync, __block_from_position(__position_from_index(i)));
+            lake_atomic_write(sync, __page_from_index(i));
             current = 0lu;
         }
     }
@@ -138,7 +139,7 @@ static usize LAKECALL find_free_blocks_range(
 
 usize acquire_blocks(usize const block_aligned)
 {
-    usize const roots_position = __position_from_block(g_bedrock->roots.head.alloc);
+    usize const roots_end = g_bedrock->roots.head.alloc;
     usize commitment = lake_atomic_read(&g_bedrock->commitment);
 
     atomic_usize *sync = &g_bedrock->growth_sync;
@@ -151,7 +152,7 @@ usize acquire_blocks(usize const block_aligned)
          *  process we can avoid any locks between different heaps. */
         if (block_aligned == LAKE_TAGGED_HEAP_BLOCK_SIZE) {
             usize const ceiling = sync_value ? lake_min(sync_value, commitment) : commitment;
-            usize const offset = find_free_block(roots_position, ceiling);
+            usize const offset = find_free_block(roots_end, ceiling);
             if (offset) {
                 return offset;
             }
@@ -159,7 +160,7 @@ usize acquire_blocks(usize const block_aligned)
         }
         usize expected = 0lu;
         if (!lake_atomic_compare_exchange_weak_explicit(sync, &expected,
-                roots_position, lake_memory_model_relaxed, lake_memory_model_relaxed))
+                roots_end, lake_memory_model_relaxed, lake_memory_model_relaxed))
         { /* another thread owns the growth sync */
             continue;
         }
@@ -171,10 +172,10 @@ usize acquire_blocks(usize const block_aligned)
          *  not enough free commited memory right now to satisfy even a minimal allocation. */
         if (block_aligned > LAKE_TAGGED_HEAP_BLOCK_SIZE) {
             /* When it's a non-zero value, we can satisfy the allocation from existing resources. */
-            offset = find_free_blocks_range(roots_position, block_aligned, commitment, sync);
+            offset = find_free_blocks_range(roots_end, block_aligned, commitment, sync);
             if (offset && offset + block_aligned <= commitment) {
                 /* write changes and drop the sync */
-                acquire_heap_bitmap(g_bedrock->heap_bitmap, __position_from_block(offset), block_aligned);
+                acquire_heap_bitmap(g_bedrock->bitmap, offset, block_aligned);
                 lake_atomic_write_explicit(sync, 0lu, lake_memory_model_release);
                 return offset;
             }
@@ -193,14 +194,14 @@ usize acquire_blocks(usize const block_aligned)
             if (lake_unlikely(new_ceiling + commitment > g_bedrock->budget || 
                 !sys_madvise((void *)g_bedrock, commitment, new_ceiling, true))) 
             {
-                lake_fatal("Can't commit new resources allocation: %s.", 
+                lake_error("Can't commit new resources allocation: %s.", 
                         (new_ceiling + commitment > g_bedrock->budget)
                         ? "framework budget drained" : "out of host memory");
                 lake_atomic_write_explicit(sync, 0lu, lake_memory_model_release);
                 return 0lu;
             }
         }
-        acquire_heap_bitmap(g_bedrock->heap_bitmap, __position_from_block(offset), block_aligned);
+        acquire_heap_bitmap(g_bedrock->bitmap, offset, block_aligned);
         lake_atomic_write_explicit(&g_bedrock->commitment, new_ceiling + commitment, lake_memory_model_release);
         lake_atomic_write_explicit(sync, 0lu, lake_memory_model_release);
         return offset;
@@ -210,11 +211,13 @@ usize acquire_blocks(usize const block_aligned)
 
 /** We grab them from roots, so they are never released.
  *  This operation must never fail. */
-static struct region *LAKECALL construct_tagged_heap_region(usize const block_aligned)
+static struct region *LAKECALL construct_tagged_heap_region(
+        lake_heap_tag tag, 
+        usize const block_aligned)
 {
     u8 *raw = (u8 *)g_bedrock;
     struct tagged_heap *roots = &g_bedrock->roots;
-    lake_spinlock_acquire(&roots->spinlock);
+    if (lake_likely(tag != 0)) lake_spinlock_acquire(&roots->spinlock);
 
     struct region *tail = roots->tail;
     constexpr usize page_bytes = sizeof(struct region);     
@@ -234,7 +237,7 @@ static struct region *LAKECALL construct_tagged_heap_region(usize const block_al
     } else {
         tail->offset = aligned + page_bytes;
     }
-    lake_spinlock_release(&roots->spinlock);
+    if (lake_likely(tag != 0)) lake_spinlock_release(&roots->spinlock);
     return (struct region *)(void *)(uptr)(raw + tail->v + aligned);
 }
 
@@ -290,12 +293,12 @@ static void *LAKECALL allocate_from_tagged_heap(struct tagged_heap *th, usize si
     }
 
     /* we could not yet satisfy the allocation, so grab a new arena page */
-    struct region *next = construct_tagged_heap_region(block_aligned);
+    struct region *next = construct_tagged_heap_region(tag, block_aligned);
     th->tail = th->tail->next = next;
     next->v = acquire_blocks(block_aligned); 
 
     if (lake_unlikely(next->v == 0lu)) {
-        lake_fatal(err, size, block_aligned, block_aligned >> 20, tag);
+        lake_error(err, size, block_aligned, block_aligned >> 20, tag);
         lake_spinlock_release(&th->spinlock);
         return nullptr;
     }
@@ -366,7 +369,7 @@ void lake_thfree(lake_heap_tag tag)
             for (struct region *page = &th->head; page != nullptr; page = page->next) {
                 if (!page->alloc) break;
 
-                release_heap_bitmap(g_bedrock->heap_bitmap, __position_from_block(page->v), page->alloc);
+                release_heap_bitmap(g_bedrock->bitmap, page->v, page->alloc);
                 *page = (struct region){ .next = page->next };
             }
             th->tail = &th->head;
@@ -385,27 +388,25 @@ usize lake_thadvise(usize request, lake_thadvise_mode mode)
         return LAKE_ERROR_NOT_PERMITTED;
 
     atomic_usize *sync = &g_bedrock->growth_sync;
-    usize const roots_size = __position_from_block(g_bedrock->roots.head.alloc);
+    usize const roots_end = g_bedrock->roots.head.alloc;
     bool const allow_suboptimal = (mode & lake_thadvise_suboptimal) ? true : false;
 
-    for (;;) {
-        usize expected = 0lu;
-        if (!lake_atomic_compare_exchange_weak_explicit(sync, &expected, roots_size,
-            lake_memory_model_release, lake_memory_model_relaxed))
-            continue;
+    usize expected = 0lu;
+    while (!lake_atomic_compare_exchange_weak_explicit(sync, &expected, roots_end, lake_memory_model_acquire, lake_memory_model_relaxed))
 
+    for (;;) {
         usize const page_aligned = lake_align(request, g_bedrock->page_size);
         usize const commitment = lake_atomic_read_explicit(&g_bedrock->commitment, lake_memory_model_relaxed);
 
         /* try to release physical resources */
         if (mode & lake_thadvise_release) {
             usize const offset = commitment - page_aligned;
-            usize const index = __index_from_range(offset);
-            usize const range = __index_from_range(page_aligned);
+            usize const index = __index_from_page(offset);
+            usize const range = __index_from_page(page_aligned);
             usize const bits = (range + 1) * 8  /* full bytes of free blocks */
                 - (index & 0x07)                /* trim head index bits from range */ 
                 - ((index + range) & 0x07);     /* trim tail index bits from range */
-            u64 const popcnt = lake_popcnt((u8 const *)g_bedrock->heap_bitmap + index, range);
+            u64 const popcnt = lake_popcnt((u8 const *)g_bedrock->bitmap + index, range);
 
             bool success = false;
             if (popcnt >= bits && sys_madvise((void *)g_bedrock, offset, page_aligned, false)) {
@@ -425,8 +426,9 @@ usize lake_thadvise(usize request, lake_thadvise_mode mode)
 
         /* try to commit physical resources */
         } else if (mode & lake_thadvise_commit) {
-            usize const offset = find_free_blocks_range(roots_size, page_aligned, commitment, sync);
+            usize const offset = find_free_blocks_range(roots_end, page_aligned, commitment, sync);
             if (offset) {
+                /* there is enough free memory for this range */
                 lake_atomic_write_explicit(sync, 0lu, lake_memory_model_release);
                 return offset;
             }
@@ -441,11 +443,12 @@ usize lake_thadvise(usize request, lake_thadvise_mode mode)
                 if (request > g_bedrock->page_size)
                     continue;
             }
-            lake_atomic_write_explicit(&g_bedrock->growth_sync, 0lu, lake_memory_model_release);
             if (success) {
                 lake_atomic_write_explicit(&g_bedrock->commitment, commitment + page_aligned, lake_memory_model_release);
+                lake_atomic_write_explicit(sync, 0lu, lake_memory_model_release);
                 return page_aligned;
             }
+            lake_atomic_write_explicit(sync, 0lu, lake_memory_model_release);
             return 0lu;
         } else {
             LAKE_UNREACHABLE;

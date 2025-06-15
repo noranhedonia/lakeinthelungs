@@ -241,9 +241,9 @@ typedef struct lake_interface_header {
     { return &lake_impl_v(T, self).header->assembly; }
 
 /** Entry point defined by an application. */
-typedef void (LAKECALL *PFN_lake_framework)(void *userdata, lake_framework const *framework);
-#define FN_LAKE_FRAMEWORK(fn, work) \
-    void LAKECALL fn(work, lake_framework const *framework)
+PFN_LAKE_WORK(PFN_lake_framework, lake_framework const *framework);
+#define FN_LAKE_FRAMEWORK(fn) \
+    FN_LAKE_WORK(fn, lake_framework const *framework)
 
 /** Setups the framework from given hints, and passes the configuration back to an application 
  *  defined entry point. The initialization will process hints given in the `lake_framework` 
@@ -264,12 +264,11 @@ typedef void (LAKECALL *PFN_lake_framework)(void *userdata, lake_framework const
  *
  *  The framework and internal systems described above are all valid, until the application 
  *  returns from the `main` procedure. */
-LAKE_NONNULL(1,3)
+LAKE_NONNULL_ALL
 LAKEAPI s32 LAKECALL
 lake_in_the_lungs(
-    PFN_lake_framework main, 
-    void              *userdata,
-    lake_framework    *framework);
+        PFN_lake_framework main, 
+        lake_framework *framework);
 
 #ifdef __cplusplus
 }

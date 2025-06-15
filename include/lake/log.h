@@ -8,9 +8,6 @@
  */
 #include <lake/types.h>
 
-#ifndef LAKE_FUNCTION
-    #define LAKE_FUNCTION __func__
-#endif
 #ifndef LAKE_FILE 
     #define LAKE_FILE __FILE__
 #endif
@@ -66,10 +63,9 @@ LAKE_NORETURN
 LAKEAPI void LAKECALL 
 lake_abort_(
     s32         status, 
-    char const *fn, 
     char const *file, 
     s32         line);
-#define lake_abort(status) lake_abort_(status, LAKE_FUNCTION, LAKE_FILE, LAKE_LINE)
+#define lake_abort(status) lake_abort_(status, LAKE_FILE, LAKE_LINE)
 
 /** Overwrites the return exitcode of the game process, whenever `lake_abort_()` will be called.
  *  @return Current exit status. */
@@ -77,83 +73,80 @@ LAKEAPI s32 LAKECALL
 lake_exit_status(
     s32 status);
 
-/** Enqueues an internal job to flush all gathered log data to registered sinks.
- *  If yield is true, the flush will run immediately instead of asynchronously.
- *
- *  If the framework is not initialized, this function is ignored. */
+/** Performs a flush for all worker threads internal loggers. If the framework is 
+ *  not initialized, this function is ignored. */
 LAKEAPI void LAKECALL 
-lake_flush_log(
-    bool yield);
+lake_forced_flush_all_loggers(void);
+
+/** Usable from critical paths and outside of the framework. */
+LAKEAPI void LAKECALL 
+lake_log_from_critical_path(s32 level, char const *fmt, ...) LAKE_PRINTF(2,3);
 
 /** Always log a message with a level prefix. */
 LAKE_HOT_FN
 LAKEAPI void LAKECALL
 lake_print_(
     s32         level, 
-    char const *fn, 
     char const *file, 
     s32         line, 
     char const *fmt,
-    ...) LAKE_PRINTF(5,6);
+    ...) LAKE_PRINTF(4,5);
 
 /** As `lake_print_`, but directly accepts a variable argument list. */
 LAKE_HOT_FN
 LAKEAPI void LAKECALL
 lake_printv_(
     s32         level, 
-    char const *fn, 
     char const *file, 
     s32         line, 
     char const *fmt,
     va_list     args);
 
 /** Macro helper for `lake_print_()`. */
-#define lake_print(level, ...)          lake_print_(level, LAKE_FUNCTION, LAKE_FILE, LAKE_LINE, __VA_ARGS__)
+#define lake_print(level, ...)          lake_print_(level, LAKE_FILE, LAKE_LINE, __VA_ARGS__)
 /** Macro helper for `lake_printv_()`. */
-#define lake_printv(level, fmt, args)   lake_printv_(level, LAKE_FUNCTION, LAKE_FILE, LAKE_LINE, fmt, args)
+#define lake_printv(level, fmt, args)   lake_printv_(level, LAKE_FILE, LAKE_LINE, fmt, args)
 
 /** Log message with a level prefix, will be ignored if the level is larger than the current set log level. */
 LAKE_HOT_FN 
 LAKEAPI void LAKECALL 
 lake_log_(
     s32         level, 
-    char const *fn, 
     char const *file, 
     s32         line, 
     char const *fmt,
-    ...) LAKE_PRINTF(5,6);
+    ...) LAKE_PRINTF(4,5);
 
 /** As `lake_log_`, but directly accepts a variable argument list. */
 LAKE_HOT_FN
 LAKEAPI void LAKECALL
 lake_logv_(
     s32         level,
-    char const *fn, 
     char const *file, 
     s32         line, 
     char const *fmt,
     va_list     args);
 
 /** Macro helper for `lake_log_()`. */
-#define lake_log(level, ...)            lake_log_(level, LAKE_FUNCTION, LAKE_FILE, LAKE_LINE, __VA_ARGS__)
+#define lake_log(level, ...)            lake_log_(level, LAKE_FILE, LAKE_LINE, __VA_ARGS__)
 /** Macro helper for `lake_logv_()`. */
-#define lake_logv(level, fmt, args)     lake_logv_(level, LAKE_FUNCTION, LAKE_FILE, LAKE_LINE, fmt, args)
+#define lake_logv(level, fmt, args)     lake_logv_(level, LAKE_FILE, LAKE_LINE, fmt, args)
 
 /** Tracing. Used for logging of infrequent events. */
-#define lake_trace_(fn, file, line, ...) lake_log_(0, fn, file, line, __VA_ARGS__)
-#define lake_trace(...) lake_trace_(LAKE_FUNCTION, LAKE_FILE, LAKE_LINE, __VA_ARGS__)
+#define lake_trace_(file, line, ...) lake_log_(0, file, line, __VA_ARGS__)
+#define lake_trace(...) lake_trace_(LAKE_FILE, LAKE_LINE, __VA_ARGS__)
 
 /** Warning. Used when an issue occurs, but operation is successful. */
-#define lake_warn_(fn, file, line, ...) lake_log_(-1, fn, file, line, __VA_ARGS__)
-#define lake_warn(...) lake_warn_(LAKE_FUNCTION, LAKE_FILE, LAKE_LINE, __VA_ARGS__)
+#define lake_warn_(file, line, ...) lake_log_(-2, file, line, __VA_ARGS__)
+#define lake_warn(...) lake_warn_(LAKE_FILE, LAKE_LINE, __VA_ARGS__)
 
 /** Error. Used when an issue occurs, and operation fails. */
-#define lake_error_(fn, file, line, ...) lake_log_(-2, fn, file, line, __VA_ARGS__)
-#define lake_error(...) lake_error_(LAKE_FUNCTION, LAKE_FILE, LAKE_LINE, __VA_ARGS__)
+#define lake_error_(file, line, ...) lake_log_(-3, file, line, __VA_ARGS__)
+#define lake_error(...) lake_error_(LAKE_FILE, LAKE_LINE, __VA_ARGS__)
 
 /** Fatal. Used when an issue occurs, and the application cannot continue. */
-#define lake_fatal_(fn, file, line, ...) lake_log_(-3, fn, file, line, __VA_ARGS__)
-#define lake_fatal(...) lake_fatal_(LAKE_FUNCTION, LAKE_FILE, LAKE_LINE, __VA_ARGS__)
+#define lake_fatal_(file, line, ...) lake_log_(-4, file, line, __VA_ARGS__)
+#define lake_fatal(...) lake_fatal_(LAKE_FILE, LAKE_LINE, __VA_ARGS__)
 
 #if !defined(LAKE_LOG_0) 
     #if defined(LAKE_LOG_3)
@@ -193,11 +186,10 @@ LAKEAPI lake_assert_status LAKECALL
 lake_assert_log_(
     s32         status,
     char const *condition,
-    char const *fn,
     char const *file,
     s32         line,
     char const *fmt,
-    ...) LAKE_PRINTF(6,7);
+    ...) LAKE_PRINTF(5,6);
 
 #if defined(LAKE_NDEBUG) && !defined(LAKE_KEEP_ASSERT)
 #define lake_assert(condition, error_code, ...) ((void)0)
@@ -205,15 +197,15 @@ lake_assert_log_(
 #define lake_assert(condition, error_code, ...)                 \
     do {                                                        \
         if (lake_unlikely(!(condition))) {                      \
-            char const *fn = LAKE_FUNCTION, *file = LAKE_FILE;  \
+            char const *file = LAKE_FILE;                       \
             s32 line = LAKE_LINE;                               \
             lake_assert_status o = lake_assert_log_(error_code, \
-                #condition, fn, file, line, __VA_ARGS__);       \
+                #condition, file, line, __VA_ARGS__);           \
                                                                 \
             if (o == lake_assert_status_trap) {                 \
                 lake_debugtrap();                               \
             } else if (o == lake_assert_status_abort) {         \
-                lake_abort_(error_code, fn, file, line);        \
+                lake_abort_(error_code, file, line);            \
             }                                                   \
         }                                                       \
     } while(0)

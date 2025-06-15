@@ -157,11 +157,20 @@ typedef struct {
 } lake_spinlock;
 #define lake_spinlock_init {lake_atomic_flag_init}
 
+LAKE_FORCE_INLINE bool lake_spinlock_try_acquire_relaxed(lake_spinlock volatile *lock)
+{ return lake_atomic_flag_test_and_set_explicit(&lock->flag, lake_memory_model_relaxed); }
+
 LAKE_FORCE_INLINE bool lake_spinlock_try_acquire(lake_spinlock volatile *lock)
 { return lake_atomic_flag_test_and_set_explicit(&lock->flag, lake_memory_model_acquire); }
 
+LAKE_FORCE_INLINE void lake_spinlock_acquire_relaxed(lake_spinlock volatile *lock)
+{ do { /* spin */ } while(lake_spinlock_try_acquire_relaxed(lock)); }
+
 LAKE_FORCE_INLINE void lake_spinlock_acquire(lake_spinlock volatile *lock)
 { do { /* spin */ } while(lake_spinlock_try_acquire(lock)); }
+
+LAKE_FORCE_INLINE void lake_spinlock_release_relaxed(lake_spinlock volatile *lock)
+{ lake_atomic_flag_clear_explicit(&lock->flag, lake_memory_model_relaxed); }
 
 LAKE_FORCE_INLINE void lake_spinlock_release(lake_spinlock volatile *lock)
 { lake_atomic_flag_clear_explicit(&lock->flag, lake_memory_model_release); }

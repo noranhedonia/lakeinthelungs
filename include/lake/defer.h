@@ -138,7 +138,7 @@ typedef struct lake_deferred_record {
         lake_defer_label(__LINE__) :                                                \
         {                                                                           \
             lake_defer_node(__LINE__).guard = 0ULL;                                 \
-            __VA_LIST__                                                             \
+            __VA_ARGS__                                                             \
             if (!lake_defer_node(__LINE__).next_target) {                           \
                 if (!__deferred_return_label) {                                     \
                     goto __deferred_bottom_exit;                                    \
@@ -165,7 +165,9 @@ typedef struct lake_deferred_record {
     lake_defer_label(__LINE__) : longjmp(jump_env, jump_passed_state)
 
 #define lake_defer_end() \
-    __deferred_bottom_exit : lake_assert(!LAKE_DEFER_MISSUSE, LAKE_DEFER_MISSUSE, "you forgot to return on some branch.")
+    __deferred_bottom_exit : \
+    lake_assert(!LAKE_DEFER_MISSUSE, LAKE_DEFER_MISSUSE, "you forgot to return on some branch."); \
+    LAKE_UNREACHABLE
 
 #ifdef __cplusplus
 }

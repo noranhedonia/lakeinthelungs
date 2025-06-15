@@ -7,13 +7,11 @@
  *  It has control over physical resources of the host system. It's a block allocator,
  *  combined with arenas to allocate resources of any size.
  *
- *  A block is of size 2 MiB and this is the minimal allocation size for internal use 
+ *  A block is of size 256 KiB and this is the minimal allocation size for internal use 
  *  by the tagged heaps. These blocks live under a shared tag, where any unique value 
  *  desribes an unique lifetime frequency. There is no free(ptr) interface for these 
  *  allocations, instead all blocks under a tag must be freed together. Calling 
  *  `lake_thfree(tag)` is enough to release resources, so they can be reused later.
- *
- *  The user 
  */
 #include <lake/types.h>
 
@@ -21,7 +19,7 @@
 extern "C" {
 #endif /* __cplusplus */
 
-/** A minimum block size for the tagged heap is 2 MiB. */
+/** A minimum block size for the tagged heap is 256 KiB. */
 #define LAKE_TAGGED_HEAP_BLOCK_SIZE (2lu*1024lu*1024lu)
 
 /** An unique value describes an unique resource lifetime.
@@ -79,7 +77,7 @@ typedef enum lake_thadvise_mode : u8 {
 } lake_thadvise_mode;
 
 /** Advises on commitment of host memory resources. 
- *  The request size will be block aligned (2 MiB). */
+ *  The request size will be block aligned (256 KiB). */
 LAKEAPI usize LAKECALL lake_thadvise(usize request, lake_thadvise_mode mode);
 
 #ifdef __cplusplus

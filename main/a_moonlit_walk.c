@@ -64,7 +64,7 @@ static FN_LAKE_WORK(engine_init__renderer, struct a_moonlit_walk *amw)
     lake_darray_append_t(&amw->devices.da, moon_device, &amw->primary_device);
 }
 
-static lake_result engine_init(struct a_moonlit_walk *amw)
+static lake_result LAKECALL engine_init(struct a_moonlit_walk *amw)
 {
     lake_result result = LAKE_SUCCESS;
     bool enable_imgui = amw->framework->hints.enable_debug_instruments;
@@ -73,23 +73,23 @@ static lake_result engine_init(struct a_moonlit_walk *amw)
     lake_darray_init_t(&amw->windows.da, hadal_window, 2);
     lake_darray_init_t(&amw->swapchains.da, moon_swapchain, 2);
     lake_darray_init_t(&amw->devices.da, moon_device, 2);
-    lake_thadvise(128lu*1024lu*1024lu, lake_thadvise_commit | lake_thadvise_suboptimal);
+    lake_thadvise(32lu*1024lu*1024lu, lake_thadvise_commit | lake_thadvise_suboptimal);
 
     lake_work_details const init_work[3] = {
         { /* platform */
             .procedure = (PFN_lake_work)engine_init__platform,
             .argument = (void *)amw,
-            .name = "main engine_init platform",
+            .name = "main/init/platform",
         },
         { /* audio */
             .procedure = (PFN_lake_work)engine_init__audio,
             .argument = (void *)amw,
-            .name = "main engine_init audio",
+            .name = "main/init/audio",
         },
         { /* renderer */
             .procedure = (PFN_lake_work)engine_init__renderer,
             .argument = (void *)amw,
-            .name = "main engine_init renderer",
+            .name = "main/init/renderer",
         },
     };
     lake_submit_work_and_yield(3, init_work);
@@ -100,7 +100,6 @@ static lake_result engine_init(struct a_moonlit_walk *amw)
     result = amw->moon.interface->connect_to_display(amw->moon.impl, amw->hadal.impl);
     if (result != LAKE_SUCCESS)
         return result;
-
     // moon_swapchain_assembly const swapchain_assembly = {
     //     .native_window = amw->window.impl,
     //     .queue_type = moon_queue_type_main,
@@ -130,7 +129,7 @@ static lake_result engine_init(struct a_moonlit_walk *amw)
     return game_prototype_init(amw);
 }
 
-static void engine_fini_(struct a_moonlit_walk *amw)
+static void LAKECALL engine_fini_(struct a_moonlit_walk *amw)
 {
     LAKE_UNUSED lake_result __ignore = LAKE_SUCCESS;
 
@@ -176,16 +175,17 @@ static void engine_fini_(struct a_moonlit_walk *amw)
         engine_fini_(AMW); \
     })
 
-static FN_LAKE_FRAMEWORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)
+static FN_LAKE_FRAMEWORK(a_moonlit_walk__main)
 {
-    f64 dt = 0.0;
-    f64 const dt_freq_reciprocal = 1.0f/(f64)lake_rtc_frequency();
+    struct a_moonlit_walk amw = {0};
     u64 timeline = 0, time_last = 0, time_now = 0;
+    f64 const dt_freq_reciprocal = 1.0f/(f64)lake_rtc_frequency();
+    f64 dt = 0.0;
 
     struct pipeline_work pipeline_work[PIPELINE_WORK_COUNT];
     lake_zeroa(pipeline_work);
     for (s32 i = 0; i < PIPELINE_WORK_COUNT; i++) {
-        pipeline_work[i].amw = amw;
+        pipeline_work[i].amw = &amw;
         pipeline_work[i].last_work = &pipeline_work[(i-1 + PIPELINE_WORK_MASK) & PIPELINE_WORK_MASK];
         pipeline_work[i].next_work = &pipeline_work[(i+1) & PIPELINE_WORK_MASK];
         lake_darray_init_t(&pipeline_work[i].cmd_lists.da, moon_staged_command_list, 8);
@@ -193,24 +193,23 @@ static FN_LAKE_FRAMEWORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)
     }
     lake_work_details stages[3];
     stages[GAMEPLAY_STAGE_INDEX].procedure = (PFN_lake_work)a_moonlit_walk__gameplay;
-    stages[GAMEPLAY_STAGE_INDEX].name = "main gameplay";
+    stages[GAMEPLAY_STAGE_INDEX].name = "main/gameplay";
     stages[RENDERING_STAGE_INDEX].procedure = (PFN_lake_work)a_moonlit_walk__rendering;
-    stages[RENDERING_STAGE_INDEX].name = "main rendering";
+    stages[RENDERING_STAGE_INDEX].name = "main/rendering";
     stages[GPUEXEC_STAGE_INDEX].procedure = (PFN_lake_work)a_moonlit_walk__gpuexec;
-    stages[GPUEXEC_STAGE_INDEX].name = "main gpuexec";
-    amw->framework = framework;
-    amw->frames_in_flight = 3;
+    stages[GPUEXEC_STAGE_INDEX].name = "main/gpuexec";
+    amw.framework = framework;
+    amw.frames_in_flight = 3;
 
-    if (engine_init(amw) != LAKE_SUCCESS) {
-        engine_fini(amw);
+    if (engine_init(&amw) != LAKE_SUCCESS) {
+        engine_fini(&amw);
         return;
     }
 
     /* this additional loop controls engine state updates */
-    lake_trace("Gameloop entry trace.");
     do {
         /* TODO get any means to update and determine if state is valid */
-        if (lake_atomic_read(&amw->stage_hint) == pipeline_stage_hint_try_recover)
+        if (lake_atomic_read(&amw.stage_hint) == pipeline_stage_hint_try_recover)
             break;
 
         struct pipeline_work *gameplay = pipeline_work;
@@ -231,7 +230,7 @@ static FN_LAKE_FRAMEWORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)
                 lake_yield(gpuexec_chain);
                 gpuexec_chain = nullptr;
 
-                try_recover = lake_atomic_read(&amw->stage_hint) == pipeline_stage_hint_try_recover;
+                try_recover = lake_atomic_read(&amw.stage_hint) == pipeline_stage_hint_try_recover;
                 stages[GPUEXEC_STAGE_INDEX].argument = try_recover ? nullptr : gpuexec;
                 lake_submit_work(1, &stages[GPUEXEC_STAGE_INDEX], &gpuexec_chain);
             }
@@ -240,7 +239,7 @@ static FN_LAKE_FRAMEWORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)
                 lake_yield(rendering_chain);
                 rendering_chain = nullptr;
 
-                try_recover = lake_atomic_read(&amw->stage_hint) == pipeline_stage_hint_try_recover;
+                try_recover = lake_atomic_read(&amw.stage_hint) == pipeline_stage_hint_try_recover;
                 stages[RENDERING_STAGE_INDEX].argument = try_recover ? nullptr : rendering;
                 lake_submit_work(1, &stages[RENDERING_STAGE_INDEX], &rendering_chain);
             }
@@ -261,34 +260,30 @@ static FN_LAKE_FRAMEWORK(a_moonlit_walk__main, struct a_moonlit_walk *amw)
                 gameplay->timeline = timeline;
                 gameplay->dt = dt;
 
-                try_recover = try_recover || lake_atomic_read(&amw->stage_hint) == pipeline_stage_hint_try_recover;
+                try_recover = try_recover || lake_atomic_read(&amw.stage_hint) == pipeline_stage_hint_try_recover;
                 stages[GAMEPLAY_STAGE_INDEX].argument = try_recover ? nullptr : gameplay;
                 lake_submit_work(1, &stages[GAMEPLAY_STAGE_INDEX], &gameplay_chain);
             }
             /* FIXME debug, delete later */
-            if (--close_counter <= 0) lake_atomic_write(&amw->stage_hint, pipeline_stage_hint_save_and_exit);
-            if (try_recover) lake_atomic_write(&amw->stage_hint, pipeline_stage_hint_try_recover);
+            if (--close_counter <= 0) lake_atomic_write(&amw.stage_hint, pipeline_stage_hint_save_and_exit);
+            if (try_recover) lake_atomic_write(&amw.stage_hint, pipeline_stage_hint_try_recover);
 
             gpuexec = rendering;
             rendering = gameplay;
-            gameplay = lake_atomic_read(&amw->stage_hint) == pipeline_stage_hint_continue
+            gameplay = lake_atomic_read(&amw.stage_hint) == pipeline_stage_hint_continue
                 ? &pipeline_work[(timeline++) & (PIPELINE_WORK_COUNT - 1)] : nullptr;
         }
-        lake_trace("Gameloop leave trace, timeline %lu.", timeline);
     } while (false);
 
-    engine_fini(amw);
+    engine_fini(&amw);
     dt = lake_frame_time_median();
     lake_trace("Last recorded frame time: %.3f ms (%.0f FPS), on %u worker threads.", 1000.f * dt, 1.f/dt, framework->hints.worker_thread_count);
 }
 
 s32 lake_main(lake_framework *framework, s32 argc, const char **argv)
 {
-    struct a_moonlit_walk amw = {0};
-
     (void)argv;
     framework->hints.worker_thread_count = (argc > 1 ? 1 : 0);
     framework->hints.fiber_stack_size = 128*1024; /* 128 KB bo vulkan daje dupy */
-
-    lake_abort(lake_in_the_lungs((PFN_lake_framework)a_moonlit_walk__main, &amw, framework));
+    lake_abort(lake_in_the_lungs(a_moonlit_walk__main, framework));
 }
