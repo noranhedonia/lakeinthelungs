@@ -118,7 +118,7 @@ lake_deque_op_w_dbg(
     ({ \
         s32 __idx = lake_deque_op_t(&(q).deq, T, lake_deque_op_unshift); \
         if (__idx >= 0) \
-            (q).v[__idx] = (T)(item); \
+            (q).v[__idx] = (item); \
         __idx; \
     })
 #define lake_deque_unshift_v_locked(q, T, item, spinlock) \

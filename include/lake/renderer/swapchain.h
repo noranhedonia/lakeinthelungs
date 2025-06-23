@@ -33,7 +33,9 @@ typedef enum moon_present_transform_bits : moon_present_transform {
 
 /** A custom procedure to select the surface format from an array of supported formats.
  *  Should return an index into the `formats` array. */
-typedef s32 (LAKECALL *PFN_moon_surface_format_selector)(u32 format_count, moon_format *formats);
+typedef s32 (LAKECALL *PFN_moon_surface_format_selector)(u32 format_count, moon_format const *formats);
+#define FN_MOON_SURFACE_FORMAT_SELECTOR(fn) \
+    s32 LAKECALL fn(u32 format_count, moon_format const *formats)
 
 /** Details needed to create a swapchain. */
 typedef struct moon_swapchain_assembly {
@@ -51,6 +53,8 @@ typedef struct moon_swapchain_assembly {
     moon_queue_type                     queue_type;
     /** Usage bits for swapchain images. */
     moon_texture_usage                  image_usage;
+    /** The format in use for swapchain images. */
+    moon_format                         image_format;
     /** Name of the swapchain for debugging. */
     lake_small_string                   name;
 } moon_swapchain_assembly;

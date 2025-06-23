@@ -45,9 +45,11 @@ void lake_darray_reclaim(lake_darray *da, s32 stride, s32 align)
     }
 }
 
-void lake_darray_resize(lake_darray *da, s32 stride, s32 align, s32 n)
+void lake_darray_resize_w_dbg(lake_darray *da, s32 stride, s32 align, s32 n, char const *type)
 {
-    if (da->alloc != n) {
+    if (da->alloc == 0) {
+        lake_darray_init_w_dbg(da, stride, align, n, type);
+    } else if (da->alloc != n) {
         if (n < da->size)
             n = da->size;
 

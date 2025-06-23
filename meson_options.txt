@@ -86,7 +86,7 @@ option(
     'build-main',
     type: 'boolean',
     value: true,
-    description: 'Build the main game application.'
+    description: 'Build the main game prototype.'
 )
 
 option(

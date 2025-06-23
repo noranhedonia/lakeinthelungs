@@ -23,6 +23,9 @@ typedef struct lake_darray {
 #define lake_darray_t(T) \
     union { lake_darray da; T *v; }
 
+#define lake_darray_new() \
+    (lake_darray){ .v = nullptr, .size = 0, .alloc = 0 }
+
 /** Initialize the dynamic array, allocate atleast bytes*n for future resources.
  *  TODO custom allocator? */
 LAKEAPI void LAKECALL 
@@ -46,8 +49,10 @@ lake_darray_init_w_dbg(
 #define lake_darray_size(da)    ((da)->size)
 #define lake_darray_alloc(da)   ((da)->alloc)
 #define lake_darray_empty(da)   ((da)->size == 0)
-#define lake_darray_clear(da)   do {((da)->size = 0); } while(0)
-#define lake_darray_pop(da)     do {((da)->size--); } while(0)
+#define lake_darray_clear(da)   ((da)->size = 0)
+
+#define lake_darray_pop(da) \
+    do {((da)->size--); } while(0)
 #define lake_darray_pop_n(da,n) do {((da)->size = lake_min(0, (da)->size - n)); } while(0)
 
 #define lake_darray_elem_t(da, T, idx) \
@@ -62,9 +67,9 @@ lake_darray_init_w_dbg(
 #define lake_darray_first_t(da, T) \
     lake_reinterpret_cast(T *, (da)->v)
 
-#define lake_darray_elem(va, idx) (&(va).v[idx])
-#define lake_darray_last(va)      (&(va).v[(va).da.size - 1])
-#define lake_darray_first(va)     ((va).v)
+#define lake_darray_elem_v(va, idx) (&(va).v[idx])
+#define lake_darray_last_v(va)      (&(va).v[(va).da.size - 1])
+#define lake_darray_first_v(va)     ((va).v)
 
 /** Copy all data inside the dynamic array.
  *  TODO custom allocator?
@@ -92,13 +97,14 @@ lake_darray_reclaim(
  *  If the requested size is smaller than the current alloc, no change is done.
  *  TODO custom allocator? */
 LAKEAPI void LAKECALL
-lake_darray_resize(
+lake_darray_resize_w_dbg(
     lake_darray    *da, 
     s32             stride, 
     s32             align, 
-    s32             n);
+    s32             n,
+    char const     *type);
 #define lake_darray_resize_t(da, T, n) \
-    lake_darray_resize(da, lake_ssizeof(T), lake_salignof(T), n)
+    lake_darray_resize_w_dbg(da, lake_ssizeof(T), lake_salignof(T), n, "darray<"#T">")
 
 /** Insert items into the end of the array.
  *  @return pointer into the array where items begin. */
@@ -108,24 +114,25 @@ void *lake_darray_append_items(
     void const     *items, 
     s32             stride, 
     s32             align, 
-    s32             n)
+    s32             n,
+    char const     *type)
 {
     s32 size = da->size;
     if (size + n - 1 >= da->alloc)
-        lake_darray_resize(da, stride, align, size + n);
+        lake_darray_resize_w_dbg(da, stride, align, size + n, type);
     da->size = size + n;
     return lake_memcpy(lake_elem(da->v, stride, size), items, stride * n);
 }
 
 #define lake_darray_append_n(da, T, items, n) \
     ({ \
-        T *__item = lake_reinterpret_cast(T *, lake_darray_append_items(da, items, lake_ssizeof(T), lake_salignof(T), n)); \
+        T *__item = lake_reinterpret_cast(T *, lake_darray_append_items(da, items, lake_ssizeof(T), lake_salignof(T), n, "darray<"#T">")); \
         __item; \
     })
 
 #define lake_darray_append_t(da, T, item) \
     ({ \
-        T *__item = lake_reinterpret_cast(T *, lake_darray_append_items(da, item, lake_ssizeof(T), lake_salignof(T), 1)); \
+        T *__item = lake_reinterpret_cast(T *, lake_darray_append_items(da, item, lake_ssizeof(T), lake_salignof(T), 1, "darray<"#T">")); \
         __item; \
     })
 
@@ -134,7 +141,7 @@ void *lake_darray_append_items(
     ({ \
         T *___item; \
         lake_spinlock_acquire(spinlock); \
-        ___item = lake_reinterpret_cast(T *, lake_darray_append_items(&(va).da, item, lake_ssizeof(T), lake_salignof(T), n)); \
+        ___item = lake_reinterpret_cast(T *, lake_darray_append_items(&(va).da, item, lake_ssizeof(T), lake_salignof(T), n, "darray<"#T">")); \
         lake_spinlock_release(spinlock); \
         ___item; \
     })
@@ -149,11 +156,12 @@ void *lake_darray_insert_items(
     s32             stride, 
     s32             align, 
     s32             n, 
-    s32             idx)
+    s32             idx,
+    char const     *type)
 {
     s32 size = da->size;
     if (size + n - 1 >= da->alloc)
-        lake_darray_resize(da, stride, align, size + n);
+        lake_darray_resize_w_dbg(da, stride, align, size + n, type);
     da->size = size + n;
     /* don't leave the range */
     idx = lake_min(idx, size);
@@ -164,21 +172,21 @@ void *lake_darray_insert_items(
 
 #define lake_darray_insert_n(da, T, items, n, idx) \
     ({ \
-        T *__item = lake_reinterpret_cast(T *, lake_darray_insert_items(da, items, lake_ssizeof(T), lake_salignof(T), n, idx)); \
+        T *__item = lake_reinterpret_cast(T *, lake_darray_insert_items(da, items, lake_ssizeof(T), lake_salignof(T), n, idx, "darray<"#T">")); \
         __item; \
     })
 
 #define lake_darray_insert_t(da, T, item, idx) \
     ({ \
-        T *__item = lake_reinterpret_cast(T *, lake_darray_insert_items(da, item, lake_ssizeof(T), lake_salignof(T), 1, idx)); \
+        T *__item = lake_reinterpret_cast(T *, lake_darray_insert_items(da, item, lake_ssizeof(T), lake_salignof(T), 1, idx, "darray<"#T">")); \
         __item; \
     })
 
-#define lake_darray_insert_v_locked(va, T, item, n, spinlock) \
+#define lake_darray_insert_v_locked(va, T, item, n, idx, spinlock) \
     ({ \
         T *___item; \
         lake_spinlock_acquire(spinlock); \
-        ___item = lake_reinterpret_cast(T *, lake_darray_insert_items(&(va).da, item, lake_ssizeof(T), lake_salignof(T), n)); \
+        ___item = lake_reinterpret_cast(T *, lake_darray_insert_items(&(va).da, item, lake_ssizeof(T), lake_salignof(T), n, idx, "darray<"#T">")); \
         lake_spinlock_release(spinlock); \
         ___item; \
     })

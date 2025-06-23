@@ -216,7 +216,7 @@ s32 lake_in_the_lungs(
     lake_work_details work = {
         .procedure = funny_valentine,
         .argument = (void *)&app,
-        .name = "lake/in_the_lungs",
+        .name = "lake_in_the_lungs",
     };
 
     lake_submit_work(1, &work, nullptr);

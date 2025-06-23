@@ -11,7 +11,7 @@ FN_MOON_DEVICE_ASSEMBLY(vulkan)
     if (pd_idx >= moon->physical_devices.da.size)
         return LAKE_ERROR_INVALID_DEVICE_INDEX;
 
-    struct physical_device const *pd = lake_darray_elem(moon->physical_devices, pd_idx);
+    struct physical_device const *pd = lake_darray_elem_v(moon->physical_devices, pd_idx);
     moon_device_details const *details = &pd->details; 
 
     /* check features */
@@ -710,7 +710,7 @@ FN_MOON_DEVICE_SUBMIT_COMMANDS(vulkan)
             sem_wait_stage_masks_bytes +
             sem_wait_values_bytes;
 
-        raw = (u8 *)__lake_malloc(total_bytes, 16);
+        raw = (u8 *)lake_drift_alias(total_bytes, 16);
 
         o = 0;
         submit_vk_cmd_buffers = (VkCommandBuffer *)&raw[o];
@@ -786,8 +786,6 @@ FN_MOON_DEVICE_SUBMIT_COMMANDS(vulkan)
             1, 
             &vk_submit_info, 
             VK_NULL_HANDLE));
-
-    __lake_free(raw);
     return result;
 }
 
@@ -812,7 +810,7 @@ FN_MOON_DEVICE_PRESENT_FRAMES(vulkan)
             vk_image_indices_bytes;
 
         usize o = 0;
-        raw = (u8 *)__lake_malloc(total_bytes, 16);
+        raw = (u8 *)lake_drift_alias(total_bytes, 16);
 
         submit_vk_sem_waits = (VkSemaphore *)&raw[vk_swapchains_bytes];
         o += submit_vk_sem_waits_bytes;
@@ -846,8 +844,6 @@ FN_MOON_DEVICE_PRESENT_FRAMES(vulkan)
         device->vkQueuePresentKHR(
             get_device_queue_impl(device, present->queue)->vk_queue, 
             &vk_present_info));
-
-    __lake_free(raw);
     return result;
 }
 
@@ -902,10 +898,10 @@ FN_MOON_DEVICE_COMMIT_DEFERRED_DESTRUCTORS(vulkan)
     COMMIT_DESTRUCTORS(command_recorder, 
             struct command_pool_arena *arena = &device->command_pool_arenas[zombie.second.queue_type];
             device->vkFreeCommandBuffers(device->vk_device, zombie.second.vk_cmd_pool,
-                (u32)lake_darray_size(&zombie.second.allocated_command_buffers.da), 
+                (u32)zombie.second.allocated_command_buffers.da.size, 
                 zombie.second.allocated_command_buffers.v);
             VERIFY_VK_ERROR(device->vkResetCommandPool(device->vk_device, zombie.second.vk_cmd_pool, 0));
-            lake_darray_append_v_locked(arena->pools_and_buffers, VkCommandPool, zombie.second.vk_cmd_pool, 1, &arena->spinlock);
+            lake_darray_append_v_locked(arena->pools_and_buffers, VkCommandPool, &zombie.second.vk_cmd_pool, 1, &arena->spinlock);
     );
     lake_spinlock_release(lifetime_lock);
 #undef COMMIT_DESTRUCTORS

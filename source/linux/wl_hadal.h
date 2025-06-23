@@ -373,7 +373,9 @@ struct hadal_window_impl {
     hadal_window_header                     header;
     char const                             *tag;
     struct wl_surface                      *surface;
-
+    s32                                     pending_width;
+    s32                                     pending_height;
+    u32                                     pending_flags;
     union {
 #ifdef HADAL_LIBDECOR
         struct {

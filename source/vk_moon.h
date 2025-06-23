@@ -1,6 +1,6 @@
 #pragma once
 
-#include <lake/renderer/moon.h>
+#include <lake/moon.h>
 #include <lake/data_structures/darray.h>
 #include <lake/data_structures/deque.h>
 #include <lake/data_structures/mpmc_ring.h>
@@ -586,7 +586,7 @@ struct moon_swapchain_impl {
     /** The window framebuffer resolution. */
     VkExtent2D                              vk_surface_extent;
     /** Abstracted presentation modes, acquired from the Vulkan surface. */
-    lake_darray_t(moon_present_mode)        supported_present_modes;
+    lake_darray_t(VkPresentModeKHR)         supported_present_modes;
     /** Swapchain holds strong references to these images, as it owns them. */
     lake_darray_t(moon_texture_id)          images;
     /** Signaled in the last submission that uses the swapchain image. */
@@ -623,7 +623,7 @@ struct command_pool_arena {
 typedef lake_pair(u64, u8) staged_deferred_destructor_pair;
 struct staged_command_list_data {
     VkCommandBuffer                                 vk_cmd_buffer;
-    lake_darray_t(staged_deferred_destructor_pair)  deferred_destructions;
+    lake_darray_t(staged_deferred_destructor_pair)  deferred_destructors;
     lake_darray_t(moon_buffer_id)                   used_buffers;
     lake_darray_t(moon_texture_id)                  used_textures;
     lake_darray_t(moon_texture_view_id)             used_texture_views;
@@ -1186,9 +1186,9 @@ LAKE_FORCE_INLINE struct blas_impl_slot const *acquire_blas_slot(struct moon_dev
 LAKE_FORCE_INLINE void zombify_buffer(struct moon_device_impl *device, moon_buffer_id buffer)
 {
     struct buffer_impl_slot const *slot = acquire_buffer_slot(device, buffer);
-    if (slot->optional_heap != nullptr) {
-        lake_dec_refcnt(&slot->optional_heap->header.refcnt, slot->optional_heap, (PFN_lake_work)_moon_vulkan_memory_heap_zero_refcnt);
-    }
+    if (slot->optional_heap != nullptr)
+        moon_memory_heap_unref_v(slot->optional_heap);
+
     zombie_timeline_buffer submit = { 
         .first = lake_atomic_read(&device->submit_timeline), 
         .second = buffer 
@@ -1200,9 +1200,9 @@ LAKE_FORCE_INLINE void zombify_buffer(struct moon_device_impl *device, moon_buff
 LAKE_FORCE_INLINE void zombify_texture(struct moon_device_impl *device, moon_texture_id texture)
 {
     struct texture_impl_slot const *slot = acquire_texture_slot(device, texture);
-    if (slot->optional_heap != nullptr) {
-        lake_dec_refcnt(&slot->optional_heap->header.refcnt, slot->optional_heap, (PFN_lake_work)_moon_vulkan_memory_heap_zero_refcnt);
-    }
+    if (slot->optional_heap != nullptr)
+        moon_memory_heap_unref_v(slot->optional_heap);
+
     zombie_timeline_texture submit = { 
         .first = lake_atomic_read(&device->submit_timeline), 
         .second = texture
@@ -1279,7 +1279,8 @@ LAKE_FORCE_INLINE void texture_destructor(struct moon_device_impl *device, moon_
     /* Does not need external sync given we use update after bind.
      * https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkDescriptorBindingFlagBits.html */
     write_descriptor_set_image(device, device->gpu_sr_table.vk_descriptor_set, device->vk_null_image_view, slot->assembly.usage, moon_id_get_index(texture));
-    device->vkDestroyImageView(device->vk_device, slot->view_slot.vk_image_view, device->vk_allocator);
+    if (slot->view_slot.vk_image_view != nullptr)
+        device->vkDestroyImageView(device->vk_device, slot->view_slot.vk_image_view, device->vk_allocator);
     if (slot->swapchain_image_idx == NOT_OWNED_BY_SWAPCHAIN) {
         if (slot->optional_heap != nullptr) {
             device->vkDestroyImage(device->vk_device, slot->vk_image, device->vk_allocator);
@@ -1298,7 +1299,7 @@ LAKE_FORCE_INLINE void texture_view_destructor(struct moon_device_impl *device, 
     write_descriptor_set_image(device, device->gpu_sr_table.vk_descriptor_set, device->vk_null_image_view, 
         moon_texture_usage_shader_storage | moon_texture_usage_shader_sampled, moon_id_get_index(texture_view));
     device->vkDestroyImageView(device->vk_device, slot->vk_image_view, device->vk_allocator);
-    texture_gpu_sr_pool__unsafe_destroy_zombie_slot(&device->gpu_sr_table.texture_slots, (moon_texture_id){ .handle = texture_view.handle });
+    texture_gpu_sr_pool__unsafe_destroy_zombie_slot(&device->gpu_sr_table.texture_slots, moon_id_t(moon_texture_id, texture_view));
 }
 
 LAKE_FORCE_INLINE void sampler_destructor(struct moon_device_impl *device, moon_sampler_id sampler)

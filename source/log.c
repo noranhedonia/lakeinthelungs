@@ -150,7 +150,6 @@ static void colorize_buf(char *msg, bool enable_colors, lake_strbuf *buf)
                 is_var = false;
             }
         }
-
         if (!dont_append) lake_strbuf_appendstrn(buf, ptr, 1);
 
         if (!override_color && enable_colors && (((ch == '\'') || (ch == '"')) && !is_str))
@@ -234,9 +233,9 @@ void lake_printv_(
     }
 #undef set_level_string
 
-    char const *threading_fmt = "#[grey]%2u %d:@%s";
+    char const *threading_fmt = "#[grey]%2u:@%s";
     if (write_threading)
-        n += snprintf(nullptr, 0, threading_fmt, thread_idx, l->depth, f->work.details.name);
+        n += snprintf(nullptr, 0, threading_fmt, thread_idx, f->work.details.name);
 
     char const *context_fmt = "#[grey]%6d:%s";
     if (write_context)
@@ -259,7 +258,7 @@ void lake_printv_(
     if (level >= -4)
         o += snprintf(msg_nocolor + o, n-o, "%s#[normal]: ", level_str);
     if (write_threading) 
-        o += snprintf(msg_nocolor + o, n-o, threading_fmt, thread_idx, l->depth, f->work.details.name);
+        o += snprintf(msg_nocolor + o, n-o, threading_fmt, thread_idx, f->work.details.name);
     if (write_context)
         o += snprintf(msg_nocolor + o, n-o, context_fmt, line, LOG_FILENAME(file));
     if (write_context || write_threading)
@@ -270,8 +269,13 @@ void lake_printv_(
     lake_spinlock_acquire_relaxed(&l->flush_lock);
     colorize_buf(msg_nocolor, use_color, &l->buf);
 
-    if (level == -4)
-        sys_dump_stack_trace(&l->buf);
+#ifndef LAKE_NDEBUG
+    if (level == -4) {
+        lake_strbuf trace = { .v = lake_drift_alias(2048, 1), .alloc = 2048 };
+        sys_dump_stack_trace(&trace);
+        colorize_buf(trace.v, use_color, &l->buf);
+    }
+#endif /* LAKE_NDEBUG */
 
     lake_spinlock_release_relaxed(&l->flush_lock);
     l->should_flush = true;
@@ -322,13 +326,17 @@ lake_assert_status lake_assert_log_(
     char const *fmt, ...)
 {
     lake_exit_status(status);
-    lake_print_(-4, file, line, "Assertion! `#[cyan]%s#[normal]`.", condition);
+    lake_print_(-4, file, line, "Assertion! `#[blue]%s#[normal]`.", condition);
 
-    if (fmt != nullptr) {
+    if (fmt != nullptr && g_log_level > -4) {
+        u32 hints = g_log_hints;
+        g_log_hints = log_hint_with_colors;
+
         va_list args;
         va_start(args, fmt);
-        lake_printv_(-4, file, line, fmt, args);
+        lake_printv_(-5, file, line, fmt, args);
         va_end(args);
+        g_log_hints = hints;
     }
     lake_forced_flush_all_loggers();
     return lake_assert_status_trap;

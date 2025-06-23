@@ -1,4 +1,4 @@
-#include <lake/renderer/moon.h>
+#include <lake/moon.h>
 
 u32 moon_calculate_score_from_device_details(moon_device_details const *details)
 {
@@ -27,4 +27,31 @@ char const *moon_queue_type_to_string(moon_queue_type type)
         case moon_queue_type_video_encode: return "encode";
         default: return "unknown";
     }
+}
+
+FN_MOON_SURFACE_FORMAT_SELECTOR(moon_default_surface_format_selector)
+{
+    moon_format const priority[] = {
+        moon_format_r8g8b8a8_unorm,
+        moon_format_r8g8b8a8_srgb,
+        moon_format_b8g8r8a8_unorm,
+        moon_format_b8g8r8a8_srgb,
+        moon_format_a2b10g10r10_unorm_pack32,
+        moon_format_a2r10g10b10_unorm_pack32,
+    };
+    u32 const priority_count = lake_arraysize(priority);
+
+    for (u32 i = 0; i < priority_count; i++) {
+        moon_format const format = priority[i];
+
+        for (u32 j = 0; j < format_count; j++)
+            if (formats[j] == format) return (s32)j;
+    }
+    return -1;
+}
+
+FN_LAKE_INTERFACE_IMPL(moon, mock, lake_framework)
+{
+    (void)assembly;
+    return nullptr;
 }

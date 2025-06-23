@@ -1,6 +1,6 @@
 #pragma once
 
-/** @file lake/renderer/moon.h
+/** @file lake/moon.h
  *  @brief Rendering interface.
  *
  *  TODO docs
@@ -172,33 +172,38 @@ struct moon_interface_impl {
     PFN_moon_cmd_draw_mesh_tasks_indirect_count         cmd_draw_mesh_tasks_indirect_count;
 };
 
-LAKE_IMPL_HANDLE_INTERFACED(moon_device, moon_interface moon,  moon_device_details const *details; );
-LAKE_IMPL_HANDLE_INTERFACED(moon_memory_heap, moon_device device, LAKE_MAGIC_NOTHING());
-LAKE_IMPL_HANDLE_INTERFACED(moon_timeline_query_pool, moon_device device, LAKE_MAGIC_NOTHING());
-LAKE_IMPL_HANDLE_INTERFACED(moon_timeline_semaphore, moon_device device, LAKE_MAGIC_NOTHING());
-LAKE_IMPL_HANDLE_INTERFACED(moon_binary_semaphore, moon_device device, LAKE_MAGIC_NOTHING());
-LAKE_IMPL_HANDLE_INTERFACED(moon_event, moon_device device, LAKE_MAGIC_NOTHING());
-LAKE_IMPL_HANDLE_INTERFACED(moon_compute_pipeline, moon_device device, LAKE_MAGIC_NOTHING());
-LAKE_IMPL_HANDLE_INTERFACED(moon_work_graph_pipeline, moon_device device, LAKE_MAGIC_NOTHING());
-LAKE_IMPL_HANDLE_INTERFACED(moon_ray_tracing_pipeline, moon_device device, LAKE_MAGIC_NOTHING());
-LAKE_IMPL_HANDLE_INTERFACED(moon_raster_pipeline, moon_device device, LAKE_MAGIC_NOTHING());
-LAKE_IMPL_HANDLE_INTERFACED(moon_swapchain, moon_device device, LAKE_MAGIC_NOTHING());
-LAKE_IMPL_HANDLE_INTERFACED(moon_command_recorder, moon_device device, LAKE_MAGIC_NOTHING());
-LAKE_IMPL_HANDLE_INTERFACED(moon_staged_command_list, moon_command_recorder cmd, LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_device,                moon_interface moon,        moon_device_details const *details; );
+LAKE_IMPL_HANDLE_INTERFACED(moon_memory_heap,           moon_device device,         LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_timeline_query_pool,   moon_device device,         LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_timeline_semaphore,    moon_device device,         LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_binary_semaphore,      moon_device device,         LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_event,                 moon_device device,         LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_compute_pipeline,      moon_device device,         LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_work_graph_pipeline,   moon_device device,         LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_ray_tracing_pipeline,  moon_device device,         LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_raster_pipeline,       moon_device device,         LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_swapchain,             moon_device device,         LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_command_recorder,      moon_device device,         LAKE_MAGIC_NOTHING());
+LAKE_IMPL_HANDLE_INTERFACED(moon_staged_command_list,   moon_command_recorder cmd,  LAKE_MAGIC_NOTHING());
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
 #ifdef MOON_D3D12
+LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, d3d12, lake_framework);
 #endif /* MOON_D3D12 */
 #ifdef MOON_METAL
+LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, metal, lake_framework);
 #endif /* MOON_METAL */
 #ifdef MOON_WEBGPU
+LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, webgpu, lake_framework);
 #endif /* MOON_WEBGPU */
 #ifdef MOON_VULKAN
 LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, vulkan, lake_framework);
 #endif /* MOON_VULKAN */
+
+LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, mock, lake_framework);
 
 /** Returns a score for the device, by checking it's details. */
 LAKEAPI u32 LAKECALL 
@@ -210,6 +215,9 @@ LAKE_CONST_FN
 LAKEAPI char const *LAKECALL 
 moon_queue_type_to_string(
     moon_queue_type type);
+
+/** Used as a suplementary for the swapchain surface selector, if no custom one was given. */
+LAKEAPI FN_MOON_SURFACE_FORMAT_SELECTOR(moon_default_surface_format_selector);
 
 #ifdef __cplusplus
 }

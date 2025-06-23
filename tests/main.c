@@ -24,25 +24,106 @@ extern void _test_log_context(char const *file, s32 line)
 
 struct main_test_suite {
     char const                 *name;
-    PFN_test_suite_setup        setup;
+    PFN_test_suite_init         init;
+    PFN_test_suite_fini         fini;
     struct test_suite_details   details;
     atomic_u32                  status_ok;
     atomic_u32                  status_skip;
     atomic_u32                  status_fail;
 };
 
-#define IMPL_MAIN_TEST_SUITE(SUITE) \
+#define main_test_suite_entry(SUITE) \
     (struct main_test_suite){ \
         .name = #SUITE, \
-        .setup = SUITE##_test_suite_setup, \
+        .init = SUITE##_test_suite_init, \
+        .fini = SUITE##_test_suite_fini, \
         .details = {0}, \
     }
 static struct main_test_suite g_test_suites[] = {
-    IMPL_MAIN_TEST_SUITE(Defer),
+    main_test_suite_entry(Darray),
+    main_test_suite_entry(Defer),
+    main_test_suite_entry(Deque),
+#ifdef HADAL_WIN32
+    main_test_suite_entry(HadalImpl_win32),
+#endif /* HADAL_WIN32 */
+#ifdef HADAL_COCOA
+    main_test_suite_entry(HadalImpl_cocoa),
+#endif /* HADAL_COCOA */
+#ifdef HADAL_UIKIT
+    main_test_suite_entry(HadalImpl_uikit),
+#endif /* HADAL_UIKIT */
+#ifdef HADAL_ANDROID
+    main_test_suite_entry(HadalImpl_android),
+#endif /* HADAL_ANDROID */
+#ifdef HADAL_HAIKU
+    main_test_suite_entry(HadalImpl_haiku),
+#endif /* HADAL_HAIKU */
+#ifdef HADAL_HTML5
+    main_test_suite_entry(HadalImpl_html5),
+#endif /* HADAL_HTML5 */
+#ifdef HADAL_WAYLAND
+    main_test_suite_entry(HadalImpl_wayland),
+#endif /* HADAL_WAYLAND */
+#ifdef HADAL_XCB
+    main_test_suite_entry(HadalImpl_xcb),
+#endif /* HADAL_XCB */
+#ifdef HADAL_KMS
+    main_test_suite_entry(HadalImpl_kms),
+#endif /* HADAL_KMS */
+    main_test_suite_entry(HadalImpl_headless),
+    main_test_suite_entry(ImguiTools),
+#ifdef MOON_D3D12
+    main_test_suite_entry(MoonImpl_d3d12),
+#endif /* MOON_D3D12 */
+#ifdef MOON_METAL
+    main_test_suite_entry(MoonImpl_metal),
+#endif /* MOON_METAL */
+#ifdef MOON_WEBGPU
+    main_test_suite_entry(MoonImpl_webgpu),
+#endif /* MOON_WEBGPU */
+#ifdef MOON_VULKAN
+    main_test_suite_entry(MoonImpl_vulkan),
+#endif /* MOON_VULKAN */
+    main_test_suite_entry(MoonImpl_mock),
+    main_test_suite_entry(MpmcRing),
+    main_test_suite_entry(Slang),
+#ifdef SOMA_ASIO
+    main_test_suite_entry(SomaImpl_asio),
+#endif /* SOMA_ASIO */
+#ifdef SOMA_WASAPI
+    main_test_suite_entry(SomaImpl_wasapi),
+#endif /* SOMA_WASAPI */
+#ifdef SOMA_XAUDIO2
+    main_test_suite_entry(SomaImpl_xaudio2),
+#endif /* SOMA_XAUDIO2 */
+#ifdef SOMA_COREAUDIO
+    main_test_suite_entry(SomaImpl_coreaudio),
+#endif /* SOMA_COREAUDIO */
+#ifdef SOMA_AAUDIO
+    main_test_suite_entry(SomaImpl_aaudio),
+#endif /* SOMA_AAUDIO */
+#ifdef SOMA_WEBAUDIO
+    main_test_suite_entry(SomaImpl_webaudio),
+#endif /* SOMA_WEBAUDIO */
+#ifdef SOMA_PIPEWIRE
+    main_test_suite_entry(SomaImpl_pipewire),
+#endif /* SOMA_PIPEWIRE */
+#ifdef SOMA_PULSEAUDIO
+    main_test_suite_entry(SomaImpl_pulseaudio),
+#endif /* SOMA_PULSEAUDIO */
+#ifdef SOMA_JACK
+    main_test_suite_entry(SomaImpl_jack),
+#endif /* SOMA_JACK */
+#ifdef SOMA_ALSA
+    main_test_suite_entry(SomaImpl_alsa),
+#endif /* SOMA_ALSA */
+    main_test_suite_entry(SomaImpl_dummy),
+    main_test_suite_entry(Strbuf),
 };
 char const *g_run_target = nullptr;
 
 struct run_test_work {
+    void                       *userdata;
     struct test_case_details    details;
     atomic_u32                 *status_ok;
     atomic_u32                 *status_skip;
@@ -55,7 +136,7 @@ static f64 g_dt_freq_reciprocal = 0.0;
 FN_LAKE_WORK(run_test, struct run_test_work *work) 
 {
     u64 const time_start = lake_rtc_counter();
-    s32 const status = work->details.procedure();
+    s32 const status = work->details.procedure(work->userdata);
     u64 const time_end = lake_rtc_counter();
     work->dt = ((f64)(time_end - time_start) * g_dt_freq_reciprocal);
 
@@ -92,7 +173,7 @@ static s32 run_test_suite(
     struct run_test_work *runs = nullptr;
     lake_work_details *work = nullptr;
 
-    suite->setup(framework, &suite->details);
+    suite->init(framework, &suite->details);
 
     /* print header */
     if (suite->details.count == 0) return TEST_RESULT_SKIPPED;
@@ -105,6 +186,7 @@ static s32 run_test_suite(
 
     for (u32 i = 0; i < test_count; i++) {
         runs[i].details     = suite->details.tests[i];
+        runs[i].userdata    = suite->details.userdata;
         runs[i].status_ok   = &suite->status_ok;
         runs[i].status_skip = &suite->status_skip;
         runs[i].status_fail = &suite->status_fail;
@@ -122,7 +204,9 @@ static s32 run_test_suite(
         time_passed += runs[i].dt;
 
     lake_log(-6, "    #[blue]%s#[normal] total results (#[cyan]%.6fms#[normal]): #[green]%u#[normal] okay, #[yellow]%u#[normal] skipped, "
-            "#[red]%u#[normal] failed.", suite->name, 1000*time_passed, case_ok, case_skip, case_fail);
+            "#[red]%u#[normal] failed.\n", suite->name, 1000*time_passed, case_ok, case_skip, case_fail);
+
+    suite->fini(suite->details.userdata);
     return LAKE_SUCCESS;
 }
 
@@ -147,7 +231,7 @@ FN_LAKE_FRAMEWORK(testing)
             }
         }
         if (index == -1) {
-            lake_log(-6, "Target test suite #[yellow]%s#[normal] does not exist.", g_run_target);
+            lake_log(-6, "Target test suite #[magenta]%s#[normal] does not exist.", g_run_target);
             return;
         }
         s32 status = run_test_suite(framework, &g_test_suites[index]);
@@ -168,6 +252,7 @@ FN_LAKE_FRAMEWORK(testing)
     lake_log(-6, "    Fibers: #[cyan]%u#[normal], each with a #[cyan]%u KiB#[normal] stack.", framework->hints.fiber_count, framework->hints.fiber_stack_size >> 10);
     
     /* execute test suites one by one */
+    bool last_was_skipped = true;
     for (u32 i = 0; i < suite_count; i++) {
         struct main_test_suite *suite = &g_test_suites[i];
 
@@ -175,9 +260,11 @@ FN_LAKE_FRAMEWORK(testing)
         s32 status = run_test_suite(framework, suite);
         lake_drift_pop();
 
+        last_was_skipped = false;
         if (status == TEST_RESULT_SKIPPED) {
-            lake_log(-6, "\nTest suite #[blue]%s#[normal] is skipped.", suite->name);
+            lake_log(-6, "Test suite #[yellow]%s#[normal] is skipped.", suite->name);
             suite_total_skip++;
+            last_was_skipped = true;
             continue;
         }
         u32 const case_ok = lake_atomic_read(&suite->status_ok);
@@ -191,27 +278,22 @@ FN_LAKE_FRAMEWORK(testing)
     f64 const dt = ((f64)(time_end - time_start) * g_dt_freq_reciprocal); 
 
     /* print final raport */
-    lake_log(-6, "\nComplete results from #[cyan]%u#[normal] test suites (#[yellow]%u#[normal] "
-            "skipped), ran #[cyan]%u#[normal] test cases total (#[cyan]%.6fms#[normal]):", 
-            suite_count - suite_total_skip, suite_total_skip, 
-            case_total_ok + case_total_skip + case_total_fail, 1000.0*dt);
+    lake_log(-6, "%sComplete results from #[cyan]%u#[normal] test suites (#[yellow]%u#[normal] "
+            "skipped), ran #[cyan]%u#[normal] test cases total:", 
+            last_was_skipped ? "\n" : "", suite_count - suite_total_skip, suite_total_skip, 
+            case_total_ok + case_total_skip + case_total_fail);
 
-    if (case_total_ok)
-        lake_log(-6, "    #[green]%u#[normal] okay", case_total_ok);
-    if (case_total_skip)
-        lake_log(-6, "    #[yellow]%u#[normal] skipped", case_total_skip);
-    if (case_total_fail) {
-        lake_log(-6, "    #[red]%u#[normal] failed :(", case_total_fail);
-    } else {
+    lake_log(-6, "    #[green]%u#[normal] okay, #[yellow]%u#[normal] skipped, #[red]%u#[normal] failed. "
+            "(#[cyan]%.6fms#[normal]).", case_total_ok, case_total_skip, case_total_fail, 1000.0*dt);
+    if (!case_total_fail)
         lake_log(-6, "All ran tests were #[green]OK#[normal]. :D");
-    }
 }
 
 s32 lake_main(lake_framework *framework, s32 argc, const char **argv) 
 {
     framework->app_name = "testing";
     framework->hints.memory_budget = 512lu*1024lu*1024lu;
-    framework->hints.enable_debug_instruments = true;
+    framework->hints.enable_debug_instruments = false;
     framework->hints.fiber_count = 64;
     framework->hints.fiber_stack_size = 128*1024;
     framework->hints.tagged_heap_count = 16;

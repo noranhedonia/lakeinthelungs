@@ -1,13 +1,149 @@
 #include "vk_moon.h"
 #ifdef MOON_VULKAN
 
+#ifndef LAKE_NDEBUG
+LAKE_CONST_FN
+static lake_result LAKECALL validate_queue_family(
+        moon_queue_type recorder_queue, 
+        moon_queue_type command_queue)
+{
+    lake_result result = LAKE_SUCCESS;
+    if (command_queue == moon_queue_type_none) 
+        return result;
+
+    bool const main_on_transfer = command_queue == moon_queue_type_main && recorder_queue == moon_queue_type_transfer;
+    bool const compute_on_transfer = command_queue == moon_queue_type_compute && recorder_queue == moon_queue_type_transfer;
+    bool const main_on_compute = command_queue == moon_queue_type_main && recorder_queue == moon_queue_type_compute;
+    result = main_on_transfer ? LAKE_ERROR_MAIN_QUEUE_CMD_ON_TRANSFER_QUEUE_RECORDER : result;
+    result = compute_on_transfer ? LAKE_ERROR_COMPUTE_QUEUE_CMD_ON_TRANSFER_QUEUE_RECORDER : result;
+    result = main_on_compute ? LAKE_ERROR_MAIN_QUEUE_CMD_ON_COMPUTE_QUEUE_RECORDER : result;
+    return result;
+}
+#else
+#define validate_queue_family(a,b) LAKE_SUCCESS
+#endif /* LAKE_NDEBUG */
+
+static void LAKECALL execute_deferred_destructors(
+        struct moon_device_impl *device, 
+        struct staged_command_list_data *data)
+{
+    LAKE_UNUSED lake_result __ignore = 0;
+    lake_darray_foreach_v(data->deferred_destructors, staged_deferred_destructor_pair, pair) {
+        switch (pair->second) {
+            case DEFERRED_DESTRUCTOR_BUFFER_IDX: __ignore = _moon_vulkan_destroy_buffer(device, (moon_buffer_id){ pair->first }); break;
+            case DEFERRED_DESTRUCTOR_TEXTURE_IDX: __ignore = _moon_vulkan_destroy_texture(device, (moon_texture_id){ pair->first }); break;
+            case DEFERRED_DESTRUCTOR_TEXTURE_VIEW_IDX: __ignore = _moon_vulkan_destroy_texture_view(device, (moon_texture_view_id){ pair->first }); break;
+            case DEFERRED_DESTRUCTOR_SAMPLER_IDX: __ignore = _moon_vulkan_destroy_sampler(device, (moon_sampler_id){ pair->first }); break;
+            default:
+                LAKE_UNREACHABLE;
+        }
+    }
+    lake_darray_fini(&data->deferred_destructors.da);
+}
+
+static VkCommandPool LAKECALL acquire_command_pool(
+        struct command_pool_arena *arena,
+        struct moon_device_impl *device)
+{
+    VkCommandPool pool = VK_NULL_HANDLE;
+    if (lake_darray_empty(&arena->pools_and_buffers.da)) {
+        VkCommandPoolCreateInfo const vk_command_pool_create_info = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .pNext = nullptr,
+            .queueFamilyIndex = arena->queue_family_idx,
+        };
+        device->vkCreateCommandPool(device->vk_device, &vk_command_pool_create_info, device->vk_allocator, &pool);
+    } else {
+        pool = *lake_darray_last_v(arena->pools_and_buffers);
+        lake_darray_pop(&arena->pools_and_buffers.da);
+    }
+    return pool;
+}
+
+#define remember_id(RECORDER, T, ID) \
+    lake_darray_append_t(&(RECORDER)->current_command_data.used_##T##s.da, moon_##T##_id, ID)
+#define check_id(RECORDER, T, NAME, ID) \
+    __ID_CHECK_RESULT = (_moon_vulkan_is_##T##_valid((RECORDER)->header.device.impl, ID)) \
+        ? LAKE_SUCCESS : LAKE_ERROR_INVALID_##NAME##_ID
+
+#define begin_cmd_validation(family) \
+    lake_result __ID_CHECK_RESULT = validate_queue_family(cmd->queue_type, family)
+#define end_cmd_validation() \
+    if (__ID_CHECK_RESULT != LAKE_SUCCESS) return __ID_CHECK_RESULT
+
+static lake_result LAKECALL prepare_cmd_data(
+    struct moon_device_impl const *device,
+    struct moon_command_recorder_impl *cmd)
+{
+    VkCommandBufferAllocateInfo const vk_cmd_buffer_allocate_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .pNext = nullptr,
+        .commandPool = cmd->vk_cmd_pool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1,
+    };
+    VkResult vk_result = device->vkAllocateCommandBuffers(device->vk_device, &vk_cmd_buffer_allocate_info, &cmd->current_command_data.vk_cmd_buffer);
+    if (vk_result != VK_SUCCESS)
+        return vk_result_translate(vk_result);
+
+    VkCommandBufferBeginInfo const vk_cmd_buffer_begin_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .pNext = nullptr,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        .pInheritanceInfo = nullptr,
+    };
+    vk_result = device->vkBeginCommandBuffer(cmd->current_command_data.vk_cmd_buffer, &vk_cmd_buffer_begin_info);
+    if (vk_result != VK_SUCCESS)
+        return vk_result_translate(vk_result);
+
+    lake_darray_append_t(&cmd->allocated_command_buffers.da, VkCommandBuffer, &cmd->current_command_data.vk_cmd_buffer);
+    lake_darray_init_t(&cmd->current_command_data.used_buffers.da, moon_buffer_id, 12);
+    lake_darray_init_t(&cmd->current_command_data.used_textures.da, moon_texture_id, 12);
+    lake_darray_init_t(&cmd->current_command_data.used_texture_views.da, moon_texture_view_id, 12);
+    lake_darray_init_t(&cmd->current_command_data.used_samplers.da, moon_sampler_id, 12);
+    return LAKE_SUCCESS;
+}
+
 FN_MOON_COMMAND_RECORDER_ASSEMBLY(vulkan) 
 {
-    (void)device;
-    (void)assembly;
-    (void)out_cmd;
-    /* TODO */
-    return LAKE_ERROR_FEATURE_NOT_PRESENT;
+    struct moon_command_recorder_impl cmd = {
+        .header = {
+            .device.impl = device,
+            .assembly = *assembly,
+            .zero_refcnt = (PFN_lake_work)_moon_vulkan_command_recorder_zero_refcnt,
+        },
+        .queue_type = assembly->queue_type,
+    };
+    struct command_pool_arena *arena = &device->command_pool_arenas[assembly->queue_type];
+
+    lake_spinlock_acquire(&arena->spinlock);
+    cmd.vk_cmd_pool = acquire_command_pool(arena, device);
+    lake_spinlock_release(&arena->spinlock);
+
+    lake_result result = prepare_cmd_data(device, &cmd);
+    if (result != LAKE_SUCCESS) {
+        lake_spinlock_acquire(&arena->spinlock);
+        lake_darray_append_t(&arena->pools_and_buffers.da, VkCommandPool, &cmd.vk_cmd_pool);
+        lake_spinlock_release(&arena->spinlock);
+        return result;
+    }
+#ifndef LAKE_NDEBUG
+    if (device->vkSetDebugUtilsObjectNameEXT != nullptr) {
+        VkDebugUtilsObjectNameInfoEXT const name_info = {
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .pNext = nullptr,
+            .objectType = VK_OBJECT_TYPE_COMMAND_POOL,
+            .objectHandle = (u64)(uptr)cmd.vk_cmd_pool,
+            .pObjectName = cmd.header.assembly.name.str,
+        };
+        device->vkSetDebugUtilsObjectNameEXT(device->vk_device, &name_info);
+    }
+#endif /* LAKE_NDEBUG */
+    lake_inc_refcnt(&device->header.refcnt);
+    lake_inc_refcnt(&cmd.header.refcnt);
+    *out_cmd = __lake_malloc_t(struct moon_command_recorder_impl);
+    lake_memcpy(*out_cmd, &cmd, sizeof(struct moon_command_recorder_impl));
+    return LAKE_SUCCESS;
 }
 
 FN_MOON_COMMAND_RECORDER_ZERO_REFCNT(vulkan)
@@ -18,8 +154,7 @@ FN_MOON_COMMAND_RECORDER_ZERO_REFCNT(vulkan)
     lake_dbg_assert(refcnt <= 0, LAKE_HANDLE_STILL_REFERENCED, "Command recorder `%s` reference count is %d.", cmd->header.assembly.name.str, refcnt);
 #endif /* LAKE_NDEBUG */
     struct moon_device_impl *device = cmd->header.device.impl;
-
-    /* TODO execute the deferred destructions within the command list data */
+    execute_deferred_destructors(cmd->header.device.impl, &cmd->current_command_data);
 
     zombie_timeline_command_recorder submit = {
         .first = lake_atomic_read(&device->submit_timeline),
@@ -32,33 +167,8 @@ FN_MOON_COMMAND_RECORDER_ZERO_REFCNT(vulkan)
     lake_spinlock *lock = &device->zombies_locks[zombie_timeline_command_recorder_idx];
     lake_deque_unshift_v_locked(device->command_recorder_zombies, zombie_timeline_command_recorder, submit, lock);
     
-    /* TODO recycle command pool into the arena */
-
-    lake_dec_refcnt(&device->header.refcnt, device, (PFN_lake_work)_moon_vulkan_device_zero_refcnt);
+    moon_device_unref(cmd->header.device);
     __lake_free(cmd);
-}
-
-FN_MOON_STAGED_COMMAND_LIST_ASSEMBLY(vulkan)
-{ 
-    (void)cmd;
-    (void)assembly;
-    (void)out_cmd_list;
-    return LAKE_ERROR_FEATURE_NOT_PRESENT;
-}
-
-FN_MOON_STAGED_COMMAND_LIST_ZERO_REFCNT(vulkan)
-{
-#ifndef LAKE_NDEBUG
-    lake_dbg_assert(cmd_list != nullptr, LAKE_ERROR_MEMORY_MAP_FAILED, nullptr);
-    s32 refcnt = lake_atomic_read(&cmd_list->header.refcnt);
-    lake_dbg_assert(refcnt <= 0, LAKE_HANDLE_STILL_REFERENCED, "Staged command list `%s` reference count is %d.", cmd_list->header.assembly.name.str, refcnt);
-#endif /* LAKE_NDEBUG */
-    struct moon_command_recorder_impl *cmd = cmd_list->header.cmd.impl;
-
-    /* TODO execute the deferred destructions within the command list data */
-
-    lake_dec_refcnt(&cmd->header.refcnt, cmd, (PFN_lake_work)_moon_vulkan_command_recorder_zero_refcnt);
-    __lake_free(cmd_list);
 }
 
 static void flush_barriers(struct moon_command_recorder_impl *cmd)
@@ -86,9 +196,58 @@ static void flush_barriers(struct moon_command_recorder_impl *cmd)
     }
 }
 
+FN_MOON_STAGED_COMMAND_LIST_ASSEMBLY(vulkan)
+{ 
+    struct moon_staged_command_list_impl impl = {
+        .header = {
+            .cmd.impl = cmd,
+            .assembly = *assembly,
+            .zero_refcnt = (PFN_lake_work)_moon_vulkan_staged_command_list_zero_refcnt,
+        },
+    };
+    struct moon_device_impl const *device = cmd->header.device.impl;
+    flush_barriers(cmd);
+    VkResult vk_result = device->vkEndCommandBuffer(cmd->current_command_data.vk_cmd_buffer);
+    if (vk_result != VK_SUCCESS)
+        return vk_result_translate(vk_result);
+
+    lake_memcpy(&impl.data, &cmd->current_command_data, sizeof(struct staged_command_list_data));
+    lake_result result = prepare_cmd_data(device, cmd);
+    if (result != LAKE_SUCCESS) {
+        lake_memcpy(&cmd->current_command_data, &impl.data, sizeof(struct staged_command_list_data));
+        return result;
+    }
+    lake_inc_refcnt(&cmd->header.refcnt);
+    lake_inc_refcnt(&impl.header.refcnt);
+    *out_cmd_list = __lake_malloc_t(struct moon_staged_command_list_impl);
+    lake_memcpy(*out_cmd_list, &impl, sizeof(struct moon_staged_command_list_impl));
+    return LAKE_SUCCESS;
+}
+
+FN_MOON_STAGED_COMMAND_LIST_ZERO_REFCNT(vulkan)
+{
+#ifndef LAKE_NDEBUG
+    lake_dbg_assert(cmd_list != nullptr, LAKE_ERROR_MEMORY_MAP_FAILED, nullptr);
+    s32 refcnt = lake_atomic_read(&cmd_list->header.refcnt);
+    lake_dbg_assert(refcnt <= 0, LAKE_HANDLE_STILL_REFERENCED, "Staged command list `%s` reference count is %d.", cmd_list->header.assembly.name.str, refcnt);
+#endif /* LAKE_NDEBUG */
+    struct moon_command_recorder_impl *cmd = cmd_list->header.cmd.impl;
+    execute_deferred_destructors(cmd->header.device.impl, &cmd_list->data);
+
+    moon_command_recorder_unref(cmd_list->header.cmd);
+    __lake_free(cmd_list);
+}
+
 FN_MOON_CMD_COPY_BUFFER(vulkan)
 {
-    /* TODO CHECK AND REMEMBER IDS */
+    begin_cmd_validation(moon_queue_type_transfer);
+    check_id(cmd, buffer, BUFFER, work->src_buffer);
+    check_id(cmd, buffer, BUFFER, work->dst_buffer);
+    end_cmd_validation();
+
+    remember_id(cmd, buffer, &work->src_buffer);
+    remember_id(cmd, buffer, &work->dst_buffer);
+
     flush_barriers(cmd);
     if (work->region_count == 0)
         return LAKE_INVALID_PARAMETERS;
@@ -98,7 +257,8 @@ FN_MOON_CMD_COPY_BUFFER(vulkan)
     if (src_slot == nullptr || dst_slot == nullptr) 
         return LAKE_ERROR_INVALID_BUFFER_ID;
 
-    VkBufferCopy *vk_regions = __lake_malloc_n(VkBufferCopy, work->region_count);
+    lake_drift_push();
+    VkBufferCopy *vk_regions = lake_drift_n(VkBufferCopy, work->region_count);
     for (u32 i = 0; i < work->region_count; i++) {
         moon_buffer_copy_region const *region = &work->regions[i];
 
@@ -115,13 +275,20 @@ FN_MOON_CMD_COPY_BUFFER(vulkan)
             work->region_count,
             vk_regions);
 
-    __lake_free(vk_regions);
+    lake_drift_pop();
     return LAKE_SUCCESS;
 }
 
 FN_MOON_CMD_COPY_BUFFER_TO_TEXTURE(vulkan)
 {
-    /* TODO CHECK AND REMEMBER IDS */
+    begin_cmd_validation(moon_queue_type_transfer);
+    check_id(cmd, buffer, BUFFER, work->buffer);
+    check_id(cmd, texture, TEXTURE, work->texture);
+    end_cmd_validation();
+
+    remember_id(cmd, buffer, &work->buffer);
+    remember_id(cmd, texture, &work->texture);
+
     flush_barriers(cmd);
     if (work->region_count == 0)
         return LAKE_INVALID_PARAMETERS;
@@ -137,7 +304,8 @@ FN_MOON_CMD_COPY_BUFFER_TO_TEXTURE(vulkan)
     VkImageLayout vk_layout;
     populate_vk_access_info(1, &work->texture_access, nullptr, nullptr, &vk_layout, nullptr);
 
-    VkBufferImageCopy *vk_regions = __lake_malloc_n(VkBufferImageCopy, work->region_count);
+    lake_drift_push();
+    VkBufferImageCopy *vk_regions = lake_drift_n(VkBufferImageCopy, work->region_count);
     for (u32 i = 0; i < work->region_count; i++) {
         moon_buffer_and_texture_copy_region const *region = &work->regions[i];
 
@@ -166,13 +334,20 @@ FN_MOON_CMD_COPY_BUFFER_TO_TEXTURE(vulkan)
             work->region_count,
             vk_regions);
 
-    __lake_free(vk_regions);
+    lake_drift_pop();
     return LAKE_SUCCESS;
 }
 
 FN_MOON_CMD_COPY_TEXTURE_TO_BUFFER(vulkan)
 {
-    /* TODO CHECK AND REMEMBER IDS */
+    begin_cmd_validation(moon_queue_type_transfer);
+    check_id(cmd, buffer, BUFFER, work->buffer);
+    check_id(cmd, texture, TEXTURE, work->texture);
+    end_cmd_validation();
+
+    remember_id(cmd, buffer, &work->buffer);
+    remember_id(cmd, texture, &work->texture);
+
     flush_barriers(cmd);
     if (work->region_count == 0)
         return LAKE_INVALID_PARAMETERS;
@@ -188,7 +363,8 @@ FN_MOON_CMD_COPY_TEXTURE_TO_BUFFER(vulkan)
     VkImageLayout vk_layout;
     populate_vk_access_info(1, &work->texture_access, nullptr, nullptr, &vk_layout, nullptr);
 
-    VkBufferImageCopy *vk_regions = __lake_malloc_n(VkBufferImageCopy, work->region_count);
+    lake_drift_push();
+    VkBufferImageCopy *vk_regions = lake_drift_n(VkBufferImageCopy, work->region_count);
     for (u32 i = 0; i < work->region_count; i++) {
         moon_buffer_and_texture_copy_region const *region = &work->regions[i];
 
@@ -217,13 +393,20 @@ FN_MOON_CMD_COPY_TEXTURE_TO_BUFFER(vulkan)
             work->region_count,
             vk_regions);
 
-    __lake_free(vk_regions);
+    lake_drift_pop();
     return LAKE_SUCCESS;
 }
 
 FN_MOON_CMD_COPY_TEXTURE(vulkan)
 {
-    /* TODO CHECK AND REMEMBER IDS */
+    begin_cmd_validation(moon_queue_type_transfer);
+    check_id(cmd, texture, TEXTURE, work->src_texture);
+    check_id(cmd, texture, TEXTURE, work->dst_texture);
+    end_cmd_validation();
+
+    remember_id(cmd, texture, &work->src_texture);
+    remember_id(cmd, texture, &work->dst_texture);
+
     flush_barriers(cmd);
     if (work->region_count == 0)
         return LAKE_INVALID_PARAMETERS;
@@ -238,7 +421,8 @@ FN_MOON_CMD_COPY_TEXTURE(vulkan)
     populate_vk_access_info(1, &work->dst_access, nullptr, nullptr, &dst_vk_layout, nullptr);
     populate_vk_access_info(1, &work->src_access, nullptr, nullptr, &src_vk_layout, nullptr);
 
-    VkImageCopy *vk_regions = __lake_malloc_n(VkImageCopy, work->region_count);
+    lake_drift_push();
+    VkImageCopy *vk_regions = lake_drift_n(VkImageCopy, work->region_count);
     for (u32 i = 0; i < work->region_count; i++) {
         moon_texture_copy_region const *region = &work->regions[i];
 
@@ -271,13 +455,20 @@ FN_MOON_CMD_COPY_TEXTURE(vulkan)
             work->region_count,
             vk_regions);
 
-    __lake_free(vk_regions);
+    lake_drift_pop();
     return LAKE_SUCCESS;
 }
 
 FN_MOON_CMD_BLIT_TEXTURE(vulkan)
 {
-    /* TODO CHECK AND REMEMBER IDS */
+    begin_cmd_validation(moon_queue_type_main);
+    check_id(cmd, texture, TEXTURE, work->src_texture);
+    check_id(cmd, texture, TEXTURE, work->dst_texture);
+    end_cmd_validation();
+
+    remember_id(cmd, texture, &work->src_texture);
+    remember_id(cmd, texture, &work->dst_texture);
+
     flush_barriers(cmd);
     if (work->region_count == 0)
         return LAKE_INVALID_PARAMETERS;
@@ -292,7 +483,8 @@ FN_MOON_CMD_BLIT_TEXTURE(vulkan)
     populate_vk_access_info(1, &work->dst_access, nullptr, nullptr, &dst_vk_layout, nullptr);
     populate_vk_access_info(1, &work->src_access, nullptr, nullptr, &src_vk_layout, nullptr);
     
-    VkImageBlit *vk_regions = __lake_malloc_n(VkImageBlit, work->region_count);
+    lake_drift_push();
+    VkImageBlit *vk_regions = lake_drift_n(VkImageBlit, work->region_count);
     for (u32 i = 0; i < work->region_count; i++) {
         moon_texture_blit_region const *region = &work->regions[i];
 
@@ -331,13 +523,20 @@ FN_MOON_CMD_BLIT_TEXTURE(vulkan)
             vk_regions,
             (VkFilter)work->filter);
 
-    __lake_free(vk_regions);
+    lake_drift_pop();
     return LAKE_SUCCESS;
 }
 
 FN_MOON_CMD_RESOLVE_TEXTURE(vulkan)
 {
-    /* TODO CHECK AND REMEMBER IDS */
+    begin_cmd_validation(moon_queue_type_main);
+    check_id(cmd, texture, TEXTURE, work->src_texture);
+    check_id(cmd, texture, TEXTURE, work->dst_texture);
+    end_cmd_validation();
+
+    remember_id(cmd, texture, &work->src_texture);
+    remember_id(cmd, texture, &work->dst_texture);
+
     flush_barriers(cmd);
     if (work->region_count == 0)
         return LAKE_INVALID_PARAMETERS;
@@ -352,7 +551,8 @@ FN_MOON_CMD_RESOLVE_TEXTURE(vulkan)
     populate_vk_access_info(1, &work->dst_access, nullptr, nullptr, &dst_vk_layout, nullptr);
     populate_vk_access_info(1, &work->src_access, nullptr, nullptr, &src_vk_layout, nullptr);
 
-    VkImageResolve *vk_regions = __lake_malloc_n(VkImageResolve, work->region_count);
+    lake_drift_push();
+    VkImageResolve *vk_regions = lake_drift_n(VkImageResolve, work->region_count);
     for (u32 i = 0; i < work->region_count; i++) {
         moon_texture_resolve_region const *region = &work->regions[i];
 
@@ -385,13 +585,17 @@ FN_MOON_CMD_RESOLVE_TEXTURE(vulkan)
             work->region_count,
             vk_regions);
 
-    __lake_free(vk_regions);
+    lake_drift_pop();
     return LAKE_SUCCESS;
 }
 
 FN_MOON_CMD_CLEAR_BUFFER(vulkan)
 {
-    /* TODO CHECK AND REMEMBER IDS */
+    begin_cmd_validation(moon_queue_type_transfer);
+    check_id(cmd, buffer, BUFFER, work->dst_buffer);
+    end_cmd_validation();
+
+    remember_id(cmd, buffer, &work->dst_buffer);
     flush_barriers(cmd);
 
     struct buffer_impl_slot const *slot = acquire_buffer_slot(cmd->header.device.impl, work->dst_buffer);
@@ -413,7 +617,11 @@ FN_MOON_CMD_CLEAR_BUFFER(vulkan)
 
 FN_MOON_CMD_CLEAR_TEXTURE(vulkan) 
 {
-    /* TODO CHECK AND REMEMBER IDS */
+    begin_cmd_validation(moon_queue_type_transfer);
+    check_id(cmd, texture, TEXTURE, work->dst_texture);
+    end_cmd_validation();
+
+    remember_id(cmd, texture, &work->dst_texture);
     flush_barriers(cmd);
 
     struct texture_impl_slot const *slot = acquire_texture_slot(cmd->header.device.impl, work->dst_texture);
@@ -424,6 +632,8 @@ FN_MOON_CMD_CLEAR_TEXTURE(vulkan)
     VkImageSubresourceRange const sub_range = make_subresource_range(&work->dst_slice, slot->aspect_flags);
     VkImageLayout vk_layout;
     populate_vk_access_info(1, &work->dst_access, nullptr, nullptr, &vk_layout, nullptr);
+    if (work->dst_layout == moon_layout_optimal)
+        vk_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 
     if (work->is_clear_depth_stencil) {
         if (!is_image_depth_stencil)
@@ -459,10 +669,11 @@ FN_MOON_CMD_BUILD_ACCELERATION_STRUCTURES(vulkan)
 #define IMPL_CMD_DESTROY_DEFERRED(T, NAME) \
     FN_MOON_CMD_DESTROY_##NAME##_DEFERRED(vulkan) \
     { \
-        /* TODO CHECK AND REMEMBER IDS */ \
-        (void)cmd; \
-        (void)T; \
-        /* TODO deque emplace back to cmd->current_command_data.deferred_destructions */ \
+        begin_cmd_validation(moon_queue_type_none); \
+        check_id(cmd, T, NAME, T); \
+        end_cmd_validation(); \
+        remember_id(cmd, T, &T); \
+        lake_darray_append_t(&cmd->current_command_data.deferred_destructors.da, moon_##T##_id, &T); \
         return LAKE_SUCCESS; \
     }
 IMPL_CMD_DESTROY_DEFERRED(buffer, BUFFER)
@@ -572,7 +783,11 @@ FN_MOON_CMD_SET_DEPTH_BIAS(vulkan)
 
 FN_MOON_CMD_SET_INDEX_BUFFER(vulkan)
 {
-    /* TODO CHECK AND REMEMBER IDS */
+    begin_cmd_validation(moon_queue_type_main);
+    check_id(cmd, buffer, BUFFER, work->buffer);
+    end_cmd_validation();
+
+    remember_id(cmd, buffer, &work->buffer);
 
     cmd->header.device.impl->vkCmdBindIndexBuffer(
             cmd->current_command_data.vk_cmd_buffer,
@@ -627,11 +842,35 @@ FN_MOON_CMD_RESOLVE_TIMESTAMPS(vulkan)
 
 FN_MOON_CMD_PIPELINE_BARRIER(vulkan)
 {
-    /* TODO CHECK AND REMEMBER IDS */
-    (void)cmd;
-    (void)work;
-    /* TODO */
-    return LAKE_ERROR_FEATURE_NOT_PRESENT;
+    begin_cmd_validation(moon_queue_type_none);
+    for (u32 i = 0; i < work->buffer_barrier_count; i++) {
+        moon_buffer_id id = work->buffer_bariers[i].buffer;
+        check_id(cmd, buffer, BUFFER, id);
+        remember_id(cmd, buffer, &id);
+    }
+    for (u32 i = 0; i < work->texture_barrier_count; i++) {
+        moon_texture_id id = work->texture_bariers[i].texture;
+        check_id(cmd, texture, TEXTURE, id);
+        remember_id(cmd, texture, &id);
+    }
+    end_cmd_validation();
+
+    if (work->global_barrier) {
+        if (cmd->memory_barrier_batch_count == COMMAND_LIST_BARRIER_MAX_BATCH_SIZE)
+            flush_barriers(cmd);
+        populate_vk_memory_barrier(work->global_barrier, &cmd->memory_barrier_batch[cmd->memory_barrier_batch_count++]);
+    }
+    for (u32 i = 0; i < work->buffer_barrier_count; i++) {
+        if (cmd->buffer_barrier_batch_count == COMMAND_LIST_BARRIER_MAX_BATCH_SIZE)
+            flush_barriers(cmd);
+        populate_vk_buffer_memory_barrier(cmd->header.device.impl, &work->buffer_bariers[i], &cmd->buffer_barrier_batch[cmd->buffer_barrier_batch_count++]);
+    }
+    for (u32 i = 0; i < work->texture_barrier_count; i++) {
+        if (cmd->image_barrier_batch_count == COMMAND_LIST_BARRIER_MAX_BATCH_SIZE)
+            flush_barriers(cmd);
+        populate_vk_image_memory_barrier(cmd->header.device.impl, &work->texture_bariers[i], &cmd->image_barrier_batch[cmd->image_barrier_batch_count++]);
+    }
+    return LAKE_SUCCESS;
 }
 
 FN_MOON_CMD_SIGNAL_EVENT(vulkan)
@@ -688,6 +927,9 @@ FN_MOON_CMD_END_LABEL(vulkan)
 
 FN_MOON_CMD_DISPATCH(vulkan)
 {
+    begin_cmd_validation(moon_queue_type_compute);
+    end_cmd_validation();
+
     if (cmd->current_pipeline_variant != COMMAND_RECORDER_COMPUTE_PIPELINE)
         return LAKE_ERROR_INVALID_SHADER;
 
@@ -701,7 +943,12 @@ FN_MOON_CMD_DISPATCH(vulkan)
 
 FN_MOON_CMD_DISPATCH_INDIRECT(vulkan)
 {
-    /* TODO CHECK AND REMEMBER IDS */
+    begin_cmd_validation(moon_queue_type_compute);
+    check_id(cmd, buffer, BUFFER, work->indirect_buffer);
+    end_cmd_validation();
+
+    remember_id(cmd, buffer, &work->indirect_buffer);
+
     if (cmd->current_pipeline_variant != COMMAND_RECORDER_COMPUTE_PIPELINE)
         return LAKE_ERROR_INVALID_SHADER;
 
@@ -714,6 +961,9 @@ FN_MOON_CMD_DISPATCH_INDIRECT(vulkan)
 
 FN_MOON_CMD_DISPATCH_GRAPH(vulkan)
 {
+    begin_cmd_validation(moon_queue_type_compute);
+    end_cmd_validation();
+
     if ((cmd->header.device.header->details->implicit_features & moon_implicit_feature_work_graph) == moon_implicit_feature_none)
         return LAKE_ERROR_FEATURE_NOT_PRESENT;
     if (cmd->current_pipeline_variant != COMMAND_RECORDER_WORK_GRAPH_PIPELINE)
@@ -736,6 +986,9 @@ FN_MOON_CMD_DISPATCH_GRAPH(vulkan)
 
 FN_MOON_CMD_DISPATCH_GRAPH_INDIRECT(vulkan)
 {
+    begin_cmd_validation(moon_queue_type_compute);
+    end_cmd_validation();
+
     if ((cmd->header.device.header->details->implicit_features & moon_implicit_feature_work_graph) == moon_implicit_feature_none)
         return LAKE_ERROR_FEATURE_NOT_PRESENT;
     if (cmd->current_pipeline_variant != COMMAND_RECORDER_WORK_GRAPH_PIPELINE)
@@ -758,6 +1011,9 @@ FN_MOON_CMD_DISPATCH_GRAPH_INDIRECT(vulkan)
 
 FN_MOON_CMD_DISPATCH_GRAPH_INDIRECT_COUNT(vulkan)
 {
+    begin_cmd_validation(moon_queue_type_compute);
+    end_cmd_validation();
+
     if ((cmd->header.device.header->details->implicit_features & moon_implicit_feature_work_graph) == moon_implicit_feature_none)
         return LAKE_ERROR_FEATURE_NOT_PRESENT;
     if (cmd->current_pipeline_variant != COMMAND_RECORDER_WORK_GRAPH_PIPELINE)
@@ -773,6 +1029,9 @@ FN_MOON_CMD_DISPATCH_GRAPH_INDIRECT_COUNT(vulkan)
 
 FN_MOON_CMD_DISPATCH_GRAPH_SCRATCH_MEMORY(vulkan)
 {
+    begin_cmd_validation(moon_queue_type_compute);
+    end_cmd_validation();
+
     if ((cmd->header.device.header->details->implicit_features & moon_implicit_feature_work_graph) == moon_implicit_feature_none)
         return LAKE_ERROR_FEATURE_NOT_PRESENT;
 
@@ -786,6 +1045,9 @@ FN_MOON_CMD_DISPATCH_GRAPH_SCRATCH_MEMORY(vulkan)
 
 FN_MOON_CMD_TRACE_RAYS(vulkan)
 {
+    begin_cmd_validation(moon_queue_type_compute);
+    end_cmd_validation();
+
     if ((cmd->header.device.header->details->implicit_features & moon_implicit_feature_ray_tracing_pipeline) == moon_implicit_feature_none)
         return LAKE_ERROR_FEATURE_NOT_PRESENT;
     if (cmd->current_pipeline_variant != COMMAND_RECORDER_RAY_TRACING_PIPELINE)
@@ -826,6 +1088,9 @@ FN_MOON_CMD_TRACE_RAYS(vulkan)
 
 FN_MOON_CMD_TRACE_RAYS_INDIRECT(vulkan)
 {
+    begin_cmd_validation(moon_queue_type_compute);
+    end_cmd_validation();
+
     if ((cmd->header.device.header->details->implicit_features & moon_implicit_feature_ray_tracing_pipeline) == moon_implicit_feature_none)
         return LAKE_ERROR_FEATURE_NOT_PRESENT;
     if (cmd->current_pipeline_variant != COMMAND_RECORDER_RAY_TRACING_PIPELINE)
@@ -866,6 +1131,9 @@ FN_MOON_CMD_TRACE_RAYS_INDIRECT(vulkan)
 
 FN_MOON_CMD_DRAW(vulkan)
 {
+    begin_cmd_validation(moon_queue_type_main);
+    lake_dbg_assert(__ID_CHECK_RESULT == LAKE_SUCCESS, LAKE_ERROR_INVALID_QUEUE, nullptr);
+
     cmd->header.device.impl->vkCmdDraw(
             cmd->current_command_data.vk_cmd_buffer,
             work->vertex_count,
@@ -876,6 +1144,9 @@ FN_MOON_CMD_DRAW(vulkan)
 
 FN_MOON_CMD_DRAW_INDEXED(vulkan)
 {
+    begin_cmd_validation(moon_queue_type_main);
+    lake_dbg_assert(__ID_CHECK_RESULT == LAKE_SUCCESS, LAKE_ERROR_INVALID_QUEUE, nullptr);
+
     cmd->header.device.impl->vkCmdDrawIndexed(
             cmd->current_command_data.vk_cmd_buffer,
             work->index_count,
@@ -887,7 +1158,11 @@ FN_MOON_CMD_DRAW_INDEXED(vulkan)
 
 FN_MOON_CMD_DRAW_INDIRECT(vulkan)
 {
-    /* TODO CHECK AND REMEMBER IDS */
+    begin_cmd_validation(moon_queue_type_main);
+    check_id(cmd, buffer, BUFFER, work->indirect_buffer);
+    end_cmd_validation();
+
+    remember_id(cmd, buffer, &work->indirect_buffer);
 
     if (work->is_indexed) {
         cmd->header.device.impl->vkCmdDrawIndexedIndirect(
@@ -909,7 +1184,13 @@ FN_MOON_CMD_DRAW_INDIRECT(vulkan)
 
 FN_MOON_CMD_DRAW_INDIRECT_COUNT(vulkan)
 {
-    /* TODO CHECK AND REMEMBER IDS */
+    begin_cmd_validation(moon_queue_type_main);
+    check_id(cmd, buffer, BUFFER, work->indirect_buffer);
+    check_id(cmd, buffer, BUFFER, work->count_buffer);
+    end_cmd_validation();
+
+    remember_id(cmd, buffer, &work->indirect_buffer);
+    remember_id(cmd, buffer, &work->count_buffer);
 
     if (work->is_indexed) {
         cmd->header.device.impl->vkCmdDrawIndexedIndirectCount(
@@ -935,13 +1216,20 @@ FN_MOON_CMD_DRAW_INDIRECT_COUNT(vulkan)
 
 FN_MOON_CMD_DRAW_MESH_TASKS(vulkan)
 {
+    begin_cmd_validation(moon_queue_type_main);
+    lake_dbg_assert(__ID_CHECK_RESULT == LAKE_SUCCESS, LAKE_ERROR_INVALID_QUEUE, nullptr);
+
     if (cmd->header.device.header->details->implicit_features & moon_implicit_feature_mesh_shader)
         cmd->header.device.impl->vkCmdDrawMeshTasksEXT(cmd->current_command_data.vk_cmd_buffer, work->group_x, work->group_y, work->group_z);
 }
 
 FN_MOON_CMD_DRAW_MESH_TASKS_INDIRECT(vulkan)
 {
-    /* TODO CHECK AND REMEMBER IDS */
+    begin_cmd_validation(moon_queue_type_main);
+    check_id(cmd, buffer, BUFFER, work->indirect_buffer);
+    end_cmd_validation();
+
+    remember_id(cmd, buffer, &work->indirect_buffer);
 
     if ((cmd->header.device.header->details->implicit_features & moon_implicit_feature_mesh_shader) == moon_implicit_feature_none)
         return LAKE_ERROR_FEATURE_NOT_PRESENT;
@@ -957,7 +1245,13 @@ FN_MOON_CMD_DRAW_MESH_TASKS_INDIRECT(vulkan)
 
 FN_MOON_CMD_DRAW_MESH_TASKS_INDIRECT_COUNT(vulkan)
 {
-    /* TODO CHECK AND REMEMBER IDS */
+    begin_cmd_validation(moon_queue_type_main);
+    check_id(cmd, buffer, BUFFER, work->indirect_buffer);
+    check_id(cmd, buffer, BUFFER, work->count_buffer);
+    end_cmd_validation();
+
+    remember_id(cmd, buffer, &work->indirect_buffer);
+    remember_id(cmd, buffer, &work->count_buffer);
 
     if ((cmd->header.device.header->details->implicit_features & moon_implicit_feature_mesh_shader) == moon_implicit_feature_none)
         return LAKE_ERROR_FEATURE_NOT_PRESENT;

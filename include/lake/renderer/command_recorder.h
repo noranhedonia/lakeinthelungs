@@ -203,7 +203,7 @@ typedef struct moon_pipeline_barrier {
     moon_global_barrier const      *global_barrier;
     u32                             buffer_barrier_count;
     u32                             texture_barrier_count;
-    moon_texture_barrier const     *buffer_bariers;
+    moon_buffer_barrier const      *buffer_bariers;
     moon_texture_barrier const     *texture_bariers;
 } moon_pipeline_barrier;
 

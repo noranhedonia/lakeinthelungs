@@ -56,6 +56,8 @@ typedef struct { u64 handle; } moon_blas_id;
 #define MOON_ID_INDEX_MASK      ((1ull << 20) - 1)
 #define MOON_ID_VERSION_SHIFT   20
 
+#define moon_id_t(T, ID) \
+    ((T){ .handle = (ID).handle })
 #define moon_id_make(T, IDX, VER) \
     ((T){ .handle = ((u64)(VER) << MOON_ID_VERSION_SHIFT) | ((IDX) & MOON_ID_INDEX_MASK) })
 #define moon_id_get_index(ID) \

@@ -58,7 +58,11 @@ include_dirs = [ include_directories('include') ]
 
 subdir('source')
 if get_option('build-main')
-    subdir('main')
+main = executable(
+    'main', [ 'main.c' ],
+    dependencies: [ amwengine_dep ],
+    install: true,
+)
 endif
 if get_option('build-tests')
     subdir('tests')

@@ -593,13 +593,7 @@ void populate_vk_image_memory_barrier(
         .srcQueueFamilyIndex = device->physical_device->queue_families[texture_barrier->src_queue_type].vk_index, 
         .dstQueueFamilyIndex = device->physical_device->queue_families[texture_barrier->dst_queue_type].vk_index, 
         .image = slot->vk_image,
-        .subresourceRange = {
-            slot->aspect_flags,
-            .baseMipLevel = texture_barrier->texture_slice.base_mip_level,
-            .levelCount = texture_barrier->texture_slice.level_count,
-            .baseArrayLayer = texture_barrier->texture_slice.base_array_layer,
-            .layerCount = texture_barrier->texture_slice.layer_count,
-        },
+        .subresourceRange = make_subresource_range(&texture_barrier->texture_slice, slot->aspect_flags),
     };
 
     for (u32 i = 0; i < 2; i++) {
@@ -607,13 +601,14 @@ void populate_vk_image_memory_barrier(
         moon_access const *accesses = (i == 0) ? texture_barrier->src_accesses : texture_barrier->dst_accesses; 
 
         for (u32 j = 0; j < access_count; j++) {
-            moon_access access = accesses[i];
+            moon_access access = accesses[j];
 
-            lake_san_assert(access < moon_access_max_enum, LAKE_ERROR_OUT_OF_RANGE, "not a valid moon access");
+            lake_dbg_assert(access < moon_access_max_enum, LAKE_ERROR_OUT_OF_RANGE, "not a valid moon access: %u", access);
             lake_dbg_assert(access < moon_access_end_of_read_enum || texture_barrier->src_access_count == 1, LAKE_INVALID_PARAMETERS, "the access, if it's a write, must appear on its own");
 
             struct vk_access_info const *info = &g_access_map[access];
-            barrier.srcStageMask |= info->stage_mask;
+            if (i == 0) barrier.srcStageMask |= info->stage_mask;
+            else barrier.dstStageMask |= info->stage_mask;
 
             VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
             switch (texture_barrier->src_layout) {

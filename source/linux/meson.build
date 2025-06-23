@@ -11,7 +11,7 @@ if with_platform_kms_drm
     endif
 
     if udev_dep.found() and drm_dep.found() and gbm_dep.found()
-        #engine_sources += files()
+        engine_sources += files('kms.c')
         pre_args += ['-DLAKE_PLATFORM_LINUX=1', '-DHADAL_KMS=1', '-DVK_USE_PLATFORM_KMS_KHR']
     endif
 endif
@@ -21,7 +21,7 @@ if with_platform_xcb
     xcb_icccm_dep = dependency('xcb-icccm', required: _platforms.contains('xcb'))
 
     if xcb_dep.found() and xcb_icccm_dep.found()
-        #engine_sources += files()
+        engine_sources += files('xcb.c')
         pre_args += ['-DHADAL_XCB=1', '-DVK_USE_PLATFORM_XCB_KHR']
     endif
 endif
@@ -83,11 +83,11 @@ if with_pipewire and dependency('libpipewire-0.3', required: _audio.contains('pi
 endif
 
 if with_pulseaudio and dependency('libpulse-simple', required: _audio.contains('pulseaudio')).found()
-    #engine_sources += files()
+    engine_sources += files('pulseaudio.c')
     pre_args += ['-DSOMA_PULSEAUDIO=1']
 endif
 
 if with_alsa and dependency('alsa', required: _audio.contains('alsa')).found()
-    #engine_sources += files()
+    engine_sources += files('alsa.c')
     pre_args += ['-DSOMA_ALSA=1']
 endif

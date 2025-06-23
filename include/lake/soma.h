@@ -1,6 +1,6 @@
 #pragma once
 
-/** @file lake/audio/soma.h
+/** @file lake/soma.h
  *  @brief Audio interface.
  *
  *  TODO docs
@@ -19,35 +19,37 @@ extern "C" {
 #endif /* __cplusplus */
 
 #ifdef SOMA_ASIO
-/* TODO */
+LAKEAPI FN_LAKE_INTERFACE_IMPL(soma, asio, lake_framework);
 #endif /* SOMA_ASIO */
 #ifdef SOMA_WASAPI
-/* TODO */
+LAKEAPI FN_LAKE_INTERFACE_IMPL(soma, wasapi, lake_framework);
 #endif /* SOMA_WASAPI */
 #ifdef SOMA_XAUDIO2
-/* TODO */
+LAKEAPI FN_LAKE_INTERFACE_IMPL(soma, xaudio2, lake_framework);
 #endif /* SOMA_XAUDIO2 */
 #ifdef SOMA_COREAUDIO
-/* TODO */
+LAKEAPI FN_LAKE_INTERFACE_IMPL(soma, coreaudio, lake_framework);
 #endif /* SOMA_COREAUDIO */
 #ifdef SOMA_AAUDIO
-/* TODO */
+LAKEAPI FN_LAKE_INTERFACE_IMPL(soma, aaudio, lake_framework);
 #endif /* SOMA_AAUDIO */
 #ifdef SOMA_WEBAUDIO
-/* TODO */
+LAKEAPI FN_LAKE_INTERFACE_IMPL(soma, webaudio, lake_framework);
 #endif /* SOMA_WEBAUDIO */
 #ifdef SOMA_PIPEWIRE
 LAKEAPI FN_LAKE_INTERFACE_IMPL(soma, pipewire, lake_framework);
 #endif /* SOMA_PIPEWIRE */
 #ifdef SOMA_PULSEAUDIO
-/* TODO */
+LAKEAPI FN_LAKE_INTERFACE_IMPL(soma, pulseaudio, lake_framework);
 #endif /* SOMA_PULSEAUDIO */
 #ifdef SOMA_JACK
-/* TODO */
+LAKEAPI FN_LAKE_INTERFACE_IMPL(soma, jack, lake_framework);
 #endif /* SOMA_JACK */
 #ifdef SOMA_ALSA
-/* TODO */
+LAKEAPI FN_LAKE_INTERFACE_IMPL(soma, alsa, lake_framework);
 #endif /* SOMA_ALSA */
+
+LAKEAPI FN_LAKE_INTERFACE_IMPL(soma, dummy, lake_framework);
 
 #ifdef __cplusplus
 }

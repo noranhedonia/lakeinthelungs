@@ -269,7 +269,7 @@ handle_debug_utils_callback(
             lake_warn("%s", callbackdata->pMessage);
             break;
         default:
-            lake_assert(!"[red] Vulkan validation error !!", VK_ERROR_VALIDATION_FAILED_EXT, "%s", callbackdata->pMessage);
+            lake_assert(!"Vulkan validation error !!", VK_ERROR_VALIDATION_FAILED_EXT, "%s", callbackdata->pMessage);
     }
     return VK_FALSE;
 }
@@ -2150,7 +2150,6 @@ VkResult create_vk_device_from_physical_device(
             || ((type == moon_queue_type_video_encode) && !(explicit_features & moon_explicit_feature_video_encode_queue)))
             continue;
 */
-        lake_trace("family %u, %u", family.vk_index, family.queue_count);
         vk_device_queue_create_info[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         vk_device_queue_create_info[i].pNext = nullptr;
         vk_device_queue_create_info[i].flags = 0;

@@ -128,7 +128,7 @@ typedef struct lake_deferred_record {
 /* The unnecessary extra block after the label is to prevent
  * clang-format from wrapping oddly. */
 #define lake_defer(...)                                                             \
-    lake_deferred_record lake_defer_node(__LINE__);                                 \
+    lake_deferred_record lake_defer_node(__LINE__) = {0ULL};                        \
     if (lake_likely(lake_defer_node(__LINE__).guard != LAKE_DEFER_GUARD_INIT)) {    \
         lake_defer_node(__LINE__).guard       = LAKE_DEFER_GUARD_INIT;              \
         lake_defer_node(__LINE__).next_target = __deferred_table.next_target;       \
@@ -140,9 +140,6 @@ typedef struct lake_deferred_record {
             lake_defer_node(__LINE__).guard = 0ULL;                                 \
             __VA_ARGS__                                                             \
             if (!lake_defer_node(__LINE__).next_target) {                           \
-                if (!__deferred_return_label) {                                     \
-                    goto __deferred_bottom_exit;                                    \
-                }                                                                   \
                 goto *(__deferred_return_label);                                    \
             }                                                                       \
         }                                                                           \
@@ -159,15 +156,13 @@ typedef struct lake_deferred_record {
     lake_defer_fn_exit();                                   \
     lake_defer_label(__LINE__) : return
 
+#define lake_defer_return_if_status(status) \
+    if (status != LAKE_SUCCESS) { lake_defer_return status; }
+
 #define lake_defer_longjmp(jump_env, jump_passed_state)     \
     __deferred_return_label = &&lake_defer_label(__LINE__); \
     lake_defer_fn_exit();                                   \
     lake_defer_label(__LINE__) : longjmp(jump_env, jump_passed_state)
-
-#define lake_defer_end() \
-    __deferred_bottom_exit : \
-    lake_assert(!LAKE_DEFER_MISSUSE, LAKE_DEFER_MISSUSE, "you forgot to return on some branch."); \
-    LAKE_UNREACHABLE
 
 #ifdef __cplusplus
 }

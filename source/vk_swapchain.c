@@ -2,24 +2,13 @@
 #include <lake/hadal.h>
 #ifdef MOON_VULKAN
 
-static s32 default_format_selector(VkFormat format)
-{
-    switch (format) {
-        case VK_FORMAT_R8G8B8A8_SRGB: return moon_format_r8g8b8a8_srgb;
-        case VK_FORMAT_R8G8B8A8_UNORM: return moon_format_r8g8b8a8_unorm;
-        case VK_FORMAT_B8G8R8A8_SRGB: return moon_format_b8g8r8a8_srgb;
-        case VK_FORMAT_B8G8R8A8_UNORM: return moon_format_b8g8r8a8_unorm;
-        default: return 0;
-    }
-}
+#include <stdio.h> /* snprintf */
 
 static void partial_swapchain_cleanup(struct moon_swapchain_impl *swapchain)
 {
-    for (s32 i = 0; i < swapchain->images.da.size; i++) {
-        lake_result _ignore = _moon_vulkan_destroy_texture(swapchain->header.device.impl, swapchain->images.v[i]);
-        (void)_ignore;
-    }
-    swapchain->images.da.size = 0;
+    LAKE_UNUSED lake_result __ignore;
+    lake_darray_foreach_v(swapchain->images, moon_texture_id, id)
+        __ignore = _moon_vulkan_destroy_texture(swapchain->header.device.impl, *id);
     lake_darray_clear(&swapchain->images.da);
 }
 
@@ -38,29 +27,22 @@ static void full_swapchain_cleanup(struct moon_swapchain_impl *swapchain)
     if (swapchain->header.assembly.native_window != nullptr)
         hadal_window_unref(lake_impl_v(hadal_window, swapchain->header.assembly.native_window));
 
-    for (s32 i = 0; swapchain->acquire_semaphores.da.size; i++) {
-        moon_binary_semaphore sem = { .impl = swapchain->acquire_semaphores.v[i] };
-        if (sem.impl != nullptr) moon_binary_semaphore_unref(sem);
-    }
-    for (s32 i = 0; swapchain->present_semaphores.da.size; i++) {
-        moon_binary_semaphore sem = { .impl = swapchain->present_semaphores.v[i] };
-        if (sem.impl != nullptr) moon_binary_semaphore_unref(sem);
-    }
+    lake_darray_foreach_v(swapchain->acquire_semaphores, struct moon_binary_semaphore_impl *, impl) 
+        if (impl != nullptr) moon_binary_semaphore_unref_v(*impl);
+
+    lake_darray_foreach_v(swapchain->present_semaphores, struct moon_binary_semaphore_impl *, impl) 
+        if (impl != nullptr) moon_binary_semaphore_unref_v(*impl);
+
     if (swapchain->gpu_timeline != nullptr)
         moon_timeline_semaphore_unref(lake_impl_v(moon_timeline_semaphore, swapchain->gpu_timeline));
 
-    if (swapchain->acquire_semaphores.da.v != nullptr)
-        __lake_free(swapchain->acquire_semaphores.da.v);
-    if (swapchain->present_semaphores.da.v != nullptr)
-        __lake_free(swapchain->present_semaphores.da.v);
-    if (swapchain->supported_present_modes.da.v != nullptr)
-        __lake_free(swapchain->supported_present_modes.da.v);
-    if (swapchain->images.da.v != nullptr)
-        __lake_free(swapchain->images.da.v);
+    lake_darray_fini(&swapchain->acquire_semaphores.da);
+    lake_darray_fini(&swapchain->present_semaphores.da);
+    lake_darray_fini(&swapchain->supported_present_modes.da);
+    lake_darray_fini(&swapchain->images.da);
     *swapchain = (struct moon_swapchain_impl){0};
 
-    if (device != nullptr) 
-        lake_dec_refcnt(&device->header.refcnt, device, (PFN_lake_work)_moon_vulkan_device_zero_refcnt);
+    if (device != nullptr) moon_device_unref(lake_impl_v(moon_device, device));
 }
 
 static lake_result create_or_recreate_surface(struct moon_swapchain_impl *swapchain)
@@ -70,23 +52,22 @@ static lake_result create_or_recreate_surface(struct moon_swapchain_impl *swapch
 
     if (swapchain->vk_surface != nullptr)
         moon->vkDestroySurfaceKHR(moon->vk_instance, swapchain->vk_surface, &moon->vk_allocator);
-    return window.hadal.interface->vulkan_create_surface(window.impl, &moon->vk_allocator, &swapchain->vk_surface);
+    return window.hadal->interface->vulkan_create_surface(window.impl, &moon->vk_allocator, &swapchain->vk_surface);
 }
 
-#define MAX_SWAPCHAIN_IMAGES 8
 static lake_result recreate_swapchain(struct moon_swapchain_impl *swapchain)
 {
     struct moon_device_impl *device = swapchain->header.device.impl;
     hadal_window window = lake_impl_v(hadal_window, swapchain->header.assembly.native_window);
     VkSwapchainKHR old_swapchain = swapchain->vk_swapchain;
     VkSurfaceCapabilitiesKHR surface_capabilities;
+    u32 image_count = 0;
     bool use_vsync = swapchain->header.assembly.present_mode == moon_present_mode_fifo;
 
-    /* TODO delete later !! */
-    (void)create_or_recreate_surface(swapchain);
-    (void)default_format_selector(0);
 
-    u32 window_flags = lake_atomic_read(&window.header->flags);
+    u32 window_flags = lake_atomic_and_explicit(&window.header->flags, ~(hadal_window_flag_swapchain_out_of_date), lake_memory_model_release);
+    hadal_window_ref(window);
+
     if (window_flags & hadal_window_flag_should_close)
         return LAKE_ERROR_SURFACE_LOST;
 
@@ -95,8 +76,10 @@ static lake_result recreate_swapchain(struct moon_swapchain_impl *swapchain)
     if (vk_result != VK_SUCCESS)
         return vk_result_translate(vk_result);
 
-    swapchain->vk_surface_extent.width = surface_capabilities.currentExtent.width;
-    swapchain->vk_surface_extent.height = surface_capabilities.currentExtent.height;
+    swapchain->vk_surface_extent.width = surface_capabilities.currentExtent.width != UINT32_MAX
+        ? surface_capabilities.currentExtent.width : (u32)window.header->fb_width;
+    swapchain->vk_surface_extent.height = surface_capabilities.currentExtent.height != UINT32_MAX
+        ? surface_capabilities.currentExtent.height : (u32)window.header->fb_height;
 
     lake_result result = _moon_vulkan_device_wait_idle(device);
     if (result != LAKE_SUCCESS)
@@ -129,7 +112,7 @@ static lake_result recreate_swapchain(struct moon_swapchain_impl *swapchain)
     vk_result = device->vkCreateSwapchainKHR(device->vk_device, &vk_swapchain_create_info, device->vk_allocator, &swapchain->vk_swapchain);
     if (vk_result != VK_SUCCESS)
         return vk_result_translate(vk_result);
-u32 image_count = 0;
+
     vk_result = device->vkGetSwapchainImagesKHR(
             device->vk_device,
             swapchain->vk_swapchain,
@@ -138,7 +121,7 @@ u32 image_count = 0;
     if (vk_result != VK_SUCCESS)
         return vk_result_translate(vk_result);
 
-    VkImage images[MAX_SWAPCHAIN_IMAGES];
+    VkImage *images = lake_drift_n(VkImage, image_count);
     vk_result = device->vkGetSwapchainImagesKHR(
             device->vk_device,
             swapchain->vk_swapchain,
@@ -147,13 +130,9 @@ u32 image_count = 0;
     if (vk_result != VK_SUCCESS)
         return vk_result_translate(vk_result);
 
-    /* TODO darray procedures */
-    swapchain->images.da.alloc = swapchain->images.da.size = image_count;
-    swapchain->images.da.v = __lake_malloc_n(moon_texture_id, image_count);
-
-    while (swapchain->images.da.size < swapchain->images.da.alloc) {
-        s32 idx = swapchain->images.da.size;
-        moon_texture_assembly const texture_assembly = {
+    lake_darray_resize_t(&swapchain->images.da, moon_texture_id, image_count);
+    for (u32 i = 0; i < image_count; i++) {
+        moon_texture_assembly texture_assembly = {
             .format = (moon_format)swapchain->vk_surface_format.format,
             .extent = {
                 .width = swapchain->vk_surface_extent.width,
@@ -162,12 +141,14 @@ u32 image_count = 0;
             },
             .usage = usage,
         };
+        texture_assembly.name.len = snprintf(texture_assembly.name.str + texture_assembly.name.len, LAKE_SMALL_STRING_CAPACITY - texture_assembly.name.len, "%s sc img %u", swapchain->header.assembly.name.str, i);
+        moon_texture_id id;
         result = create_texture_from_swapchain_image(device, 
-                images[idx], swapchain->vk_surface_format.format, 
-                idx, usage, &texture_assembly, &swapchain->images.v[idx]);
+                images[i], swapchain->vk_surface_format.format, 
+                i, usage, &texture_assembly, &id);
         if (result != LAKE_SUCCESS)
             return result;
-        swapchain->images.da.size++;
+        lake_darray_append_t(&swapchain->images.da, moon_texture_id, &id);
     }
 #ifndef LAKE_NDEBUG
     if (device->vkSetDebugUtilsObjectNameEXT != nullptr) {
@@ -189,6 +170,10 @@ u32 image_count = 0;
 FN_MOON_SWAPCHAIN_ASSEMBLY(vulkan)
 {
     lake_result result = LAKE_SUCCESS;
+    VkResult vk_result = VK_SUCCESS;
+    struct moon_impl *moon = device->header.moon.impl;
+    VkPhysicalDevice vk_physical_device = device->physical_device->vk_physical_device;
+
     if ((device->header.details->implicit_features & moon_implicit_feature_swapchain) == moon_implicit_feature_none) {
         lake_error("Device `%s: %s` does not support the swapchain.",
             device->header.assembly.name.str, device->header.details->device_name);
@@ -201,14 +186,99 @@ FN_MOON_SWAPCHAIN_ASSEMBLY(vulkan)
             .zero_refcnt = (PFN_lake_work)_moon_vulkan_swapchain_zero_refcnt,
         },
     };
+    lake_defer_begin();
+    lake_defer({ if (result != LAKE_SUCCESS) full_swapchain_cleanup(&swapchain); })
 
-    /* TODO */
+    /* create the surface */
+    result = create_or_recreate_surface(&swapchain);
+    lake_defer_return_if_status(result);
+
+    /* save supported present modes */
+    u32 present_mode_count = 0;
+    vk_result = moon->vkGetPhysicalDeviceSurfacePresentModesKHR(
+            vk_physical_device, 
+            swapchain.vk_surface, 
+            &present_mode_count, 
+            nullptr);
+    if (vk_result != VK_SUCCESS) 
+        { lake_defer_return vk_result_translate(vk_result); }
+
+    lake_darray_resize_t(&swapchain.supported_present_modes.da, VkPresentModeKHR, present_mode_count);
+    vk_result = moon->vkGetPhysicalDeviceSurfacePresentModesKHR(
+            vk_physical_device, 
+            swapchain.vk_surface, 
+            &present_mode_count, 
+            lake_darray_first_v(swapchain.supported_present_modes));
+    if (vk_result != VK_SUCCESS) 
+        { lake_defer_return vk_result_translate(vk_result); }
+
+    /* select format */
+    u32 format_count = 0;
+    vk_result = moon->vkGetPhysicalDeviceSurfaceFormatsKHR(
+            vk_physical_device,
+            swapchain.vk_surface,
+            &format_count,
+            nullptr);
+    if (vk_result != VK_SUCCESS) 
+        { lake_defer_return vk_result_translate(vk_result); }
+    else if (format_count == 0)
+        { lake_defer_return LAKE_ERROR_FORMAT_NOT_SUPPORTED; }
+
+    lake_darray_t(VkSurfaceFormatKHR) surface_formats;
+    lake_darray_init_t(&surface_formats.da, VkSurfaceFormatKHR, format_count);
+    vk_result = moon->vkGetPhysicalDeviceSurfaceFormatsKHR(
+            vk_physical_device,
+            swapchain.vk_surface,
+            &format_count,
+            lake_darray_first_v(surface_formats));
+    if (vk_result != VK_SUCCESS) 
+        { lake_defer_return vk_result_translate(vk_result); }
+
+    if (swapchain.header.assembly.surface_format_selector == nullptr)
+        swapchain.header.assembly.surface_format_selector = moon_default_surface_format_selector;
+    s32 best_format = swapchain.header.assembly.surface_format_selector(format_count, (moon_format const *)surface_formats.v);
+    if (best_format < 0) { lake_defer_return LAKE_ERROR_FORMAT_NOT_SUPPORTED; }
+
+    swapchain.vk_surface_format = *lake_darray_elem_v(surface_formats, lake_min(lake_darray_size(&surface_formats.da), best_format));
+
+    /* most of the swapchain creation work comes from here :D */
+    result = recreate_swapchain(&swapchain);
+    lake_defer_return_if_status(result);
+
+    /* an acquire semaphore for each frame in flight */
+    s32 const frames_in_flight = moon->interface.header.framework->hints.frames_in_flight;
+    for (s32 i = 0; i < frames_in_flight + 1; i++) {
+        struct moon_binary_semaphore_impl *sem;
+        moon_binary_semaphore_assembly const sem_assembly = MOON_BINARY_SEMAPHORE_ASSEMBLY_INIT;
+        result = _moon_vulkan_binary_semaphore_assembly(device, &sem_assembly, &sem);
+        lake_defer_return_if_status(result);
+        lake_darray_append_t(&swapchain.acquire_semaphores.da, struct moon_binary_semaphore_impl *, &sem);
+    }
+
+    /* a present semaphore for each swapchain image */
+    for (s32 i = 0; i < lake_darray_size(&swapchain.images.da); i++) {
+        struct moon_binary_semaphore_impl *sem;
+        moon_binary_semaphore_assembly const sem_assembly = MOON_BINARY_SEMAPHORE_ASSEMBLY_INIT;
+        result = _moon_vulkan_binary_semaphore_assembly(device, &sem_assembly, &sem);
+        lake_defer_return_if_status(result);
+        lake_darray_append_t(&swapchain.present_semaphores.da, struct moon_binary_semaphore_impl *, &sem);
+    }
+
+    moon_timeline_semaphore_assembly tsem_assembly = {
+        .initial_value = 0,
+        .name = assembly->name,
+    };
+    tsem_assembly.name.str[tsem_assembly.name.len++] = ' ';
+    tsem_assembly.name.str[tsem_assembly.name.len++] = 't';
+    tsem_assembly.name.str[tsem_assembly.name.len++] = 's';
+    result = _moon_vulkan_timeline_semaphore_assembly(device, &tsem_assembly, &swapchain.gpu_timeline);
+    lake_defer_return_if_status(result);
 
     lake_inc_refcnt(&device->header.refcnt);
     lake_inc_refcnt(&swapchain.header.refcnt);
     *out_swapchain = __lake_malloc_t(struct moon_swapchain_impl);
     lake_memcpy(*out_swapchain, &swapchain, sizeof(struct moon_swapchain_impl));
-    return result;
+    lake_defer_return result;
 }
 
 FN_MOON_SWAPCHAIN_ZERO_REFCNT(vulkan)

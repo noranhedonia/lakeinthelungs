@@ -1,9 +1,11 @@
 engine_sources = files(
     'bedrock.c',
     'frame_time.c',
+    'hadal.c',
     'log.c',
     'malloc.c',
     'moon.c',
+    'soma.c',
     'tagged_heap.c',
     'work.c',
 )

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <lake/audio/soma.h>
+#include <lake/soma.h>
 #ifdef SOMA_PIPEWIRE
 
 #include <pipewire/pipewire.h>

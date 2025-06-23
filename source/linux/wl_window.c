@@ -9,6 +9,27 @@ static lake_result LAKECALL create_shell_libdecor_frame(struct hadal_window_impl
 }
 #endif /* HADAL_LIBDECOR */
 
+static void resize_framebuffer(struct hadal_window_impl *window)
+{
+    /* TODO scale the framebuffer */
+    window->header.fb_width = window->header.assembly.width;
+    window->header.fb_height = window->header.assembly.height;
+}
+
+static bool resize_window(struct hadal_window_impl *window, s32 width, s32 height)
+{
+    width = lake_max(width, 1);
+    height = lake_max(height, 1);
+
+    if (width == window->header.assembly.width && height == window->header.assembly.height)
+        return false;
+
+    window->header.assembly.width = width;
+    window->header.assembly.height = height;
+    resize_framebuffer(window);
+    return true;
+}
+
 static void handle_xdg_toplevel_close(
     void                *data,
     struct xdg_toplevel *xdg_toplevel)
@@ -30,30 +51,33 @@ static void handle_xdg_toplevel_configure(
     struct hadal_window_impl *window = (struct hadal_window_impl *)data;
     u32 *state;
 
-    u32 flags = 0u;
-
     wl_array_for_each(state, states)
     {
         switch (*state) {
         case XDG_TOPLEVEL_STATE_MAXIMIZED:
-            flags |= hadal_window_flag_maximized;
+            window->pending_flags |= hadal_window_flag_maximized;
             break;
         case XDG_TOPLEVEL_STATE_FULLSCREEN:
-            flags |= hadal_window_flag_fullscreen;
+            window->pending_flags |= hadal_window_flag_fullscreen;
             break;
         case XDG_TOPLEVEL_STATE_RESIZING:
             break;
         case XDG_TOPLEVEL_STATE_ACTIVATED:
-            flags |= hadal_window_flag_shell_activated;
+            window->pending_flags |= hadal_window_flag_shell_activated;
             break;
         }
     }
-    /* TODO */
+
+    if (width && height) {
+        window->pending_width = width;
+        window->pending_height = height;
+    } else {
+        window->pending_width = window->header.assembly.width;
+        window->pending_height = window->header.assembly.height;
+    }
+
+    /* unused */
     (void)xdg_toplevel;
-    (void)width;
-    (void)height;
-    (void)flags;
-    (void)window;
 }
 
 static void handle_xdg_toplevel_configure_bounds(
@@ -90,13 +114,79 @@ static void handle_xdg_surface_configure(
     struct xdg_surface *xdg_surface,
     u32                 serial)
 {
+    struct hadal_window_impl *window = (struct hadal_window_impl *)data;
+    u32 flags = lake_atomic_read(&window->header.flags);
+    u32 const pending = window->pending_flags;
+
     xdg_surface_ack_configure(xdg_surface, serial);
-    (void)data; /* window */
+
+    if ((flags & hadal_window_flag_shell_activated) != (pending & hadal_window_flag_shell_activated)) {
+        flags ^= hadal_window_flag_shell_activated;
+        if ((flags & (hadal_window_flag_shell_activated | hadal_window_flag_auto_minimize)) == hadal_window_flag_auto_minimize) {
+            xdg_toplevel_set_minimized(window->shell_surface.xdg.roleobj.toplevel);
+        }
+    }
+    if ((flags & hadal_window_flag_maximized) != (pending & hadal_window_flag_maximized)) {
+        flags ^= hadal_window_flag_maximized;
+    }
+    if ((flags & hadal_window_flag_fullscreen) != (pending & hadal_window_flag_fullscreen)) {
+        flags ^= hadal_window_flag_fullscreen;
+    }
+
+    s32 width = window->pending_width;
+    s32 height = window->pending_height;
+
+    if (!(flags & (hadal_window_flag_maximized | hadal_window_flag_fullscreen))) {
+        if (window->header.assembly.numer > 0 && window->header.assembly.denom > 0) {
+            f32 const aspect_ratio = (f32)width / (f32)height;
+            f32 const target_ratio = (f32)window->header.assembly.numer / (f32)window->header.assembly.denom;
+            if (aspect_ratio < target_ratio)
+                height = width / target_ratio;
+            else if (aspect_ratio > target_ratio)
+                width = height * target_ratio;
+        }
+    }
+
+    if (resize_window(window, width, height) && (flags & hadal_window_flag_visible))
+        window->header.flags |= hadal_window_flag_swapchain_out_of_date;
+    lake_atomic_write_explicit(&window->header.flags, flags, lake_memory_model_release);
 }
 
 static const struct xdg_surface_listener g_xdg_surface_listener = {
     .configure = handle_xdg_surface_configure,
 };
+
+static void update_xdg_size_limits(struct hadal_window_impl *window)
+{
+    s32 min_width, min_height, max_width, max_height;
+    u32 const flags = lake_atomic_read(&window->header.flags);
+
+    if (flags & hadal_window_flag_resizable) {
+        if (window->header.assembly.min_width > 0 || window->header.assembly.min_height > 0) {
+            min_width = min_height = 0;
+        } else {
+            min_width = window->header.assembly.min_width;
+            min_height = window->header.assembly.min_height;
+        }
+
+        if (window->header.assembly.max_width > 0 || window->header.assembly.max_height > 0) {
+            max_width = max_height = 0;
+        } else {
+            max_width = window->header.assembly.max_width;
+            max_height = window->header.assembly.max_height;
+        }
+
+        window->header.assembly.min_width = min_width;
+        window->header.assembly.min_height = min_height;
+        window->header.assembly.max_width = max_width;
+        window->header.assembly.max_height = max_height;
+    } else {
+        min_width = max_width = window->header.assembly.width;
+        min_height = max_height = window->header.assembly.height;
+    }
+    xdg_toplevel_set_min_size(window->shell_surface.xdg.roleobj.toplevel, min_width, min_height);
+    xdg_toplevel_set_max_size(window->shell_surface.xdg.roleobj.toplevel, max_width, max_height);
+}
 
 static lake_result LAKECALL create_shell_xdg_toplevel(struct hadal_window_impl *window)
 {
@@ -117,6 +207,8 @@ static lake_result LAKECALL create_shell_xdg_toplevel(struct hadal_window_impl *
     }
     xdg_toplevel_add_listener(window->shell_surface.xdg.roleobj.toplevel, &g_xdg_toplevel_listener, window);
     xdg_toplevel_set_title(window->shell_surface.xdg.roleobj.toplevel, window->header.title.v);
+
+    update_xdg_size_limits(window);
 
     wl_surface_commit(window->surface);
     wl_display_roundtrip(hadal->wl_display);
@@ -182,12 +274,16 @@ static void handle_wl_surface_enter(
     struct wl_surface *surface, 
     struct wl_output  *output)
 {
-    /* unused */
-    (void)surface;
-    (void)data; // window
+    struct hadal_window_impl *window = (struct hadal_window_impl *)data;
 
     if (!wayland_own_output(output))
         return;
+
+    /* TODO output scales ? */
+
+    /* unused */
+    (void)surface;
+    (void)window;
 }
 
 static void handle_wl_surface_leave(
@@ -195,12 +291,16 @@ static void handle_wl_surface_leave(
     struct wl_surface *surface,
     struct wl_output  *output)
 {
-    /* unused */
-    (void)surface;
-    (void)data; // window
+    struct hadal_window_impl *window = (struct hadal_window_impl *)data;
 
     if (!wayland_own_output(output))
         return;
+
+    /* TODO output scales ? */
+
+    /* unused */
+    (void)surface;
+    (void)window;
 }
 
 static const struct wl_surface_listener g_wl_surface_listener = {
@@ -216,7 +316,7 @@ FN_HADAL_WINDOW_ASSEMBLY(wayland)
     window->header.hadal.impl = hadal;
     window->header.assembly = *assembly;
     window->header.zero_refcnt = (PFN_lake_work)_hadal_wayland_window_zero_refcnt;
-    window->header.title.v = "lake in the lungs";
+    window->header.title.v = "Lake in the Lungs"; /* TODO */
 
     u32 flags = hadal_window_flag_is_valid;
     if (assembly->flag_hints & hadal_window_flag_modal) {
@@ -252,6 +352,8 @@ FN_HADAL_WINDOW_ASSEMBLY(wayland)
 #endif /* MOON_VULKAN */
     lake_atomic_write(&window->header.flags, flags);
 
+    resize_framebuffer(window);
+
     if ((assembly->flag_hints & hadal_window_flag_visible)) {
         lake_atomic_or(&window->header.flags, hadal_window_flag_visible);
         
@@ -279,7 +381,7 @@ FN_HADAL_WINDOW_ZERO_REFCNT(wayland)
             window->header.assembly.name.str, window->header.title.v, refcnt);
 #endif /* LAKE_NDEBUG */
     destroy_shell_objects(window);
-    if (window->surface != nullptr)
+    if (window->surface)
         wl_surface_destroy(window->surface);
 
     lake_dbg_2("Destroyed Hadal window `%s`.", window->header.assembly.name.str);

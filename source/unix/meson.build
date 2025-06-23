@@ -17,6 +17,6 @@ if with_platform_posix
 endif
 
 if with_jack and dependency('jack', required: _audio.contains('jack')).found()
-    #engine_sources += files()
+    engine_sources += files('jack.c')
     pre_args += ['-DSOMA_JACK=1']
 endif

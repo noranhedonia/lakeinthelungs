@@ -229,8 +229,8 @@ void populate_vk_acceleration_structure_build_details(
     bool T##_gpu_sr_pool__is_id_valid(struct T##_gpu_sr_pool *pool, moon_##T##_id id) \
     { \
         usize const idx = (usize)moon_id_get_index(id); \
-        ssize const page = (ssize)(idx >> GPU_SR_POOL_PAGE_BITS); \
-        ssize const offset = (ssize)(idx & GPU_SR_POOL_PAGE_MASK); \
+        ssize const page = (ssize)((usize)idx >> GPU_SR_POOL_PAGE_BITS); \
+        ssize const offset = (ssize)((usize)idx & GPU_SR_POOL_PAGE_MASK); \
         if (moon_id_get_version(id) == 0 || page >= lake_atomic_read(&pool->valid_page_count)) \
             return false; \
         u64 const version = moon_id_get_version(id); \
@@ -270,7 +270,8 @@ void populate_vk_acceleration_structure_build_details(
     { \
         ssize const idx = moon_id_get_index(id); \
         ssize const page = (ssize)((usize)idx >> GPU_SR_POOL_PAGE_BITS); \
-        if (page >= lake_atomic_read(&pool->valid_page_count)) return false; \
+        if (moon_id_get_version(id) == 0 || page >= lake_atomic_read(&pool->valid_page_count)) \
+            return false; \
         \
         ssize const offset = (ssize)((usize)idx & GPU_SR_POOL_PAGE_MASK); \
         u64 version = moon_id_get_version(id); \
@@ -294,11 +295,14 @@ void populate_vk_acceleration_structure_build_details(
         \
         if (page >= lake_atomic_read_explicit(&pool->valid_page_count, lake_memory_model_acquire)) { \
             lake_spinlock_acquire(&pool->page_alloc_lock); \
-            pool->pages[page] = __lake_malloc_t(struct T##_impl_slot_page); \
-            lake_zerop(pool->pages[page]); \
-            for (u32 i = 0; i < GPU_SR_POOL_PAGE_SIZE; i++) \
-                lake_atomic_write(&pool->pages[page]->version_and_refcnt[i], 1ull); \
-            lake_atomic_add_explicit(&pool->valid_page_count, 1, lake_memory_model_release); \
+            /* double lock to avoid data races */ \
+            if (page >= lake_atomic_read(&pool->valid_page_count)) { \
+                pool->pages[page] = __lake_malloc_t(struct T##_impl_slot_page); \
+                lake_zerop(pool->pages[page]); \
+                for (u32 i = 0; i < GPU_SR_POOL_PAGE_SIZE; i++) \
+                    lake_atomic_write(&pool->pages[page]->version_and_refcnt[i], 1ull); \
+                lake_atomic_add_explicit(&pool->valid_page_count, 1, lake_memory_model_release); \
+            } \
             lake_spinlock_release(&pool->page_alloc_lock); \
         } \
         lake_atomic_add_explicit(&pool->lifetime_sync, 1, lake_memory_model_release); \
@@ -307,7 +311,7 @@ void populate_vk_acceleration_structure_build_details(
         version = version & GPU_SR_POOL_VERSION_COUNT_MASK; \
         lake_atomic_write(&pool->pages[page]->version_and_refcnt[offset], version); \
         *out_id = moon_id_make(moon_##T##_id, idx, version); \
-        return nullptr; \
+        return &pool->pages[page]->slots[offset]; \
     }
 IMPL_GPU_SR_POOL_TEMPLATE(buffer)
 IMPL_GPU_SR_POOL_TEMPLATE(texture)
@@ -317,6 +321,7 @@ IMPL_GPU_SR_POOL_TEMPLATE(blas)
 
 lake_result init_gpu_sr_table(struct moon_device_impl *device)
 {
+    lake_defer_begin();
     bool const ray_tracing_enabled = (device->header.details->implicit_features & moon_implicit_feature_basic_ray_tracing);
     u32 const max_allowed_buffers = device->header.assembly.max_allowed_buffers;
     u32 const max_allowed_textures = device->header.assembly.max_allowed_textures;
@@ -324,23 +329,22 @@ lake_result init_gpu_sr_table(struct moon_device_impl *device)
     u32 const max_allowed_acceleration_structures = ray_tracing_enabled ? device->header.assembly.max_allowed_acceleration_structures : (~0u);
 
     VkResult vk_result = VK_SUCCESS;
-    if (vk_result != VK_SUCCESS) {
-cleanup_sr_table:
-        lake_error("Creating the GPU shader resource table for Vulkan device `%s` failed: %s.",
-                device->header.assembly.name.str, vk_result_string(vk_result));
+    lake_defer({
+        if (vk_result != VK_SUCCESS) {
+            lake_error("Creating the GPU shader resource table for Vulkan device `%s` failed: %s.",
+                    device->header.assembly.name.str, vk_result_string(vk_result));
 
-        for (u32 i = 0; i < MOON_PIPELINE_LAYOUT_COUNT; i++)
-            if (device->gpu_sr_table.pipeline_layouts[i] != VK_NULL_HANDLE)
-                device->vkDestroyPipelineLayout(device->vk_device, device->gpu_sr_table.pipeline_layouts[i], device->vk_allocator);
+            for (u32 i = 0; i < MOON_PIPELINE_LAYOUT_COUNT; i++)
+                if (device->gpu_sr_table.pipeline_layouts[i] != VK_NULL_HANDLE)
+                    device->vkDestroyPipelineLayout(device->vk_device, device->gpu_sr_table.pipeline_layouts[i], device->vk_allocator);
 
-        if (device->gpu_sr_table.vk_descriptor_pool)
-            device->vkDestroyDescriptorPool(device->vk_device, device->gpu_sr_table.vk_descriptor_pool, device->vk_allocator);
+            if (device->gpu_sr_table.vk_descriptor_pool)
+                device->vkDestroyDescriptorPool(device->vk_device, device->gpu_sr_table.vk_descriptor_pool, device->vk_allocator);
 
-        if (device->gpu_sr_table.vk_descriptor_set_layout)
-            device->vkDestroyDescriptorSetLayout(device->vk_device, device->gpu_sr_table.vk_descriptor_set_layout, device->vk_allocator);
-
-        return vk_result_translate(vk_result);
-    }
+            if (device->gpu_sr_table.vk_descriptor_set_layout)
+                device->vkDestroyDescriptorSetLayout(device->vk_device, device->gpu_sr_table.vk_descriptor_set_layout, device->vk_allocator);
+        } 
+    });
     device->gpu_sr_table.buffer_slots.max_resources = max_allowed_buffers;
     device->gpu_sr_table.texture_slots.max_resources = max_allowed_textures;
     device->gpu_sr_table.sampler_slots.max_resources = max_allowed_samplers;
@@ -379,9 +383,9 @@ cleanup_sr_table:
         .pPoolSizes = vk_desc_pool_sizes,
     };
     vk_result = device->vkCreateDescriptorPool(device->vk_device, &vk_desc_pool_create_info, device->vk_allocator, &device->gpu_sr_table.vk_descriptor_pool);
-    if (vk_result != VK_SUCCESS)
-        goto cleanup_sr_table;
-
+    if (vk_result != VK_SUCCESS) { 
+        lake_defer_return vk_result_translate(vk_result); 
+    }
 #ifndef LAKE_NDEBUG
     if (device->vkSetDebugUtilsObjectNameEXT != nullptr) {
         char const *desc_pool_name = "descriptor pool";
@@ -461,9 +465,9 @@ cleanup_sr_table:
         .pBindings = vk_desc_set_layout_bindings,
     };
     vk_result = device->vkCreateDescriptorSetLayout(device->vk_device, &vk_desc_set_layout_create_info, device->vk_allocator, &device->gpu_sr_table.vk_descriptor_set_layout);
-    if (vk_result != VK_SUCCESS)
-        goto cleanup_sr_table;
-
+    if (vk_result != VK_SUCCESS) { 
+        lake_defer_return vk_result_translate(vk_result); 
+    }
 #ifndef LAKE_NDEBUG
     if (device->vkSetDebugUtilsObjectNameEXT != nullptr) {
         char const *desc_set_layout_name = "descriptor set layout";
@@ -485,9 +489,9 @@ cleanup_sr_table:
         .pSetLayouts = &device->gpu_sr_table.vk_descriptor_set_layout,
     };
     vk_result = device->vkAllocateDescriptorSets(device->vk_device, &vk_desc_set_alloc_info, &device->gpu_sr_table.vk_descriptor_set);
-    if (vk_result != VK_SUCCESS)
-        goto cleanup_sr_table;
-
+    if (vk_result != VK_SUCCESS) { 
+        lake_defer_return vk_result_translate(vk_result); 
+    }
 #ifndef LAKE_NDEBUG
     if (device->vkSetDebugUtilsObjectNameEXT != nullptr) {
         char const *desc_set_name = "descriptor set";
@@ -511,9 +515,9 @@ cleanup_sr_table:
         .pPushConstantRanges = nullptr,
     };
     vk_result = device->vkCreatePipelineLayout(device->vk_device, &vk_pipeline_create_info, device->vk_allocator, &device->gpu_sr_table.pipeline_layouts[0]);
-    if (vk_result != VK_SUCCESS)
-        goto cleanup_sr_table;
-
+    if (vk_result != VK_SUCCESS) { 
+        lake_defer_return vk_result_translate(vk_result); 
+    }
 #ifndef LAKE_NDEBUG
     if (device->vkSetDebugUtilsObjectNameEXT != nullptr) {
         char const *layout_name = "pipeline layout (push constant size 0)";
@@ -538,9 +542,9 @@ cleanup_sr_table:
         vk_pipeline_create_info.pPushConstantRanges = &vk_push_constant_range;
 
         vk_result = device->vkCreatePipelineLayout(device->vk_device, &vk_pipeline_create_info, device->vk_allocator, &device->gpu_sr_table.pipeline_layouts[i]);
-        if (vk_result != VK_SUCCESS)
-            goto cleanup_sr_table;
-
+        if (vk_result != VK_SUCCESS) { 
+            lake_defer_return vk_result_translate(vk_result); 
+        }
 #ifndef LAKE_NDEBUG
         if (device->vkSetDebugUtilsObjectNameEXT != nullptr) {
             usize len = 37;
@@ -586,7 +590,7 @@ cleanup_sr_table:
     } while(0)
 
 #define GPU_SR_TABLE__IMPL_ZOMBIES(T, len) \
-    lake_deque_init_t(&device->T##_zombies.deq, zombie_timeline_##T, len, next_pow2_size, lake_deque_shrink_if_empty); \
+    lake_deque_init_t(&device->T##_zombies.deq, zombie_timeline_##T, len, next_pow2_size, lake_deque_shrink_if_empty);
 
 #define GPU_SR_TABLE__IMPL_NODES_AND_ZOMBIES(T, allowed) \
     GPU_SR_TABLE__IMPL_NODES(T, allowed); \
@@ -597,7 +601,7 @@ cleanup_sr_table:
 
     GPU_SR_TABLE__IMPL_NODES_AND_ZOMBIES(buffer, max_allowed_buffers);
     GPU_SR_TABLE__IMPL_NODES_AND_ZOMBIES(texture, max_allowed_textures);
-    GPU_SR_TABLE__IMPL_ZOMBIES(texture_view, lake_max(next_pow2_size, (s32)lake_bits_next_pow2(max_allowed_textures) >> 6));
+    GPU_SR_TABLE__IMPL_ZOMBIES(texture_view, lake_max(next_pow2_size << 1, (s32)lake_bits_next_pow2(max_allowed_textures) >> 6));
     GPU_SR_TABLE__IMPL_NODES_AND_ZOMBIES(sampler, max_allowed_samplers);
     if (ray_tracing_enabled) {
         GPU_SR_TABLE__IMPL_NODES_AND_ZOMBIES(tlas, max_allowed_acceleration_structures);
@@ -613,7 +617,7 @@ cleanup_sr_table:
 #undef GPU_SR_TABLE__IMPL_NODES_AND_ZOMBIES
 #undef GPU_SR_TABLE__IMPL_ZOMBIES
 #undef GPU_SR_TABLE__IMPL_NODES
-    return LAKE_SUCCESS;
+    lake_defer_return LAKE_SUCCESS;
 }
 
 #ifndef LAKE_NDEBUG
@@ -622,7 +626,7 @@ cleanup_sr_table:
     { \
       /* TODO STRBUF ?? */ \
         constexpr s32 limit = 16384; \
-        char *ret = __lake_malloc(limit, 1); \
+        char *ret = lake_drift(limit, 1); \
         ssize o = 0lu; \
         \
         for (s32 i = 0; i < valid_page_count && o < limit-32; i++) { \
@@ -646,12 +650,12 @@ GPU_SR_TABLE__DEBUG_PRINT(sampler, vk_sampler)
 #undef GPU_SR_TABLE__DEBUG_PRINT
 
 #define GPU_SR_TABLE__RELEASE_SLOTS_MEMORY_W_DBG(T) \
-    if (lake_atomic_read_explicit(&T##_pool->lifetime_sync, lake_memory_model_acquire)) { \
+    s32 const sync_value = lake_atomic_read(&T##_pool->lifetime_sync); \
+    if (sync_value > 0) { \
         char *remaining = debug_print_remaining_##T(T##_pool, valid_page_count); \
-        lake_fatal("Detected leaked "#T", not all "#T" have been released before " \
-                   "destroying the device. List of survivors:\n%s", remaining); \
-        __lake_free(remaining); \
-        lake_debugtrap(); \
+        lake_assert(false, LAKE_ERROR_TOO_MANY_OBJECTS, \
+                "Detected leaked "#T", not all "#T"s (%d) have been released before " \
+                "destroying the device. List of named survivors:\n%s", sync_value, remaining); \
     }
 #else
 #define GPU_SR_TABLE__RELEASE_SLOTS_MEMORY_W_DBG(T) LAKE_MAGIC_NOTHING()
@@ -1165,6 +1169,7 @@ lake_result create_texture_from_swapchain_image(
     if (slot == nullptr)
         return LAKE_ERROR_EXCEEDED_MAX_TEXTURES;
 
+    lake_dbg_assert(swapchain_image != VK_NULL_HANDLE, LAKE_ERROR_MEMORY_MAP_FAILED, "%s", assembly->name.str);
     slot->vk_image = swapchain_image;
     slot->view_slot.assembly = (moon_texture_view_assembly){
         .type = moon_texture_view_type_2d,
@@ -1182,6 +1187,17 @@ lake_result create_texture_from_swapchain_image(
     slot->swapchain_image_idx = idx;
     slot->assembly = *assembly;
 
+    slot->view_slot.assembly = (moon_texture_view_assembly){
+        .texture = id,
+        .format = (moon_format)format,
+        .slice = {
+            .base_mip_level = 0,
+            .level_count = 1,
+            .base_array_layer = 0,
+            .layer_count = 1,
+        },
+        .name = slot->assembly.name,
+    };
     VkImageViewCreateInfo const vk_image_view_create_info = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .pNext = nullptr,
@@ -1524,7 +1540,7 @@ IMPL_CREATE_ACCELERATION_STRUCTURE(blas, BLAS_FROM_BUFFER, assembly->blas_assemb
         return LAKE_ERROR_INVALID_##NAME##_ID; \
     } \
     FN_MOON_DESTROY_##NAME(vulkan) { \
-        bool success = Tpool##_gpu_sr_pool__try_zombify(&device->gpu_sr_table.slot_name, (moon_##Tpool##_id){ .handle = T.handle }); \
+        bool success = Tpool##_gpu_sr_pool__try_zombify(&device->gpu_sr_table.slot_name, moon_id_t(moon_##Tpool##_id, T)); \
         if (success) { \
             zombify_##T(device, T); \
             return LAKE_SUCCESS; \

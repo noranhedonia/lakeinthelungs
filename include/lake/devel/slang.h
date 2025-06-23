@@ -6,7 +6,7 @@
  *  TODO docs
  */
 #ifdef LAKE_SLANG
-#include <lake/renderer/moon.h>
+#include <lake/moon.h>
 #include <slang.h>
 
 #endif /* LAKE_SLANG */

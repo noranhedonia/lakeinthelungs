@@ -22,6 +22,6 @@ if with_platform_android
 endif
 
 if with_aaudio and cc.find_library('aaudio', required: with_platform_android).found()
-    #engine_sources += files()
+    engine_sources += files('aaudio.c')
     pre_args += ['-DSOMA_AAUDIO=1']
 endif

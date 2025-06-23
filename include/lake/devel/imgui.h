@@ -17,7 +17,7 @@
  */
 #ifdef LAKE_IMGUI
 #include <lake/data_structures/darray.h>
-#include <lake/renderer/moon.h>
+#include <lake/moon.h>
 #include <lake/hadal.h>
 #include <cimgui.h>
 

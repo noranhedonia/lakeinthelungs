@@ -8,7 +8,7 @@
  *  correctly (I don't do that I guess) will prevent data races, deadlocks and other pesky issues.
  *  Most modern architectures have a pretty straightforward lockless implementation of atomic operations,
  *  on platforms that don't we'll just simulate the behaviour with simple locks instead. Whenever the 
- *  macro `lake_atomic_is_lock_free(T)` if non-zero, guarantees that the data type is lockless.
+ *  macro `lake_atomic_is_lock_free(T)` is non-zero, guarantees that the data type is lockless.
  *  The macro `LAKE_ATOMIC(T)` is usedto enforce some core rules of how a variable expected to be 
  *  used in atomic operations should be handled, by both the compiler & CPU. It also serves as a 
  *  hint to the user, that a variable of this type should be accessed atomically.

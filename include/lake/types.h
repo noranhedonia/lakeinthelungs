@@ -268,4 +268,9 @@ typedef enum lake_result : s32 {
     LAKE_ERROR_EXCEEDED_MAX_SAMPLERS                                = -88,
     LAKE_ERROR_EXCEEDED_MAX_ACCELERATION_STRUCTURES                 = -89,
     LAKE_ERROR_EXCEEDED_PUSH_CONSTANT_RANGE                         = -90,
+    LAKE_ERROR_MAIN_QUEUE_CMD_ON_TRANSFER_QUEUE_RECORDER            = -91,
+    LAKE_ERROR_COMPUTE_QUEUE_CMD_ON_TRANSFER_QUEUE_RECORDER         = -92,
+    LAKE_ERROR_MAIN_QUEUE_CMD_ON_COMPUTE_QUEUE_RECORDER             = -93,
+    LAKE_ERROR_DRAW_CMD_OUTSIDE_OF_RENDERPASS                       = -94,
+    LAKE_ERROR_VIDEO_CMD_OUTSIDE_OF_VIDEO_CODING                    = -95,
 } lake_result;

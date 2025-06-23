@@ -14,25 +14,25 @@
 /** The platform-specific display backend. */
 LAKE_DECL_INTERFACE(hadal);
 /** Represents a display output, maps directly to hardware. A backend without displays is headless. */
-LAKE_DECL_HANDLE_INTERFACED(hadal_display, hadal_interface hadal);
+LAKE_DECL_HANDLE_INTERFACED(hadal_display, hadal_interface *hadal);
 /** Represents a system window with a surface we can draw to. Main context of interaction with the display. */
-LAKE_DECL_HANDLE_INTERFACED(hadal_window, hadal_interface hadal);
+LAKE_DECL_HANDLE_INTERFACED(hadal_window, hadal_interface *hadal);
 /** Represents a keyboard device. */
-LAKE_DECL_HANDLE_INTERFACED(hadal_keyboard, hadal_interface hadal);
+LAKE_DECL_HANDLE_INTERFACED(hadal_keyboard, hadal_interface *hadal);
 /** Represents a mouse or pointer device. */
-LAKE_DECL_HANDLE_INTERFACED(hadal_mouse, hadal_interface hadal);
+LAKE_DECL_HANDLE_INTERFACED(hadal_mouse, hadal_interface *hadal);
 /** Represents a haptic (force feedback) device. */
-LAKE_DECL_HANDLE_INTERFACED(hadal_haptic, hadal_interface hadal);
+LAKE_DECL_HANDLE_INTERFACED(hadal_haptic, hadal_interface *hadal);
 /** Represents a low-level joystick raw inputs. */
-LAKE_DECL_HANDLE_INTERFACED(hadal_joystick, hadal_interface hadal);
+LAKE_DECL_HANDLE_INTERFACED(hadal_joystick, hadal_interface *hadal);
 /** Represents a gamepad, built on top of the joystick API to map console-style gamepads.
  *  The difference between a joystick and a gamepad is the gamepad tells "where" a button 
  *  or axis is on the device, by providing a configuration for the joystick device. */
-LAKE_DECL_HANDLE_INTERFACED(hadal_gamepad, hadal_joystick joystick);
+LAKE_DECL_HANDLE_INTERFACED(hadal_gamepad, hadal_joystick *joystick);
 /** Represents a touch device, especially important on mobile platforms. */
-LAKE_DECL_HANDLE_INTERFACED(hadal_touch, hadal_interface hadal);
+LAKE_DECL_HANDLE_INTERFACED(hadal_touch, hadal_interface *hadal);
 /** Represents a pen device. */
-LAKE_DECL_HANDLE_INTERFACED(hadal_pen, hadal_interface hadal);
+LAKE_DECL_HANDLE_INTERFACED(hadal_pen, hadal_interface *hadal);
 
 typedef enum hadal_window_flag_bits : u32 {
     hadal_window_flag_none                  = 0u,
@@ -65,6 +65,7 @@ typedef struct hadal_window_assembly {
     s32                 width, height;
     s32                 min_width, min_height;
     s32                 max_width, max_height;
+    s32                 numer, denom;
     u32                 flag_hints;
     hadal_display       fullscreen;
     lake_small_string   name;
@@ -115,39 +116,41 @@ struct hadal_interface_impl {
     PFN_hadal_window_zero_refcnt            window_zero_refcnt;
 };
 
-LAKE_IMPL_HANDLE_INTERFACED(hadal_window, hadal_interface hadal,  atomic_u32 fb_width, fb_height; lake_strbuf title; )
+LAKE_IMPL_HANDLE_INTERFACED(hadal_window, hadal_interface hadal,  s32 fb_width, fb_height; lake_strbuf title; )
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
 #ifdef HADAL_WIN32
-/* TODO */
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, win32, lake_framework);
 #endif /* HADAL_WIN32 */
 #ifdef HADAL_COCOA
-/* TODO */
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, cocoa, lake_framework);
 #endif /* HADAL_COCOA */
 #ifdef HADAL_UIKIT
-/* TODO */
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, uikit, lake_framework);
 #endif /* HADAL_UIKIT */
 #ifdef HADAL_ANDROID
-/* TODO */
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, android, lake_framework);
 #endif /* HADAL_ANDROID */
 #ifdef HADAL_HAIKU
-/* TODO */
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, haiku, lake_framework);
 #endif /* HADAL_HAIKU */
 #ifdef HADAL_HTML5
-/* TODO */
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, html5, lake_framework);
 #endif /* HADAL_HTML5 */
 #ifdef HADAL_WAYLAND
 LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, wayland, lake_framework);
 #endif /* HADAL_WAYLAND */
 #ifdef HADAL_XCB
-/* TODO */
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, xcb, lake_framework);
 #endif /* HADAL_XCB */
 #ifdef HADAL_KMS
-/* TODO */
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, kms, lake_framework);
 #endif /* HADAL_KMS */
+
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, headless, lake_framework);
 
 #ifdef __cplusplus
 }

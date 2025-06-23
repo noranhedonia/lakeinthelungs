@@ -53,7 +53,7 @@ typedef struct LAKE_CACHELINE_ALIGNMENT lake_mpmc_ring {
 #define lake_mpmc_ring_t(T) \
     union LAKE_CACHELINE_ALIGNMENT { lake_mpmc_ring ring; T *buffer; }
 
-/** Initializes the ring buffer, nodes memory must be externally managed, noded count must be a power of 2. */
+/** Initializes the ring buffer, nodes memory must be externally managed, node count must be a power of 2. */
 LAKEAPI LAKE_NONNULL_ALL void LAKECALL
 lake_mpmc_init_w_dbg(
     lake_mpmc_ring     *ring, 
@@ -75,8 +75,7 @@ lake_mpmc_rotate(
     s32 const           pos_delta,
     lake_mpmc_result   *out_result);
 
-/** The producer. The data within cells is persistent, so submissions can be made from the stack.
- *  Everytime a enqueue happens to a cell, existing data is discarded (collisions won't happen). */
+/** The producer. The data within cells is persistent, so submissions can be made from the stack. */
 #define lake_mpmc_enqueue_t(ring, T, submit) \
     ({ \
         lake_mpmc_result_t(T) query; \
