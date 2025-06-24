@@ -5,7 +5,10 @@
     FN_TEST_SUITE_FINI(NAME);
 
 /* bedrock */
-IMPL_TEST_SUITE(Defer); /* XXX */
+IMPL_TEST_SUITE(Defer);
+IMPL_TEST_SUITE(Drifter);
+IMPL_TEST_SUITE(JobSystem);
+IMPL_TEST_SUITE(TaggedHeap);
 
 /* data structures */
 IMPL_TEST_SUITE(Darray);
@@ -15,7 +18,10 @@ IMPL_TEST_SUITE(Strbuf);
 
 /* development */
 IMPL_TEST_SUITE(ImguiTools);
-IMPL_TEST_SUITE(Slang);
+IMPL_TEST_SUITE(SlangTools);
+
+/* math */
+IMPL_TEST_SUITE(MathBits);
 
 /* display backend implementations */
 #ifdef HADAL_WIN32

@@ -1,10 +1,10 @@
-#include "../framework.h"
+#include "../../framework.h"
 
 static struct test_case_details g_tests[] = {
-    //IMPL_TEST_CASE(Strbuf, todo),
+    //IMPL_TEST_CASE(Deque, todo),
 };
 
-FN_TEST_SUITE_INIT(Strbuf)
+FN_TEST_SUITE_INIT(Deque) 
 {
     *out = (struct test_suite_details){
         .count = lake_arraysize(g_tests),
@@ -14,7 +14,7 @@ FN_TEST_SUITE_INIT(Strbuf)
     (void)framework;
 }
 
-FN_TEST_SUITE_FINI(Strbuf)
+FN_TEST_SUITE_FINI(Deque)
 {
     (void)userdata;
 }

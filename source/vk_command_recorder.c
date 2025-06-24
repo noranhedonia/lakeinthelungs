@@ -632,8 +632,6 @@ FN_MOON_CMD_CLEAR_TEXTURE(vulkan)
     VkImageSubresourceRange const sub_range = make_subresource_range(&work->dst_slice, slot->aspect_flags);
     VkImageLayout vk_layout;
     populate_vk_access_info(1, &work->dst_access, nullptr, nullptr, &vk_layout, nullptr);
-    if (work->dst_layout == moon_layout_optimal)
-        vk_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 
     if (work->is_clear_depth_stencil) {
         if (!is_image_depth_stencil)
@@ -653,7 +651,7 @@ FN_MOON_CMD_CLEAR_TEXTURE(vulkan)
                 cmd->current_command_data.vk_cmd_buffer,
                 slot->vk_image,
                 vk_layout,
-                (VkClearColorValue const *)&work->clear_value.color,
+                (VkClearColorValue const *)&work->clear_value.color, 
                 1, &sub_range);
     }
     return LAKE_SUCCESS;

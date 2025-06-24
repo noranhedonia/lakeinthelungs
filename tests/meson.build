@@ -1,15 +1,19 @@
 test_sources = files(
     'main.c',
-    'source/darray_test.c',
-    'source/defer_test.c',
-    'source/deque_test.c',
+    'source/bedrock/defer_test.c',
+    'source/bedrock/drifter_test.c',
+    'source/bedrock/job_system_test.c',
+    'source/bedrock/tagged_heap_test.c',
+    'source/data_structures/darray_test.c',
+    'source/data_structures/deque_test.c',
+    'source/data_structures/mpmc_ring_test.c',
+    'source/data_structures/strbuf_test.c',
+    'source/devel/imgui_test.c',
+    'source/devel/slang_test.c',
+    'source/math/bits_test.c',
     'source/hadal_impl_test.c',
-    'source/imgui_test.c',
     'source/moon_impl_test.c',
-    'source/mpmc_ring_test.c',
-    'source/slang_test.c',
     'source/soma_impl_test.c',
-    'source/strbuf_test.c',
 )
 
 tests = executable(

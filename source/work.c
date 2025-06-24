@@ -375,20 +375,20 @@ void *lake_drift_alias(usize size, usize align)
     return ret;
 }
 
-void lake_drift_depth_op(s32 depth)
+void lake_drift_scratch(s32 depth)
 {
     struct tls *tls = get_thread_local_storage();
     struct fiber *f = &g_bedrock->fibers[tls->fiber_in_use];
     struct drifter *d = &f->drifter;
 
-    if (depth == __lake_drift_depth_op_entry__) {
+    if (depth == __lake_drift_scratch_push__) {
         struct drifter_cursor *cursor = (struct drifter_cursor *)
             drift_allocation(d, sizeof(struct drifter_cursor), alignof(struct drifter_cursor));
         cursor->tail = d->tail_page;
         cursor->prev = d->tail_cursor;
         cursor->offset = d->tail_page->offset;
         d->tail_cursor = cursor;
-    } else if (depth == __lake_drift_depth_op_leave__) {
+    } else if (depth == __lake_drift_scratch_pop__) {
         struct drifter_cursor *cursor = d->tail_cursor;
 
         d->tail_cursor = cursor->prev;

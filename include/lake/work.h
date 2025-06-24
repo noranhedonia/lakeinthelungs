@@ -160,8 +160,8 @@ LAKEAPI LAKE_HOT_FN
 void *LAKECALL lake_drift_alias(usize size, usize align);
 
 enum : s32 {
-    __lake_drift_depth_op_entry__ = 0,
-    __lake_drift_depth_op_leave__,
+    __lake_drift_scratch_push__ = 0,
+    __lake_drift_scratch_pop__,
 };
 
 /** Enter or leave the current drift scope. Drift allocations are only valid inside the 
@@ -170,13 +170,13 @@ enum : s32 {
  *  only thread safe if a matching number of entries and leaves was called from within 
  *  the work function, before the fiber returns to it's home context. Yields are safe. */
 LAKEAPI LAKE_HOT_FN 
-void LAKECALL lake_drift_depth_op(s32 depth);
+void LAKECALL lake_drift_scratch(s32 op);
 
 /** Nest a new scope. */
-#define lake_drift_push() lake_drift_depth_op(__lake_drift_depth_op_entry__)
+#define lake_drift_push() lake_drift_scratch(__lake_drift_scratch_push__)
 
 /** Leave the current scope. */
-#define lake_drift_pop() lake_drift_depth_op(__lake_drift_depth_op_leave__)
+#define lake_drift_pop() lake_drift_scratch(__lake_drift_scratch_pop__)
 
 #ifdef __cplusplus
 }

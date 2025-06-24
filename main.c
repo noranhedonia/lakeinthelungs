@@ -363,8 +363,8 @@ static lake_result LAKECALL rendering(struct game_prototype *game, struct framed
         .texture_bariers = &transition,
     };
 
-    src_access = moon_access_transfer_read;
-    dst_access = moon_access_transfer_write;
+    src_access = moon_access_none;
+    dst_access = moon_access_clear_write;
     result = game->moon.interface->cmd_pipeline_barrier(cmd.impl, &barriers_and_transitions);
     lake_dbg_assert(result == LAKE_SUCCESS, result, "cmd_pipeline_barrier, 1st");
 
@@ -372,13 +372,13 @@ static lake_result LAKECALL rendering(struct game_prototype *game, struct framed
         .dst_texture = image,
         .dst_slice = image_view_assembly.slice,
         .dst_layout = moon_layout_optimal,
-        .dst_access = moon_access_color_attachment_write,
+        .dst_access = moon_access_clear_write,
         .clear_value = { .color = { .vec = { 1.f, 0.f, 1.f, 1.f }}},
     };
     result = game->moon.interface->cmd_clear_texture(cmd.impl, &clear_image);
     lake_dbg_assert(result == LAKE_SUCCESS, result, "cmd_clear_texture");
 
-    src_access = moon_access_transfer_write;
+    src_access = moon_access_clear_write;
     dst_access = moon_access_present;
     result = game->moon.interface->cmd_pipeline_barrier(cmd.impl, &barriers_and_transitions);
     lake_dbg_assert(result == LAKE_SUCCESS, result, "cmd_pipeline_barrier, 2nd");

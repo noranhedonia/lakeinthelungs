@@ -1,10 +1,10 @@
-#include "../framework.h"
+#include "../../framework.h"
 
 static struct test_case_details g_tests[] = {
-    //IMPL_TEST_CASE(Darray, todo),
+    //IMPL_TEST_CASE(ImguiTools, todo),
 };
 
-FN_TEST_SUITE_INIT(Darray) 
+FN_TEST_SUITE_INIT(ImguiTools) 
 {
     *out = (struct test_suite_details){
         .count = lake_arraysize(g_tests),
@@ -14,7 +14,7 @@ FN_TEST_SUITE_INIT(Darray)
     (void)framework;
 }
 
-FN_TEST_SUITE_FINI(Darray)
+FN_TEST_SUITE_FINI(ImguiTools)
 {
     (void)userdata;
 }

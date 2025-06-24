@@ -5,11 +5,38 @@ s32 SomaImpl_todo(void *)
     return TEST_RESULT_SKIPPED;
 }
 
+static bool interface_impl_is_valid(struct soma_interface_impl *impl) 
+{
+    /* if the backend is not supported, just skip */
+    if (impl == nullptr) return false;
+
+    /* if any procedure is missing we would like to log this */
+    bool is_valid = true;
+    lake_drift_push();
+    lake_strbuf buf = { .v = lake_drift(2048, 1), .len = 0, .alloc = 4096 };
+    char const *whitespace = "\n            ";
+    (void)whitespace;
+
+#define VALIDATE_PROC(FN) \
+    if (impl->FN == nullptr) { is_valid = false; \
+        lake_strbuf_appendstrn(&buf, whitespace, 13); \
+        lake_strbuf_appendstrn(&buf, "PFN_hadal_" #FN, lake_lengthof("PFN_hadal_" #FN)); \
+    }
+    /* TODO */
+#undef VALIDATE_PROC
+    if (!is_valid) {
+        test_log_context();
+        test_log("Interface `%s` is not complete, procedures missing: %s", impl->header.name.str, buf.v);
+    }
+    lake_drift_pop();
+    return is_valid;
+}
+
 #define IMPL_SOMA_TEST_SUITE(VAR) \
     FN_TEST_SUITE_INIT(SomaImpl_##VAR) \
     { \
         soma_interface soma = { .impl = soma_interface_impl_##VAR(framework) }; \
-        if (soma.impl == nullptr) { \
+        if (!interface_impl_is_valid(soma.interface)) { \
             *out = (struct test_suite_details){0}; \
             return; \
         } \

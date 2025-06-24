@@ -393,6 +393,11 @@ static const struct vk_access_info g_access_map[moon_access_max_enum] = {
         VK_ACCESS_2_HOST_WRITE_BIT,
         VK_IMAGE_LAYOUT_GENERAL,
     },
+    { /* moon_access_clear_write */
+        VK_PIPELINE_STAGE_2_CLEAR_BIT,
+        VK_ACCESS_2_MEMORY_WRITE_BIT,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    },
     { /* moon_access_color_attachment_write */
         VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
         VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
@@ -510,7 +515,8 @@ void populate_vk_memory_barrier(
             lake_dbg_assert(access < moon_access_end_of_read_enum || global_barrier->src_access_count == 1, LAKE_INVALID_PARAMETERS, "the access, if it's a write, must appear on its own");
 
             struct vk_access_info const *info = &g_access_map[access];
-            barrier.srcStageMask |= info->stage_mask;
+            if (i == 0) barrier.srcStageMask |= info->stage_mask;
+            else barrier.dstStageMask |= info->stage_mask;
 
             if (i == 0) {
                 /** Add appropriate availability operations - for writes only. */
@@ -558,7 +564,8 @@ void populate_vk_buffer_memory_barrier(
             lake_dbg_assert(access < moon_access_end_of_read_enum || buffer_barrier->src_access_count == 1, LAKE_INVALID_PARAMETERS, "the access, if it's a write, must appear on its own");
 
             struct vk_access_info const *info = &g_access_map[access];
-            barrier.srcStageMask |= info->stage_mask;
+            if (i == 0) barrier.srcStageMask |= info->stage_mask;
+            else barrier.dstStageMask |= info->stage_mask;
 
             if (i == 0) {
                 /** Add appropriate availability operations - for writes only. */
@@ -611,7 +618,7 @@ void populate_vk_image_memory_barrier(
             else barrier.dstStageMask |= info->stage_mask;
 
             VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
-            switch (texture_barrier->src_layout) {
+            switch ((i == 0) ? texture_barrier->src_layout : texture_barrier->dst_layout) {
                 case moon_layout_general:
                     if (access == moon_access_present) {
                         layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;

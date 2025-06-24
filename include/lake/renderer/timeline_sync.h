@@ -119,6 +119,7 @@ typedef enum moon_access : s8 {
     moon_access_transfer_write,
     moon_access_host_preinitialized,
     moon_access_host_write,
+    moon_access_clear_write,
     moon_access_color_attachment_write,
     moon_access_depth_stencil_attachment_write,
     moon_access_depth_attachment_write_stencil_read_only,

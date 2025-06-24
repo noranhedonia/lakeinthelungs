@@ -9,7 +9,7 @@ char const *construct_fiber_name(char const *suite, char const *test)
 
     char *buf = lake_drift_n(char, sum + 1);
     lake_memcpy(buf, suite, n0);
-    buf[n0] = ':'; buf[n0 + 1] = ':';
+    for (s32 i = 0; i < 2; buf[n0 + i++] = ':');
     lake_memcpy(&buf[n0 + 2], test, n1);
     buf[sum] = '\0';
 
@@ -40,9 +40,23 @@ struct main_test_suite {
         .details = {0}, \
     }
 static struct main_test_suite g_test_suites[] = {
-    main_test_suite_entry(Darray),
+/* bedrock */
     main_test_suite_entry(Defer),
+    main_test_suite_entry(Drifter),
+    main_test_suite_entry(JobSystem),
+    main_test_suite_entry(TaggedHeap),
+/* data structures */
+    main_test_suite_entry(Darray),
     main_test_suite_entry(Deque),
+    main_test_suite_entry(MpmcRing),
+    main_test_suite_entry(Strbuf),
+/* development */
+    main_test_suite_entry(ImguiTools),
+    main_test_suite_entry(SlangTools),
+/* math */
+    main_test_suite_entry(MathBits),
+
+/* display backend implementations */
 #ifdef HADAL_WIN32
     main_test_suite_entry(HadalImpl_win32),
 #endif /* HADAL_WIN32 */
@@ -71,7 +85,8 @@ static struct main_test_suite g_test_suites[] = {
     main_test_suite_entry(HadalImpl_kms),
 #endif /* HADAL_KMS */
     main_test_suite_entry(HadalImpl_headless),
-    main_test_suite_entry(ImguiTools),
+
+/* rendering backend implementations */
 #ifdef MOON_D3D12
     main_test_suite_entry(MoonImpl_d3d12),
 #endif /* MOON_D3D12 */
@@ -85,8 +100,8 @@ static struct main_test_suite g_test_suites[] = {
     main_test_suite_entry(MoonImpl_vulkan),
 #endif /* MOON_VULKAN */
     main_test_suite_entry(MoonImpl_mock),
-    main_test_suite_entry(MpmcRing),
-    main_test_suite_entry(Slang),
+
+/* audio backend implementations */
 #ifdef SOMA_ASIO
     main_test_suite_entry(SomaImpl_asio),
 #endif /* SOMA_ASIO */
@@ -118,7 +133,6 @@ static struct main_test_suite g_test_suites[] = {
     main_test_suite_entry(SomaImpl_alsa),
 #endif /* SOMA_ALSA */
     main_test_suite_entry(SomaImpl_dummy),
-    main_test_suite_entry(Strbuf),
 };
 char const *g_run_target = nullptr;
 
@@ -128,7 +142,6 @@ struct run_test_work {
     atomic_u32                 *status_ok;
     atomic_u32                 *status_skip;
     atomic_u32                 *status_fail;
-    f64                         dt;
 };
 
 static f64 g_dt_freq_reciprocal = 0.0;
@@ -138,7 +151,7 @@ FN_LAKE_WORK(run_test, struct run_test_work *work)
     u64 const time_start = lake_rtc_counter();
     s32 const status = work->details.procedure(work->userdata);
     u64 const time_end = lake_rtc_counter();
-    work->dt = ((f64)(time_end - time_start) * g_dt_freq_reciprocal);
+    f64 const dt = ((f64)(time_end - time_start) * g_dt_freq_reciprocal);
 
     char const *msg_status = nullptr;
     char const *msg_color = nullptr;
@@ -163,13 +176,14 @@ FN_LAKE_WORK(run_test, struct run_test_work *work)
             lake_atomic_add_explicit(work->status_fail, 1u, lake_memory_model_release);
             break;
     };
-    lake_log(-5, "    [ %s ] #[%s]%s#[normal] (#[%s]%.6fms#[normal])", msg_status, msg_color, work->details.name, msg_time, 1000.0*work->dt);
+    lake_log(-5, "    [ %s ] #[%s]%s#[normal] (#[%s]%.6fms#[normal])", msg_status, msg_color, work->details.name, msg_time, 1000.0*dt);
 }
 
 static s32 run_test_suite(
         lake_framework const   *framework, 
         struct main_test_suite *suite)
 {
+    u64 const time_start = lake_rtc_counter();
     struct run_test_work *runs = nullptr;
     lake_work_details *work = nullptr;
 
@@ -195,16 +209,14 @@ static s32 run_test_suite(
         work[i].name        = construct_fiber_name(suite->name, runs[i].details.name);
     }
     lake_submit_work_and_yield(test_count, work);
+    u64 const time_end = lake_rtc_counter();
+    f64 const dt = ((f64)(time_end - time_start) * g_dt_freq_reciprocal);
     u32 const case_ok = lake_atomic_read(&suite->status_ok);
     u32 const case_skip = lake_atomic_read(&suite->status_skip);
     u32 const case_fail = lake_atomic_read(&suite->status_fail);
-    f64 time_passed = 0.0;
-
-    for (u32 i = 0; i < test_count; i++)
-        time_passed += runs[i].dt;
 
     lake_log(-6, "    #[blue]%s#[normal] total results (#[cyan]%.6fms#[normal]): #[green]%u#[normal] okay, #[yellow]%u#[normal] skipped, "
-            "#[red]%u#[normal] failed.\n", suite->name, 1000*time_passed, case_ok, case_skip, case_fail);
+            "#[red]%u#[normal] failed.\n", suite->name, 1000*dt, case_ok, case_skip, case_fail);
 
     suite->fini(suite->details.userdata);
     return LAKE_SUCCESS;
@@ -299,6 +311,7 @@ s32 lake_main(lake_framework *framework, s32 argc, const char **argv)
     framework->hints.tagged_heap_count = 16;
     framework->hints.frames_in_flight = 3;
     framework->hints.log2_work_count = 11;
+    lake_log_enable_colors(true);
     lake_log_enable_context(false);
     lake_log_enable_threading(false);
     lake_log_enable_timestamps(false);
