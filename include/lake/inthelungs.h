@@ -1,26 +1,46 @@
 #pragma once
 
-#include <lake/bedrock.h>
+#include <lake/bedrock/bedrock.h>
+
+#include <lake/data_structures/arena_allocator.h>
+#include <lake/data_structures/bitset.h>
+#include <lake/data_structures/block_allocator.h>
 #include <lake/data_structures/darray.h>
 #include <lake/data_structures/deque.h>
+#include <lake/data_structures/hashmap.h>
+#include <lake/data_structures/map.h>
 #include <lake/data_structures/mpmc_ring.h>
+#include <lake/data_structures/sparse_set.h>
+#include <lake/data_structures/stack_allocator.h>
 #include <lake/data_structures/strbuf.h>
+#include <lake/data_structures/switch_list.h>
+
 #include <lake/math/bits.h>
+#include <lake/math/camera.h>
+#include <lake/math/mat2.h>
+#include <lake/math/mat3.h>
+#include <lake/math/mat4.h>
+#include <lake/math/quat.h>
+#include <lake/math/vec4.h>
 
-#include <lake/renderer/render_resources.h>
-#include <lake/renderer/timeline_sync.h>
-#include <lake/renderer/pipelines.h>
-#include <lake/renderer/device.h>
-#include <lake/renderer/command_recorder.h>
-#include <lake/renderer/swapchain.h>
+#include <lake/modules/hadal.h>
+#include <lake/modules/hadean.h>
+#include <lake/modules/ipomoea.h>
+#include <lake/modules/lovage.h>
+#include <lake/modules/moon.h>
+#include <lake/modules/riven.h>
+#include <lake/modules/soma.h>
+#include <lake/modules/volta.h>
 
-#include <lake/soma.h>
-#include <lake/hadal.h>
-#include <lake/moon.h>
+#include <lake/audio/dsp.h>
+#include <lake/audio/mixer.h>
+#include <lake/audio/spatial.h>
+#include <lake/audio/synth.h>
 
-#include <lake/devel/imgui.h>
-#include <lake/devel/slang.h>
+#include <lake/graphics/pipeline_builder.h>
+#include <lake/graphics/render_graph.h>
+#include <lake/graphics/renderer.h>
 
 #ifdef LAKE_IN_THE_LUNGS_MAIN
-#include <lake/private/lake_main_impl.h>
+#include <lake/bedrock/private/main_impl.h>
 #endif

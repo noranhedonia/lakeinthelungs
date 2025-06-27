@@ -1,27 +1,16 @@
-engine_sources = files(
-    'bedrock.c',
-    'frame_time.c',
-    'hadal.c',
-    'log.c',
-    'malloc.c',
-    'moon.c',
-    'soma.c',
-    'tagged_heap.c',
-    'work.c',
-)
-
+engine_sources = []
 threads_dep = dependency('threads', required: false)
 math_dep = cc.find_library('m', required: false)
 
 engine_deps = [ threads_dep, math_dep ]
 engine_link_args = []
 
-system_has_kms_drm = ['openbsd', 'netbsd', 'freebsd', 'gnu/kfreebsd', 'dragonfly', 'linux', 'sunos', 'android', 'managarm'].contains(host_machine.system())
+system_has_kms_drm = ['openbsd', 'netbsd', 'freebsd', 'gnu/kfreebsd', 'dragonfly', 'linux', 'sunos', 'android'].contains(host_machine.system())
 
 _platforms = get_option('platforms')
 with_platform_xcb = _platforms.contains('xcb')
 with_platform_wayland = _platforms.contains('wayland')
-with_platform_kms_drm = _platforms.contains('kms_drm')
+with_platform_kms = _platforms.contains('kms')
 with_platform_android = _platforms.contains('android')
 with_platform_haiku = _platforms.contains('haiku')
 with_platform_emscripten = _platforms.contains('emscripten')
@@ -34,10 +23,10 @@ if _platforms.contains('auto')
     if host_machine.system() == 'android'
         _platforms = ['android']
         with_platform_android = true
-        with_platform_kms_drm = true
+        with_platform_kms = true
     elif system_has_kms_drm
-        _platforms = ['kms_drm']
-        with_platform_kms_drm = true
+        _platforms = ['kms']
+        with_platform_kms = true
         with_platform_wayland = true
         with_platform_xcb = true
     elif host_machine.system() == 'cygwin'
@@ -70,6 +59,7 @@ if _platforms.contains('auto')
         error('Unknown OS @0@. Please pass -Dplatforms to set the target platforms to build support for.'.format(host_machine.system()))
     endif
 endif
+subdir('platform')
 
 _audio = get_option('audio')
 with_pipewire = _audio.contains('pipewire')
@@ -95,6 +85,7 @@ if _audio.contains('auto')
     with_coreaudio = with_coreaudio or with_platform_macos or with_platform_ios
     with_webaudio = with_webaudio or with_platform_emscripten
 endif
+subdir('audio')
 
 _graphics = get_option('graphics')
 with_vulkan = _graphics.contains('vulkan')
@@ -108,84 +99,37 @@ if _graphics.contains('auto')
     with_metal = with_metal or with_platform_macos or with_platform_ios
     with_webgpu = with_webgpu or with_platform_emscripten
 endif
+subdir('graphics')
 
-if not cc.has_header('slang.h') or get_option('slang-runtime')
-    slang = subproject('slang')
-    if slang.get_option('default_library') == 'static'
-        engine_deps += slang.get_variable('slang_dep')
-    else
-        engine_deps += slang.get_variable('slang_headers_dep')
-    endif
-endif
-pre_args += ['-DLAKE_SLANG=1']
-
-if with_vulkan
-    engine_sources += files(
-        'vk_command_recorder.c',
-        'vk_device.c',
-        'vk_drivers.c',
-        'vk_pipelines.c',
-        'vk_render_resources.c',
-        'vk_swapchain.c',
-        'vk_timeline_sync.c',
-    )
-    pre_args += ['-DMOON_VULKAN=1']
-
-    if not cc.has_header('vulkan/vulkan.h')
-        vulkan_headers = subproject('vulkan-headers')
-        engine_deps += vulkan_headers.get_variable('vulkan_headers_dep')
-    endif
-
-    vulkan_memory_allocator = subproject('vulkan-memory-allocator')
-    engine_deps += vulkan_memory_allocator.get_variable('vma_dep')
-
-    spirv_headers_dep = dependency('SPIRV-Headers', fallback: ['spirv-headers', 'spirv_headers_dep'], required: false)
-    spirv_tools_dep = dependency('SPIRV-Tools', fallback: ['spirv-tools', 'spirv_tools_dep'], required: false)
-    if spirv_headers_dep.found() and spirv_tools_dep.found()
-        engine_deps += [spirv_headers_dep, spirv_tools_dep]
-        pre_args += ['-DMOON_SPIRV=1']
-    endif
-endif
-
-with_imgui = get_option('imgui')
-if with_imgui
-    engine_sources += files('imgui.c')
-    cimgui = subproject('cimgui')
-    engine_deps += cimgui.get_variable('cimgui_dep') 
-    include_dirs += cimgui.get_variable('include_dir')
-    pre_args += cimgui.get_variable('cimgui_pre_args')
-    pre_args += ['-DLAKE_IMGUI=1']
-endif
-
-ogg_dep = dependency('ogg', fallback : ['ogg', 'ogg_dep'])
-vorbis_dep = dependency('vorbis', fallback : ['vorbis', 'vorbis_dep'])
-if ogg_dep.found() and vorbis_dep.found()
-    # XXX vorbis linked at runtime ?
-    engine_deps += [ ogg_dep, vorbis_dep ]
-    pre_args += '-DLAKE_VORBIS=1'
-endif
-
-subdir('android')
-subdir('apple')
+engine_sources += files(
+    'bedrock.c',
+    'darray.c',
+    'deque.c',
+    'drifter.c',
+    'frame_time.c',
+    'job_system.c',
+    'log.c',
+    'machina.c',
+    'mpmc_ring.c',
+    'network.c',
+    'strbuf.c',
+    'tagged_heap.c',
+    'temp_backend_stubs.c',
+)
 subdir('asm')
-subdir('data_structures')
-subdir('emscripten')
-subdir('linux')
 subdir('math')
-subdir('unix')
-subdir('windows')
 
-add_project_arguments(pre_args, language: ['c']) #, 'cpp'])
+add_project_arguments(pre_args, language: ['c', 'cpp'])
 add_project_arguments(c_args, language: ['c'])
-#add_project_arguments(cpp_args, language: ['cpp'])
+add_project_arguments(cpp_args, language: ['cpp'])
 
-amwengine = library(
+sorceress = library(
     'amwengine', engine_sources,
     dependencies: engine_deps,
     include_directories: include_dirs,
     install: true)
 
-amwengine_dep = declare_dependency(
-    link_with: amwengine,
+sorceress_dep = declare_dependency(
+    link_with: sorceress,
     link_args: engine_link_args,
     include_directories: include_dirs)

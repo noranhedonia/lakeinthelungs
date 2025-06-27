@@ -5,23 +5,37 @@
     FN_TEST_SUITE_FINI(NAME);
 
 /* bedrock */
-IMPL_TEST_SUITE(Defer);
-IMPL_TEST_SUITE(Drifter);
-IMPL_TEST_SUITE(JobSystem);
-IMPL_TEST_SUITE(TaggedHeap);
+IMPL_TEST_SUITE(Bedrock_defer);
+IMPL_TEST_SUITE(Bedrock_drifter);
+IMPL_TEST_SUITE(Bedrock_file_system);
+IMPL_TEST_SUITE(Bedrock_job_system);
+IMPL_TEST_SUITE(Bedrock_machina);
+IMPL_TEST_SUITE(Bedrock_network);
+IMPL_TEST_SUITE(Bedrock_tagged_heap);
 
 /* data structures */
-IMPL_TEST_SUITE(Darray);
-IMPL_TEST_SUITE(Deque);
-IMPL_TEST_SUITE(MpmcRing);
-IMPL_TEST_SUITE(Strbuf);
-
-/* development */
-IMPL_TEST_SUITE(ImguiTools);
-IMPL_TEST_SUITE(SlangTools);
+IMPL_TEST_SUITE(DS_arena_allocator);
+IMPL_TEST_SUITE(DS_bitset);
+IMPL_TEST_SUITE(DS_block_allocator);
+IMPL_TEST_SUITE(DS_darray);
+IMPL_TEST_SUITE(DS_deque);
+IMPL_TEST_SUITE(DS_hashmap);
+IMPL_TEST_SUITE(DS_map);
+IMPL_TEST_SUITE(DS_mpmc_ring);
+IMPL_TEST_SUITE(DS_sparse_set);
+IMPL_TEST_SUITE(DS_stack_allocator);
+IMPL_TEST_SUITE(DS_strbuf);
+IMPL_TEST_SUITE(DS_switch_list);
 
 /* math */
-IMPL_TEST_SUITE(MathBits);
+IMPL_TEST_SUITE(Math_bits);
+IMPL_TEST_SUITE(Math_camera);
+IMPL_TEST_SUITE(Math_mat2);
+IMPL_TEST_SUITE(Math_mat3);
+IMPL_TEST_SUITE(Math_mat4);
+IMPL_TEST_SUITE(Math_quat);
+IMPL_TEST_SUITE(Math_simd);
+IMPL_TEST_SUITE(Math_vec4);
 
 /* display backend implementations */
 #ifdef HADAL_WIN32
@@ -52,6 +66,15 @@ IMPL_TEST_SUITE(HadalImpl_xcb)
 IMPL_TEST_SUITE(HadalImpl_kms)
 #endif /* HADAL_KMS */
 IMPL_TEST_SUITE(HadalImpl_headless)
+
+/* xr backend implementations */
+#ifdef HADEAN_OPENXR
+IMPL_TEST_SUITE(HadeanImpl_openxr)
+#endif /* HADEAN_OPENXR */
+#ifdef HADEAN_WEBXR
+IMPL_TEST_SUITE(HadeanImpl_webxr)
+#endif /* HADEAN_WEBXR */
+IMPL_TEST_SUITE(HadeanImpl_headless)
 
 /* rendering backend implementations */
 #ifdef MOON_D3D12
@@ -100,3 +123,31 @@ IMPL_TEST_SUITE(SomaImpl_jack)
 IMPL_TEST_SUITE(SomaImpl_alsa)
 #endif /* SOMA_ALSA */
 IMPL_TEST_SUITE(SomaImpl_dummy)
+
+/* ui */
+IMPL_TEST_SUITE(Lovage_todo)
+
+/* entity-component-system */
+IMPL_TEST_SUITE(Riven_core)
+IMPL_TEST_SUITE(Riven_entity)
+IMPL_TEST_SUITE(Riven_component)
+IMPL_TEST_SUITE(Riven_system)
+IMPL_TEST_SUITE(Riven_archetype)
+IMPL_TEST_SUITE(Riven_query)
+
+/* physics */
+IMPL_TEST_SUITE(Volta_todo);
+
+/* animation */
+IMPL_TEST_SUITE(IpomoeaAlba_todo);
+
+/* audio */
+IMPL_TEST_SUITE(Audio_dsp)
+IMPL_TEST_SUITE(Audio_mixer)
+IMPL_TEST_SUITE(Audio_spatial)
+IMPL_TEST_SUITE(Audio_synth)
+
+/* graphics */
+IMPL_TEST_SUITE(Graphics_pipeline_builder)
+IMPL_TEST_SUITE(Graphics_render_graph)
+IMPL_TEST_SUITE(Graphics_renderer)

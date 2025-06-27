@@ -1,4 +1,4 @@
-#include "internal.h"
+#include "bedrock_impl.h"
 
 struct bedrock *g_bedrock = nullptr;
 
@@ -17,14 +17,15 @@ static LAKE_NORETURN void LAKECALL d4c_love_train(void *stub)
 }
 
 struct application {
-    PFN_lake_framework  main;
-    lake_framework     *framework;
+    PFN_lake_bedrock_main   main;
+    void                   *userdata;
+    lake_bedrock           *bedrock;
 };
 
 static LAKE_NORETURN void LAKECALL funny_valentine(void *raw_app)
 {
     struct application *app = (struct application *)raw_app;
-    app->main(app->framework);
+    app->main(app->userdata, app->bedrock);
 
     /* tell all threads to die, type shit */
     for (s32 i = 0; i < g_bedrock->thread_count; i++) {
@@ -36,57 +37,55 @@ static LAKE_NORETURN void LAKECALL funny_valentine(void *raw_app)
     LAKE_UNREACHABLE;
 }
 
-static void bedrock_init(lake_framework *framework)
+static void LAKECALL bedrock_init(lake_bedrock *bedrock)
 {
-    usize ram_budget, page_size, huge_page_size = 0;
-    sys_meminfo(&ram_budget, &page_size);
-    if (framework->hints.memory_budget == 0)
-        framework->hints.memory_budget = lake_align(ram_budget, 8lu*LAKE_TAGGED_HEAP_BLOCK_SIZE);
+    sys_meminfo(&bedrock->host.total_ram, &bedrock->host.page_size);
+    if (bedrock->hints.memory_budget == 0)
+        bedrock->hints.memory_budget = lake_align(bedrock->host.total_ram, 8lu*LAKE_TAGGED_HEAP_BLOCK_SIZE);
 
-    s32 cpu_count = 0;
-    sys_cpuinfo(&cpu_count, nullptr, nullptr);
-    if (framework->hints.worker_thread_count == 0 || framework->hints.worker_thread_count > (u32)cpu_count)
-        framework->hints.worker_thread_count = cpu_count;
+    sys_cpuinfo(&bedrock->host.cpu_thread_count, &bedrock->host.cpu_cores_count, &bedrock->host.cpu_package_count);
+    if (bedrock->hints.worker_thread_count == 0 || bedrock->hints.worker_thread_count > (u32)bedrock->host.cpu_thread_count)
+        bedrock->hints.worker_thread_count = bedrock->host.cpu_thread_count;
 
-    if (framework->hints.huge_page_size == 0)
-        framework->hints.huge_page_size = 4lu*1024*1024;
-    sys_hugetlbinfo(&huge_page_size, framework->hints.huge_page_size);
-    framework->hints.huge_page_size = huge_page_size;
+    if (bedrock->hints.page_size_in_use == 0)
+        bedrock->hints.page_size_in_use = 4lu*1024*1024;
+    sys_hugetlbinfo(&bedrock->host.huge_page_size, bedrock->hints.page_size_in_use);
+    bedrock->hints.page_size_in_use = bedrock->host.huge_page_size;
 
-    if (framework->hints.tagged_heap_count == 0)
-        framework->hints.tagged_heap_count = 32;
-    if (framework->hints.fiber_stack_size == 0)
-        framework->hints.fiber_stack_size = 64lu * 1024;
-    if (framework->hints.fiber_count == 0)
-        framework->hints.fiber_count = 96 + 4 * framework->hints.worker_thread_count;
-    if (framework->hints.log2_work_count == 0)
-        framework->hints.log2_work_count = 11; /* 2048 */
-    if (framework->hints.frames_in_flight < 2)
-        framework->hints.frames_in_flight = 2;
-    framework->timer_start = lake_rtc_counter();
+    if (bedrock->hints.tagged_heap_count == 0)
+        bedrock->hints.tagged_heap_count = 32;
+    if (bedrock->hints.fiber_stack_size == 0)
+        bedrock->hints.fiber_stack_size = 64lu * 1024;
+    if (bedrock->hints.fiber_count == 0)
+        bedrock->hints.fiber_count = 96 + 4 * bedrock->hints.worker_thread_count;
+    if (bedrock->hints.log2_work_count == 0)
+        bedrock->hints.log2_work_count = 11; /* 2048 */
+    if (bedrock->hints.frames_in_flight == 0)
+        bedrock->hints.frames_in_flight = 1;
+    bedrock->timer_start = lake_rtc_counter();
 
     work_queue_node *work_nodes = nullptr;
     struct region *roots_pages = nullptr;
     usize const roots_page_count = 8;
 
     usize const bedrock_bytes           = lake_align(sizeof(struct bedrock), LAKE_CACHELINE_SIZE);
-    usize const work_count              = 1lu << framework->hints.log2_work_count;
+    usize const work_count              = 1lu << bedrock->hints.log2_work_count;
     usize const work_nodes_bytes        = lake_align(sizeof(work_queue_node) * work_count, 16);
     usize const roots_pages_bytes       = lake_align(sizeof(struct region) * roots_page_count, 16);
-    usize const tls_bytes               = lake_align(sizeof(struct tls) * framework->hints.worker_thread_count, 16);
-    usize const ends_bytes              = lake_align(sizeof(lake_work_details) * framework->hints.worker_thread_count, 16);
-    usize const threads_bytes           = lake_align(sizeof(sys_thread_id) * framework->hints.worker_thread_count, 16);
-    usize const fibers_bytes            = lake_align(sizeof(struct fiber) * framework->hints.fiber_count, 16);
-    usize const waiting_bytes           = lake_align(sizeof(atomic_usize) * framework->hints.fiber_count, 16);
-    usize const free_bytes              = lake_align(sizeof(atomic_usize) * framework->hints.fiber_count, 16);
-    usize const locks_bytes             = lake_align(sizeof(atomic_usize) * framework->hints.fiber_count, 16);
+    usize const tls_bytes               = lake_align(sizeof(struct tls) * bedrock->hints.worker_thread_count, 16);
+    usize const ends_bytes              = lake_align(sizeof(lake_work_details) * bedrock->hints.worker_thread_count, 16);
+    usize const threads_bytes           = lake_align(sizeof(sys_thread_id) * bedrock->hints.worker_thread_count, 16);
+    usize const fibers_bytes            = lake_align(sizeof(struct fiber) * bedrock->hints.fiber_count, 16);
+    usize const waiting_bytes           = lake_align(sizeof(atomic_usize) * bedrock->hints.fiber_count, 16);
+    usize const free_bytes              = lake_align(sizeof(atomic_usize) * bedrock->hints.fiber_count, 16);
+    usize const locks_bytes             = lake_align(sizeof(atomic_usize) * bedrock->hints.fiber_count, 16);
     usize const heap_bytes              = lake_align(sizeof(struct tagged_heap), 16);
-    usize const tagged_heap_bytes       = heap_bytes * framework->hints.tagged_heap_count;
-    usize const tagged_heap_array_bytes = lake_align(sizeof(struct tagged_heap *) * framework->hints.tagged_heap_count, 16);
-    usize const block_count             = __position_from_block(framework->hints.memory_budget); 
+    usize const tagged_heap_bytes       = heap_bytes * bedrock->hints.tagged_heap_count;
+    usize const tagged_heap_array_bytes = lake_align(sizeof(struct tagged_heap *) * bedrock->hints.tagged_heap_count, 16);
+    usize const block_count             = __position_from_block(bedrock->hints.memory_budget); 
     usize const heap_bitmap_bytes       = lake_align(__index_from_position(block_count), 16);
-    usize const stack_bytes             = lake_align(framework->hints.fiber_stack_size, 16);
-    usize const stack_heap_bytes        = stack_bytes * framework->hints.fiber_count;
+    usize const stack_bytes             = lake_align(bedrock->hints.fiber_stack_size, 16);
+    usize const stack_heap_bytes        = stack_bytes * bedrock->hints.fiber_count;
 
     usize const roots_bytes = 
         bedrock_bytes +
@@ -104,20 +103,20 @@ static void bedrock_init(lake_framework *framework)
         heap_bitmap_bytes +
         stack_heap_bytes;
     usize const roots_block_aligned = lake_align(roots_bytes, LAKE_TAGGED_HEAP_BLOCK_SIZE);
-    usize commitment = lake_min(lake_align(roots_block_aligned, 8lu*LAKE_TAGGED_HEAP_BLOCK_SIZE), framework->hints.memory_budget);
+    usize commitment = lake_min(lake_align(roots_block_aligned, 8lu*LAKE_TAGGED_HEAP_BLOCK_SIZE), bedrock->hints.memory_budget);
 
-    g_bedrock = sys_mmap(framework->hints.memory_budget, framework->hints.huge_page_size);
+    g_bedrock = sys_mmap(bedrock->hints.memory_budget, bedrock->hints.page_size_in_use);
     if (g_bedrock == nullptr || !sys_madvise(g_bedrock, 0u, commitment, true)) {
         lake_fatal("Can't map internal framework memory.");
         lake_abort(LAKE_ERROR_MEMORY_MAP_FAILED);
     }
     lake_memset(g_bedrock, 0u, commitment);
 
-    g_bedrock->thread_count = framework->hints.worker_thread_count;
-    g_bedrock->fiber_count = framework->hints.fiber_count;
-    g_bedrock->tagged_heap_count = framework->hints.tagged_heap_count;
-    g_bedrock->budget = framework->hints.memory_budget;
-    g_bedrock->page_size = framework->hints.huge_page_size;
+    g_bedrock->thread_count = bedrock->hints.worker_thread_count;
+    g_bedrock->fiber_count = bedrock->hints.fiber_count;
+    g_bedrock->tagged_heap_count = bedrock->hints.tagged_heap_count;
+    g_bedrock->budget = bedrock->hints.memory_budget;
+    g_bedrock->page_size = bedrock->hints.page_size_in_use;
     lake_atomic_init(&g_bedrock->commitment, commitment);
     g_bedrock->stack_size = stack_bytes;
 
@@ -164,7 +163,6 @@ static void bedrock_init(lake_framework *framework)
     /* bits set to 1 means free blocks */
     lake_memset(g_bedrock->bitmap, 0xff, heap_bitmap_bytes);
     acquire_heap_bitmap(g_bedrock->bitmap, 0, roots_block_aligned);
-    //release_heap_bitmap(g_bedrock->bitmap, roots_block_aligned, g_bedrock->budget-roots_block_aligned);
 
     lake_dbg_assert(!(((sptr)work_nodes)                & 15), LAKE_PANIC, nullptr);
     lake_dbg_assert(!(((sptr)roots_pages)               & 15), LAKE_PANIC, nullptr);
@@ -199,19 +197,21 @@ static void bedrock_init(lake_framework *framework)
         tls->fiber_in_use = (u32)FIBER_INVALID;
         sys_thread_create(&g_bedrock->threads[i], dirty_deeds_done_dirt_cheap, (void *)tls);
     }
-    sys_thread_affinity(g_bedrock->thread_count, g_bedrock->threads, cpu_count, 0);
+    sys_thread_affinity(g_bedrock->thread_count, g_bedrock->threads, bedrock->host.cpu_thread_count, 0);
     lake_atomic_write_explicit(&g_bedrock->tls_sync, 1lu, lake_memory_model_release);
 }
 
 s32 lake_in_the_lungs(
-    PFN_lake_framework main, 
-    lake_framework    *framework)
+    PFN_lake_bedrock_main   main, 
+    void                   *userdata,
+    lake_bedrock           *bedrock)
 {
-    bedrock_init(framework);
+    bedrock_init(bedrock);
 
     struct application app = {
         .main = main,
-        .framework = framework,
+        .userdata = userdata,
+        .bedrock = bedrock,
     };
     lake_work_details work = {
         .procedure = funny_valentine,

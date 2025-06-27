@@ -13,7 +13,7 @@
  *  from an unrelated object that shares the same cache line, it incures unnecesary overhead. This is 
  *  called false sharing, and we pad our MPMC ring buffer to avoid that. 
  */
-#include <lake/bedrock.h>
+#include <lake/bedrock/bedrock.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -6,7 +6,7 @@
  *  It removes the tedium of managing realloc'd arrays with pointer, size, 
  *  and allocated size, with support for the custom allocators.
  */
-#include <lake/bedrock.h>
+#include <lake/bedrock/bedrock.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -22,7 +22,7 @@ extern void _test_log_context(char const *file, s32 line)
     lake_log(-5, "        #[blue]@%s#[normal] from #[magenta]%d:%s#[normal]:", fiber_name, line, file);
 }
 
-struct main_test_suite {
+struct test_suite_entry {
     char const                 *name;
     PFN_test_suite_init         init;
     PFN_test_suite_fini         fini;
@@ -32,107 +32,158 @@ struct main_test_suite {
     atomic_u32                  status_fail;
 };
 
-#define main_test_suite_entry(SUITE) \
-    (struct main_test_suite){ \
+#define TEST_SUITE_ENTRY(SUITE) \
+    (struct test_suite_entry){ \
         .name = #SUITE, \
         .init = SUITE##_test_suite_init, \
         .fini = SUITE##_test_suite_fini, \
         .details = {0}, \
     }
-static struct main_test_suite g_test_suites[] = {
-/* bedrock */
-    main_test_suite_entry(Defer),
-    main_test_suite_entry(Drifter),
-    main_test_suite_entry(JobSystem),
-    main_test_suite_entry(TaggedHeap),
-/* data structures */
-    main_test_suite_entry(Darray),
-    main_test_suite_entry(Deque),
-    main_test_suite_entry(MpmcRing),
-    main_test_suite_entry(Strbuf),
-/* development */
-    main_test_suite_entry(ImguiTools),
-    main_test_suite_entry(SlangTools),
-/* math */
-    main_test_suite_entry(MathBits),
+static struct test_suite_entry g_test_suites[] = {
+    /* bedrock */
+    TEST_SUITE_ENTRY(Bedrock_defer),
+    TEST_SUITE_ENTRY(Bedrock_drifter),
+    TEST_SUITE_ENTRY(Bedrock_file_system),
+    TEST_SUITE_ENTRY(Bedrock_job_system),
+    TEST_SUITE_ENTRY(Bedrock_machina),
+    TEST_SUITE_ENTRY(Bedrock_network),
+    TEST_SUITE_ENTRY(Bedrock_tagged_heap),
+
+    /* data structures */
+    TEST_SUITE_ENTRY(DS_arena_allocator),
+    TEST_SUITE_ENTRY(DS_bitset),
+    TEST_SUITE_ENTRY(DS_block_allocator),
+    TEST_SUITE_ENTRY(DS_darray),
+    TEST_SUITE_ENTRY(DS_deque),
+    TEST_SUITE_ENTRY(DS_hashmap),
+    TEST_SUITE_ENTRY(DS_map),
+    TEST_SUITE_ENTRY(DS_mpmc_ring),
+    TEST_SUITE_ENTRY(DS_sparse_set),
+    TEST_SUITE_ENTRY(DS_stack_allocator),
+    TEST_SUITE_ENTRY(DS_strbuf),
+    TEST_SUITE_ENTRY(DS_switch_list),
+
+    /* math */
+    TEST_SUITE_ENTRY(Math_bits),
+    TEST_SUITE_ENTRY(Math_camera),
+    TEST_SUITE_ENTRY(Math_mat2),
+    TEST_SUITE_ENTRY(Math_mat3),
+    TEST_SUITE_ENTRY(Math_mat4),
+    TEST_SUITE_ENTRY(Math_quat),
+    TEST_SUITE_ENTRY(Math_simd),
+    TEST_SUITE_ENTRY(Math_vec4),
 
 /* display backend implementations */
 #ifdef HADAL_WIN32
-    main_test_suite_entry(HadalImpl_win32),
+    TEST_SUITE_ENTRY(HadalImpl_win32),
 #endif /* HADAL_WIN32 */
 #ifdef HADAL_COCOA
-    main_test_suite_entry(HadalImpl_cocoa),
+    TEST_SUITE_ENTRY(HadalImpl_cocoa),
 #endif /* HADAL_COCOA */
 #ifdef HADAL_UIKIT
-    main_test_suite_entry(HadalImpl_uikit),
+    TEST_SUITE_ENTRY(HadalImpl_uikit),
 #endif /* HADAL_UIKIT */
 #ifdef HADAL_ANDROID
-    main_test_suite_entry(HadalImpl_android),
+    TEST_SUITE_ENTRY(HadalImpl_android),
 #endif /* HADAL_ANDROID */
 #ifdef HADAL_HAIKU
-    main_test_suite_entry(HadalImpl_haiku),
+    TEST_SUITE_ENTRY(HadalImpl_haiku),
 #endif /* HADAL_HAIKU */
 #ifdef HADAL_HTML5
-    main_test_suite_entry(HadalImpl_html5),
+    TEST_SUITE_ENTRY(HadalImpl_html5),
 #endif /* HADAL_HTML5 */
 #ifdef HADAL_WAYLAND
-    main_test_suite_entry(HadalImpl_wayland),
+    TEST_SUITE_ENTRY(HadalImpl_wayland),
 #endif /* HADAL_WAYLAND */
 #ifdef HADAL_XCB
-    main_test_suite_entry(HadalImpl_xcb),
+    TEST_SUITE_ENTRY(HadalImpl_xcb),
 #endif /* HADAL_XCB */
 #ifdef HADAL_KMS
-    main_test_suite_entry(HadalImpl_kms),
+    TEST_SUITE_ENTRY(HadalImpl_kms),
 #endif /* HADAL_KMS */
-    main_test_suite_entry(HadalImpl_headless),
+    TEST_SUITE_ENTRY(HadalImpl_headless),
+
+/* XR backend implementations */
+#ifdef HADAL_OPENXR
+    TEST_SUITE_ENTRY(HadeanImpl_openxr),
+#endif /* HADAL_OPENXR */
+    TEST_SUITE_ENTRY(HadeanImpl_headless),
 
 /* rendering backend implementations */
 #ifdef MOON_D3D12
-    main_test_suite_entry(MoonImpl_d3d12),
+    TEST_SUITE_ENTRY(MoonImpl_d3d12),
 #endif /* MOON_D3D12 */
 #ifdef MOON_METAL
-    main_test_suite_entry(MoonImpl_metal),
+    TEST_SUITE_ENTRY(MoonImpl_metal),
 #endif /* MOON_METAL */
 #ifdef MOON_WEBGPU
-    main_test_suite_entry(MoonImpl_webgpu),
+    TEST_SUITE_ENTRY(MoonImpl_webgpu),
 #endif /* MOON_WEBGPU */
 #ifdef MOON_VULKAN
-    main_test_suite_entry(MoonImpl_vulkan),
+    TEST_SUITE_ENTRY(MoonImpl_vulkan),
 #endif /* MOON_VULKAN */
-    main_test_suite_entry(MoonImpl_mock),
+    TEST_SUITE_ENTRY(MoonImpl_mock),
 
 /* audio backend implementations */
 #ifdef SOMA_ASIO
-    main_test_suite_entry(SomaImpl_asio),
+    TEST_SUITE_ENTRY(SomaImpl_asio),
 #endif /* SOMA_ASIO */
 #ifdef SOMA_WASAPI
-    main_test_suite_entry(SomaImpl_wasapi),
+    TEST_SUITE_ENTRY(SomaImpl_wasapi),
 #endif /* SOMA_WASAPI */
 #ifdef SOMA_XAUDIO2
-    main_test_suite_entry(SomaImpl_xaudio2),
+    TEST_SUITE_ENTRY(SomaImpl_xaudio2),
 #endif /* SOMA_XAUDIO2 */
 #ifdef SOMA_COREAUDIO
-    main_test_suite_entry(SomaImpl_coreaudio),
+    TEST_SUITE_ENTRY(SomaImpl_coreaudio),
 #endif /* SOMA_COREAUDIO */
 #ifdef SOMA_AAUDIO
-    main_test_suite_entry(SomaImpl_aaudio),
+    TEST_SUITE_ENTRY(SomaImpl_aaudio),
 #endif /* SOMA_AAUDIO */
 #ifdef SOMA_WEBAUDIO
-    main_test_suite_entry(SomaImpl_webaudio),
+    TEST_SUITE_ENTRY(SomaImpl_webaudio),
 #endif /* SOMA_WEBAUDIO */
 #ifdef SOMA_PIPEWIRE
-    main_test_suite_entry(SomaImpl_pipewire),
+    TEST_SUITE_ENTRY(SomaImpl_pipewire),
 #endif /* SOMA_PIPEWIRE */
 #ifdef SOMA_PULSEAUDIO
-    main_test_suite_entry(SomaImpl_pulseaudio),
+    TEST_SUITE_ENTRY(SomaImpl_pulseaudio),
 #endif /* SOMA_PULSEAUDIO */
 #ifdef SOMA_JACK
-    main_test_suite_entry(SomaImpl_jack),
+    TEST_SUITE_ENTRY(SomaImpl_jack),
 #endif /* SOMA_JACK */
 #ifdef SOMA_ALSA
-    main_test_suite_entry(SomaImpl_alsa),
+    TEST_SUITE_ENTRY(SomaImpl_alsa),
 #endif /* SOMA_ALSA */
-    main_test_suite_entry(SomaImpl_dummy),
+    TEST_SUITE_ENTRY(SomaImpl_dummy),
+
+    /* ui */
+    TEST_SUITE_ENTRY(Lovage_todo),
+
+    /* entity-component-system */
+    TEST_SUITE_ENTRY(Riven_core),
+    TEST_SUITE_ENTRY(Riven_entity),
+    TEST_SUITE_ENTRY(Riven_component),
+    TEST_SUITE_ENTRY(Riven_system),
+    TEST_SUITE_ENTRY(Riven_archetype),
+    TEST_SUITE_ENTRY(Riven_query),
+
+    /* physics */
+    TEST_SUITE_ENTRY(Volta_todo),
+
+    /* animation */
+    TEST_SUITE_ENTRY(IpomoeaAlba_todo),
+
+    /* audio */
+    TEST_SUITE_ENTRY(Audio_dsp),
+    TEST_SUITE_ENTRY(Audio_mixer),
+    TEST_SUITE_ENTRY(Audio_spatial),
+    TEST_SUITE_ENTRY(Audio_synth),
+
+    /* graphics */
+    TEST_SUITE_ENTRY(Graphics_pipeline_builder),
+    TEST_SUITE_ENTRY(Graphics_render_graph),
+    TEST_SUITE_ENTRY(Graphics_renderer),
 };
 char const *g_run_target = nullptr;
 
@@ -143,7 +194,6 @@ struct run_test_work {
     atomic_u32                 *status_skip;
     atomic_u32                 *status_fail;
 };
-
 static f64 g_dt_freq_reciprocal = 0.0;
 
 FN_LAKE_WORK(run_test, struct run_test_work *work) 
@@ -180,14 +230,14 @@ FN_LAKE_WORK(run_test, struct run_test_work *work)
 }
 
 static s32 run_test_suite(
-        lake_framework const   *framework, 
-        struct main_test_suite *suite)
+        lake_bedrock const      *bedrock, 
+        struct test_suite_entry *suite)
 {
     u64 const time_start = lake_rtc_counter();
     struct run_test_work *runs = nullptr;
     lake_work_details *work = nullptr;
 
-    suite->init(framework, &suite->details);
+    suite->init(bedrock, &suite->details);
 
     /* print header */
     if (suite->details.count == 0) return TEST_RESULT_SKIPPED;
@@ -222,7 +272,7 @@ static s32 run_test_suite(
     return LAKE_SUCCESS;
 }
 
-FN_LAKE_FRAMEWORK(testing) 
+void LAKECALL testing(void *, lake_bedrock const *bedrock) 
 {
     u32 suite_total_skip = 0;
     u32 case_total_ok = 0;
@@ -246,7 +296,7 @@ FN_LAKE_FRAMEWORK(testing)
             lake_log(-6, "Target test suite #[magenta]%s#[normal] does not exist.", g_run_target);
             return;
         }
-        s32 status = run_test_suite(framework, &g_test_suites[index]);
+        s32 status = run_test_suite(bedrock, &g_test_suites[index]);
         if (status == TEST_RESULT_SKIPPED) {
             lake_log(-6, "Target test suite #[yellow]%s#[normal] is skipped.", g_run_target);
             return;
@@ -260,16 +310,16 @@ FN_LAKE_FRAMEWORK(testing)
     lake_log_enable_timestamps(false);
 
     lake_log(-6, "A total of #[cyan]%u#[normal] test suites will be executed, using the following context:", suite_count);
-    lake_log(-6, "    Worker threads: #[cyan]%u#[normal], running a #[cyan]%lu#[normal] capacity job queue.", framework->hints.worker_thread_count, 1lu << framework->hints.log2_work_count);
-    lake_log(-6, "    Fibers: #[cyan]%u#[normal], each with a #[cyan]%u KiB#[normal] stack.", framework->hints.fiber_count, framework->hints.fiber_stack_size >> 10);
+    lake_log(-6, "    Worker threads: #[cyan]%u#[normal], running a #[cyan]%lu#[normal] capacity job queue.", bedrock->hints.worker_thread_count, 1lu << bedrock->hints.log2_work_count);
+    lake_log(-6, "    Fibers: #[cyan]%u#[normal], each with a #[cyan]%u KiB#[normal] stack.", bedrock->hints.fiber_count, bedrock->hints.fiber_stack_size >> 10);
     
     /* execute test suites one by one */
     bool last_was_skipped = true;
     for (u32 i = 0; i < suite_count; i++) {
-        struct main_test_suite *suite = &g_test_suites[i];
+        struct test_suite_entry *suite = &g_test_suites[i];
 
         lake_drift_push();
-        s32 status = run_test_suite(framework, suite);
+        s32 status = run_test_suite(bedrock, suite);
         lake_drift_pop();
 
         last_was_skipped = false;
@@ -301,21 +351,22 @@ FN_LAKE_FRAMEWORK(testing)
         lake_log(-6, "All ran tests were #[green]OK#[normal]. :D");
 }
 
-s32 lake_main(lake_framework *framework, s32 argc, const char **argv) 
+s32 lake_main(lake_bedrock *bedrock, s32 argc, const char **argv) 
 {
-    framework->app_name = "testing";
-    framework->hints.memory_budget = 512lu*1024lu*1024lu;
-    framework->hints.enable_debug_instruments = false;
-    framework->hints.fiber_count = 64;
-    framework->hints.fiber_stack_size = 128*1024;
-    framework->hints.tagged_heap_count = 16;
-    framework->hints.frames_in_flight = 3;
-    framework->hints.log2_work_count = 11;
+    bedrock->app_name = "Lake in the Lungs Testing";
+    bedrock->hints.memory_budget = 512lu*1024lu*1024lu;
+    bedrock->hints.enable_debug_instruments = false;
+    bedrock->hints.networking_offline = false;
+    bedrock->hints.fiber_count = 128;
+    bedrock->hints.fiber_stack_size = 128*1024;
+    bedrock->hints.tagged_heap_count = 16;
+    bedrock->hints.frames_in_flight = 3;
+    bedrock->hints.log2_work_count = 11;
     lake_log_enable_colors(true);
     lake_log_enable_context(false);
     lake_log_enable_threading(false);
     lake_log_enable_timestamps(false);
     lake_log_set_level(-3);
     if (argc > 1) g_run_target = argv[1];
-    lake_abort(lake_in_the_lungs(testing, framework));
+    return lake_in_the_lungs(testing, nullptr, bedrock);
 }

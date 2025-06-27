@@ -1,4 +1,4 @@
-#include "internal.h"
+#include "bedrock_impl.h"
 #include <lake/math/bits.h>
 
 /** We use a bitmap to represent our blocks of free memory. One bit in the bitmap 

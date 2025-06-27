@@ -1,4 +1,4 @@
-#include "internal.h"
+#include "bedrock_impl.h"
 
 #include <stdlib.h>
 #include <stdio.h>

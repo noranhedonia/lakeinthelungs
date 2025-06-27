@@ -36,9 +36,9 @@ struct test_suite_details {
     void                       *userdata;
 };
 
-typedef void (LAKECALL *PFN_test_suite_init)(lake_framework const *framework, struct test_suite_details *out);
+typedef void (LAKECALL *PFN_test_suite_init)(lake_bedrock const *bedrock, struct test_suite_details *out);
 #define FN_TEST_SUITE_INIT(NAME) \
-    void LAKECALL NAME##_test_suite_init(lake_framework const *framework, struct test_suite_details *out)
+    void LAKECALL NAME##_test_suite_init(lake_bedrock const *bedrock, struct test_suite_details *out)
 
 PFN_LAKE_WORK(PFN_test_suite_fini, void *);
 #define FN_TEST_SUITE_FINI(NAME) \

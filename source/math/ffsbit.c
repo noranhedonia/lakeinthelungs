@@ -1,4 +1,5 @@
 #include <lake/math/bits.h>
+#include <lake/bedrock/log.h>
 
 static const u8 g_ffs_table[256] = {
     0,1,2,1,3,1,2,1,4,1,2,1,3,1,2,1,5,1,2,1,3,1,2,1,4,1,2,1,3,1,2,1,

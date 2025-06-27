@@ -13,8 +13,7 @@
  *
  *  https://www.google.com/url?q=https://arxiv.org/pdf/1611.07612&sa=U&ved=2ahUKEwiz2pCwxZaLAxVpwjgGHSvfNpoQFnoECAoQAg&usg=AOvVaw3WMSV89LThBSsU2_fZApCR 
  */
-
-#include <lake/bedrock.h>
+#include <lake/bedrock/simd.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,10 +50,6 @@ LAKEAPI u64 LAKECALL lake_popcnt_sse2(u8 const *data, usize n);
 #endif /* LAKE_ARCH_X86_SSE2 */
 
 /* TODO neon, rvv, wasm */
-
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
 
 /** Find first set bit in an array of bytes. Returns a 1-based value that 
  *  indicates a bit position, or 0 if all bits were zeroes. */
@@ -129,3 +124,7 @@ u32 lake_bits_next_pow2_log2(u32 n)
     /* subtract 1 as ffsbit returns a 1-based value */
     return lake_ffsbit_u32(lake_bits_next_pow2(n)) - 1;
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */

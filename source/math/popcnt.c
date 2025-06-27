@@ -1,4 +1,5 @@
 #include <lake/math/bits.h>
+#include <lake/bedrock/magic.h>
 
 static const u8 g_popcnt_table[256] = {
 	0,1,1,2,1,2,2,3,1,2,2,3,2,3,3,4,1,2,2,3,2,3,3,4,2,3,3,4,3,4,4,5,

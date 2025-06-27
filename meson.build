@@ -1,4 +1,4 @@
-project('lakeinthelungs', ['c'],
+project('lakeinthelungs', ['c', 'cpp'],
     version: files('VERSION'),
     license: 'MIT',
     meson_version: '>= 1.5.0',
@@ -8,6 +8,7 @@ project('lakeinthelungs', ['c'],
         'default_library=shared',
         'warning_level=3',
         'c_std=c23',
+        'cpp_std=c++26',
         'cimgui:default_library=static',
     ],
 )
@@ -23,7 +24,7 @@ else
 endif
 
 cc = meson.get_compiler('c')
-#cpp = meson.get_compiler('cpp')
+cpp = meson.get_compiler('cpp')
 fs = import('fs')
 
 if get_option('layout') != 'mirror'
@@ -47,22 +48,18 @@ pre_args = [
 ]
 if with_lake_ndebug
     pre_args += ['-DNDEBUG', '-DLAKE_NDEBUG']
+    with_lake_debug = false
 elif with_lake_debug
     pre_args += ['-DDEBUG', '-DLAKE_DEBUG']
 endif
 
 # arguments for C or C++ compilers
 c_args = ['-Wno-pedantic']
-#cpp_args = ['-Wno-pedantic']
+cpp_args = ['-Wno-pedantic']
 include_dirs = [ include_directories('include') ]
 
 subdir('source')
 if get_option('build-main')
-main = executable(
-    'main', [ 'main.c' ],
-    dependencies: [ amwengine_dep ],
-    install: true,
-)
 endif
 if get_option('build-tests')
     subdir('tests')

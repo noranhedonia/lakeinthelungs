@@ -3,7 +3,7 @@ option(
     type: 'array',
     value: ['auto'],
     choices: [
-        'auto', 'xcb', 'wayland', 'kms_drm', 'haiku', 'android', 'windows', 'cocoa', 'uikit', 'emscripten', 
+        'auto', 'xcb', 'wayland', 'kms', 'haiku', 'android', 'windows', 'cocoa', 'uikit', 'emscripten', 
     ],
     description: 'Window systems to support. If this is set to `auto`, all platforms applicable will be enabled.'
 )
@@ -49,7 +49,7 @@ option(
     type: 'array',
     value: ['auto'],
     choices: [
-        'auto', 'openxr',
+        'auto', 'openxr', 'webxr'
     ],
     description: 'XR runtimes and hardware interfaces to support. If this is set to `auto`, all runtimes applicable will be enabled.'
 )
@@ -86,7 +86,14 @@ option(
     'build-main',
     type: 'boolean',
     value: true,
-    description: 'Build the main game prototype.'
+    description: 'Build the main video game.'
+)
+
+option(
+    'build-prototypes',
+    type: 'boolean',
+    value: false,
+    description: 'Build experimental prototype applications, may be unstable.'
 )
 
 option(

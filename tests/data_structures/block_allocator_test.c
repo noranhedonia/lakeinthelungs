@@ -1,0 +1,20 @@
+#include "../framework.h"
+
+static struct test_case_details g_tests[] = {
+    //IMPL_TEST_CASE(DS_block_allocator, todo),
+};
+
+FN_TEST_SUITE_INIT(DS_block_allocator)
+{
+    *out = (struct test_suite_details){
+        .count = lake_arraysize(g_tests),
+        .tests = g_tests,
+        .userdata = nullptr,
+    };
+    (void)bedrock;
+}
+
+FN_TEST_SUITE_FINI(DS_block_allocator)
+{
+    (void)userdata;
+}
