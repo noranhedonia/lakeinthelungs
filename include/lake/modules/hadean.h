@@ -30,16 +30,15 @@ struct hadean_interface_impl {
 extern "C" {
 #endif /* __cplusplus */
 
-typedef lake_bedrock hadean_interface_assembly;
 #ifdef HADEAN_OPENXR
-LAKEAPI FN_LAKE_INTERFACE_IMPL(hadean, openxr, hadean_interface_assembly);
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadean, openxr);
 #endif /* HADEAN_OPENXR */
 #ifdef HADEAN_WEBXR 
-LAKEAPI FN_LAKE_INTERFACE_IMPL(hadean, webxr, hadean_interface_assembly);
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadean, webxr);
 #endif /* HADEAN_WEBXR */
 
 /** Headless XR backend, used for validation. */
-LAKEAPI FN_LAKE_INTERFACE_IMPL(hadean, headless, hadean_interface_assembly);
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadean, headless);
 
 #ifdef __cplusplus
 }

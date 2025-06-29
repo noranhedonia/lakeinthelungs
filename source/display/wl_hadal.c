@@ -1035,9 +1035,9 @@ static FN_LAKE_WORK(_hadal_wayland_zero_refcnt, struct hadal_impl *hadal)
     g_hadal = nullptr;
 }
 
-FN_LAKE_INTERFACE_IMPL(hadal, wayland, hadal_interface_assembly)
+FN_LAKE_INTERFACE_IMPL(hadal, wayland)
 {
-    char const *name = "hadal::wayland";
+    char const *name = "wayland";
 
     if (lake_unlikely(g_hadal != nullptr)) {
         lake_inc_refcnt(&g_hadal->interface.header.refcnt);
@@ -1109,9 +1109,9 @@ disconnect:
     hadal->xkbcommon_library = xkbcommon_library;
 
     /* write the interface header */
-    hadal->interface.header.bedrock = assembly;
+    hadal->interface.header.bedrock = bedrock;
     hadal->interface.header.zero_refcnt = (PFN_lake_work)_hadal_wayland_zero_refcnt;
-    hadal->interface.header.name.len = lake_strlen(name) + 1;
+    hadal->interface.header.name.len = lake_strlen(name);
     lake_memcpy(hadal->interface.header.name.str, name, hadal->interface.header.name.len);
 
     if (lake_unlikely(!load_wayland_symbols(hadal, name)))
@@ -1156,7 +1156,7 @@ disconnect:
     hadal->interface.vulkan_create_surface = _hadal_wayland_vulkan_create_surface;
 #endif /* MOON_VULKAN */
 
-    lake_trace("Connected to %s, %d displays available.", name, hadal->interface.displays.da.size);
+    lake_trace("Connected to hadal::%s, %d displays available.", name, hadal->interface.displays.da.size);
     lake_inc_refcnt(&hadal->interface.header.refcnt);
     return hadal;
 }

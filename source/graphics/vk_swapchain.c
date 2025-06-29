@@ -186,7 +186,7 @@ FN_MOON_SWAPCHAIN_ASSEMBLY(vulkan)
             .zero_refcnt = (PFN_lake_work)_moon_vulkan_swapchain_zero_refcnt,
         },
     };
-    lake_defer_begin();
+    lake_defer_begin;
     lake_defer({ if (result != LAKE_SUCCESS) full_swapchain_cleanup(&swapchain); })
 
     /* create the surface */

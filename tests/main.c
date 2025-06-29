@@ -1,7 +1,7 @@
 #define LAKE_IN_THE_LUNGS_MAIN
 #include "test_suites.h"
 
-char const *construct_fiber_name(char const *suite, char const *test)
+char const *LAKECALL construct_fiber_name(char const *suite, char const *test)
 {
     usize const n0 = lake_strlen(suite);
     usize const n1 = lake_strlen(test);
@@ -16,7 +16,7 @@ char const *construct_fiber_name(char const *suite, char const *test)
     return buf;
 }
 
-extern void _test_log_context(char const *file, s32 line)
+extern void LAKECALL _test_log_context(char const *file, s32 line)
 {
     char const *fiber_name = lake_fiber_name();
     lake_log(-5, "        #[blue]@%s#[normal] from #[magenta]%d:%s#[normal]:", fiber_name, line, file);
@@ -229,7 +229,7 @@ FN_LAKE_WORK(run_test, struct run_test_work *work)
     lake_log(-5, "    [ %s ] #[%s]%s#[normal] (#[%s]%.6fms#[normal])", msg_status, msg_color, work->details.name, msg_time, 1000.0*dt);
 }
 
-static s32 run_test_suite(
+static s32 LAKECALL run_test_suite(
         lake_bedrock const      *bedrock, 
         struct test_suite_entry *suite)
 {
@@ -351,16 +351,14 @@ void LAKECALL testing(void *, lake_bedrock const *bedrock)
         lake_log(-6, "All ran tests were #[green]OK#[normal]. :D");
 }
 
-s32 lake_main(lake_bedrock *bedrock, s32 argc, const char **argv) 
+s32 LAKECALL lake_main(lake_bedrock *bedrock, s32 argc, const char **argv) 
 {
-    bedrock->app_name = "Lake in the Lungs Testing";
+    bedrock->engine_name = "Lake Testing Framework",
+    bedrock->app_name = "Lake in the Lungs";
     bedrock->hints.memory_budget = 512lu*1024lu*1024lu;
     bedrock->hints.enable_debug_instruments = false;
     bedrock->hints.networking_offline = false;
-    bedrock->hints.fiber_count = 128;
     bedrock->hints.fiber_stack_size = 128*1024;
-    bedrock->hints.tagged_heap_count = 16;
-    bedrock->hints.frames_in_flight = 3;
     bedrock->hints.log2_work_count = 11;
     lake_log_enable_colors(true);
     lake_log_enable_context(false);

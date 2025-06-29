@@ -26,7 +26,7 @@ s32 main(s32 argc, char const *argv[])
         .app_name = bedrock.engine_name,
         .build_engine_ver = LAKE_VERSION,
         .build_app_ver = LAKE_VERSION,
-        .hints.frames_in_flight = 3,
+        .hints.frames_in_flight = 2,
 #ifdef LAKE_DEBUG
         .hints.enable_debug_instruments = true,
 #endif /* LAKE_DEBUG */

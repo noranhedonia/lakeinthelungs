@@ -3,7 +3,7 @@
 s32 Bedrock_defer_runs_in_reverse_order(void *) 
 {
     s32 result = TEST_RESULT_FAILED;
-    lake_defer_begin();
+    lake_defer_begin;
     lake_defer({
         result = TEST_RESULT_OKAY;
     });

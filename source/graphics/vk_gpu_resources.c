@@ -321,7 +321,7 @@ IMPL_GPU_SR_POOL_TEMPLATE(blas)
 
 lake_result init_gpu_sr_table(struct moon_device_impl *device)
 {
-    lake_defer_begin();
+    lake_defer_begin;
     bool const ray_tracing_enabled = (device->header.details->implicit_features & moon_implicit_feature_basic_ray_tracing);
     u32 const max_allowed_buffers = device->header.assembly.max_allowed_buffers;
     u32 const max_allowed_textures = device->header.assembly.max_allowed_textures;

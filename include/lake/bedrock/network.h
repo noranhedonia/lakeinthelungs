@@ -679,29 +679,29 @@ LAKEAPI s32 LAKECALL lake_socket_set_select(lake_socket socket, lake_socket_set 
  *  and sets the host field in the address parameter if successful. */
 LAKEAPI s32 LAKECALL 
 lake_address_set_host_ip(
-        lake_address   *address, 
-        char const     *hostname);
+    lake_address   *address, 
+    char const     *hostname);
 
 /** Attempts to resolve the host named by the parameter hostname and sets the host 
  *  field in the address parameter if successful. */
 LAKEAPI s32 LAKECALL 
 lake_address_set_host(
-        lake_address   *address, 
-        char const     *hostname);
+    lake_address   *address, 
+    char const     *hostname);
 
 /** Gives the printable form of the IP address specified in the address parameter. */
 LAKEAPI s32 LAKECALL 
 lake_address_get_host_ip(
-        lake_address   *address, 
-        char           *hostname, 
-        usize           name_length);
+    lake_address   *address, 
+    char           *hostname, 
+    usize           name_length);
 
 /** Attempts to do a reverse lookup of the host field in the address parameter. */
 LAKEAPI s32 LAKECALL 
 lake_address_get_host(
-        lake_address   *address, 
-        char           *hostname, 
-        usize           name_length);
+    lake_address   *address, 
+    char           *hostname, 
+    usize           name_length);
 
 /* TODO docs */
 LAKEAPI u32 LAKECALL lake_host_get_peers_count(lake_host *host);

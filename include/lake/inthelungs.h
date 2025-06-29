@@ -5,6 +5,7 @@
 #include <lake/data_structures/arena_allocator.h>
 #include <lake/data_structures/bitset.h>
 #include <lake/data_structures/block_allocator.h>
+#include <lake/data_structures/dagraph.h>
 #include <lake/data_structures/darray.h>
 #include <lake/data_structures/deque.h>
 #include <lake/data_structures/hashmap.h>
@@ -40,6 +41,7 @@
 #include <lake/graphics/pipeline_builder.h>
 #include <lake/graphics/render_graph.h>
 #include <lake/graphics/renderer.h>
+#include <lake/graphics/video.h>
 
 #ifdef LAKE_IN_THE_LUNGS_MAIN
 #include <lake/bedrock/private/main_impl.h>

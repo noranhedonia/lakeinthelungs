@@ -97,9 +97,9 @@ static FN_LAKE_WORK(_soma_pipewire_zero_refcnt, struct soma_impl *soma)
     g_soma = nullptr;
 }
 
-FN_LAKE_INTERFACE_IMPL(soma, pipewire, soma_interface_assembly)
+FN_LAKE_INTERFACE_IMPL(soma, pipewire)
 {
-    char const *name = "soma::pipewire";
+    char const *name = "pipewire";
 
     if (lake_unlikely(g_soma != nullptr)) {
         lake_inc_refcnt(&g_soma->interface.header.refcnt);
@@ -143,9 +143,9 @@ FN_LAKE_INTERFACE_IMPL(soma, pipewire, soma_interface_assembly)
     soma->pw_init = _pw_init;
 
     /* write the interface header */
-    soma->interface.header.bedrock = assembly;
+    soma->interface.header.bedrock = bedrock;
     soma->interface.header.zero_refcnt = (PFN_lake_work)_soma_pipewire_zero_refcnt;
-    soma->interface.header.name.len = lake_strlen(name) + 1;
+    soma->interface.header.name.len = lake_strlen(name);
     lake_memcpy(soma->interface.header.name.str, name, soma->interface.header.name.len);
 
     /* load pipewire symbols */
@@ -156,7 +156,7 @@ FN_LAKE_INTERFACE_IMPL(soma, pipewire, soma_interface_assembly)
 
     /* XXX there are no custom `PFN_soma` procedures for now */
 
-    lake_trace("Connected to %s, PipeWire ver. %s.", name, pipewire_version);
+    lake_trace("Connected to soma::%s, PipeWire ver. %s.", name, pipewire_version);
     lake_inc_refcnt(&soma->interface.header.refcnt);
     return soma;
 }

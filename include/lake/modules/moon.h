@@ -3124,22 +3124,21 @@ LAKE_IMPL_HANDLE_INTERFACED(moon_swapchain,             moon_device device,     
 LAKE_IMPL_HANDLE_INTERFACED(moon_command_recorder,      moon_device device,         LAKE_MAGIC_NOTHING());
 LAKE_IMPL_HANDLE_INTERFACED(moon_staged_command_list,   moon_command_recorder cmd,  LAKE_MAGIC_NOTHING());
 
-typedef lake_bedrock moon_interface_assembly;
 #ifdef MOON_D3D12
-LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, d3d12, moon_interface_assembly);
+LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, d3d12);
 #endif /* MOON_D3D12 */
 #ifdef MOON_METAL
-LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, metal, moon_interface_assembly);
+LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, metal);
 #endif /* MOON_METAL */
 #ifdef MOON_WEBGPU
-LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, webgpu, moon_interface_assembly);
+LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, webgpu);
 #endif /* MOON_WEBGPU */
 #ifdef MOON_VULKAN
-LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, vulkan, moon_interface_assembly);
+LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, vulkan);
 #endif /* MOON_VULKAN */
 
 /** Mock rendering backend, used for validation. */
-LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, mock, moon_interface_assembly);
+LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, mock);
 
 /** Returns a score for the device, by checking it's details. */
 LAKEAPI u32 LAKECALL 

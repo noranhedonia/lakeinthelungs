@@ -113,7 +113,7 @@ typedef struct lake_deferred_record {
 
 #define LAKE_DEFER_GUARD_INIT ((int64_t)0xdefe11defe11defeLL)
 
-#define lake_defer_begin()                      \
+#define lake_defer_begin                        \
     lake_deferred_record __deferred_table = {   \
         NULL,                                   \
         LAKE_DEFER_GUARD_INIT,                  \
@@ -154,9 +154,6 @@ typedef struct lake_deferred_record {
     __deferred_return_label = &&lake_defer_label(__LINE__); \
     lake_defer_fn_exit();                                   \
     lake_defer_label(__LINE__) : return
-
-#define lake_defer_return_if_status(status) \
-    if (status != LAKE_SUCCESS) { lake_defer_return status; }
 
 #define lake_defer_longjmp(jump_env, jump_passed_state)     \
     __deferred_return_label = &&lake_defer_label(__LINE__); \

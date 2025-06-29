@@ -59,7 +59,6 @@ if _platforms.contains('auto')
         error('Unknown OS @0@. Please pass -Dplatforms to set the target platforms to build support for.'.format(host_machine.system()))
     endif
 endif
-subdir('platform')
 
 _audio = get_option('audio')
 with_pipewire = _audio.contains('pipewire')
@@ -85,7 +84,6 @@ if _audio.contains('auto')
     with_coreaudio = with_coreaudio or with_platform_macos or with_platform_ios
     with_webaudio = with_webaudio or with_platform_emscripten
 endif
-subdir('audio')
 
 _graphics = get_option('graphics')
 with_vulkan = _graphics.contains('vulkan')
@@ -99,24 +97,20 @@ if _graphics.contains('auto')
     with_metal = with_metal or with_platform_macos or with_platform_ios
     with_webgpu = with_webgpu or with_platform_emscripten
 endif
-subdir('graphics')
 
+pre_args += ['-DLAKE_SORCERESS=1']
 engine_sources += files(
-    'bedrock.c',
-    'darray.c',
-    'deque.c',
-    'drifter.c',
-    'frame_time.c',
-    'job_system.c',
-    'log.c',
-    'machina.c',
-    'mpmc_ring.c',
-    'network.c',
-    'strbuf.c',
-    'tagged_heap.c',
-    'temp_backend_stubs.c',
+    'gameplay.c',
+    'gpuexec.c',
+    'rendering.c',
+    'sorceress.c',
 )
 subdir('asm')
+subdir('audio')
+subdir('bedrock')
+subdir('data_structures')
+subdir('display')
+subdir('graphics')
 subdir('math')
 
 add_project_arguments(pre_args, language: ['c', 'cpp'])

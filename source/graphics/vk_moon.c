@@ -2211,9 +2211,9 @@ static FN_LAKE_WORK(_moon_vulkan_zero_refcnt, struct moon_impl *moon)
     g_moon = nullptr;
 }
 
-LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, vulkan, moon_interface_assembly)
+LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, vulkan)
 {
-    char const *name = "moon/vulkan";
+    char const *name = "vulkan";
     void *vulkan_library;
     u32 api_version = 0;
     u32 layer_count = 0;
@@ -2318,7 +2318,7 @@ LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, vulkan, moon_interface_assembly)
         if (query_extension(extension_properties, extension_count, g_instance_extension_names[i]))
             extension_bits |= (1u << i);
     /* don't enable debug utils if not requested */
-    if (assembly->hints.enable_debug_instruments <= 0)
+    if (bedrock->hints.enable_debug_instruments <= 0)
         extension_bits &= ~(instance_extension_ext_debug_utils | instance_extension_layer_validation);
     __lake_free(extension_properties);
 
@@ -2332,10 +2332,10 @@ LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, vulkan, moon_interface_assembly)
     VkApplicationInfo const vk_app_info = {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
         .pNext = nullptr,
-        .pApplicationName = assembly->app_name,
-        .applicationVersion = assembly->build_app_ver,
-        .pEngineName = assembly->engine_name,
-        .engineVersion = assembly->build_engine_ver,
+        .pApplicationName = bedrock->app_name,
+        .applicationVersion = bedrock->build_app_ver,
+        .pEngineName = bedrock->engine_name,
+        .engineVersion = bedrock->build_engine_ver,
         .apiVersion = api_version,
     };
     VkInstanceCreateInfo vk_instance_info = {
@@ -2366,7 +2366,7 @@ LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, vulkan, moon_interface_assembly)
         "VK_LAYER_KHRONOS_validation",
     };
     /* enable validation layers if debug requested */
-    if ((extension_bits & instance_extension_ext_debug_utils) && assembly->hints.enable_debug_instruments) {
+    if ((extension_bits & instance_extension_ext_debug_utils) && bedrock->hints.enable_debug_instruments) {
         extension_bits |= instance_extension_layer_validation;
         vk_instance_info.pNext = &vk_validation_features;
         vk_instance_info.enabledLayerCount = 1;
@@ -2397,9 +2397,9 @@ LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, vulkan, moon_interface_assembly)
     moon->api_version = api_version;
 
     /* write the interface header */
-    moon->interface.header.bedrock = assembly;
+    moon->interface.header.bedrock = bedrock;
     moon->interface.header.zero_refcnt = (PFN_lake_work)_moon_vulkan_zero_refcnt;
-    moon->interface.header.name.len = lake_strlen(name) + 1;
+    moon->interface.header.name.len = lake_strlen(name);
     lake_memcpy(moon->interface.header.name.str, name, moon->interface.header.name.len);
 
     if (lake_unlikely(!load_vk_instance_symbols(moon, extension_bits))) {
@@ -2645,7 +2645,7 @@ LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, vulkan, moon_interface_assembly)
     moon->interface.cmd_draw_mesh_tasks_indirect = _moon_vulkan_cmd_draw_mesh_tasks_indirect;
     moon->interface.cmd_draw_mesh_tasks_indirect_count = _moon_vulkan_cmd_draw_mesh_tasks_indirect_count;
 
-    lake_trace("Connected to %s, instance ver. %u.%u.%u, %u physical devices available.", name, 
+    lake_trace("Connected to moon::%s, instance ver. %u.%u.%u, %u physical devices available.", name, 
         (api_version >> 22u), (api_version >> 12u) & 0x3ffu, (api_version & 0xfffu), moon->physical_devices.da.size);
     lake_inc_refcnt(&moon->interface.header.refcnt);
     return moon;

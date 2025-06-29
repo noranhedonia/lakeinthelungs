@@ -60,9 +60,10 @@ include_dirs = [ include_directories('include') ]
 
 subdir('source')
 if get_option('build-main')
+subdir('main')
 endif
 if get_option('build-tests')
-    subdir('tests')
+subdir('tests')
 endif
 
 doxygen = find_program('doxygen', required : get_option('build-docs'))

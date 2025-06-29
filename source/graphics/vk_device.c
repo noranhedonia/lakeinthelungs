@@ -655,6 +655,8 @@ FN_MOON_DEVICE_SUBMIT_COMMANDS(vulkan)
         return LAKE_ERROR_INVALID_QUEUE;
 
     lake_spinlock *lifetime_lock = &device->gpu_sr_table.lifetime_lock;
+    /* TODO implement a semaphore instead of a lifetime spinlock, to allow non-blocking read-only access 
+     * during parallel submittions, but protect them in case of pending writes. */
     lake_spinlock_acquire(lifetime_lock);
 
     for (u32 i = 0; i < submit->staged_command_list_count; i++) {

@@ -22,10 +22,11 @@
 #include <lake/bedrock/drifter.h>
 #include <lake/bedrock/machina.h>
 #include <lake/bedrock/tagged_heap.h>
+#include <lake/bedrock/truetype.h>
 #include <lake/bedrock/network.h>
 #include <lake/bedrock/job_system.h>
 #include <lake/bedrock/file_system.h>
-#include <lake/bedrock/truetype.h>
+#include <lake/bedrock/module.h>
 
 #define LAKE_VERSION  LAKE_VERSION_NUM(0, 2, 0)
 
@@ -37,24 +38,17 @@
 #include <string.h>
 #endif /* __cplusplus */
 
+#ifndef LAKE_DEBUG_INSTRUMENTS
+    #ifdef LAKE_DEBUG
+        #define LAKE_DEBUG_INSTRUMENTS 1
+    #else
+        #define LAKE_DEBUG_INSTRUMENTS 0
+    #endif /* LAKE_DEBUG */
+#endif /* !LAKE_DEBUG_INSTRUMENTS */
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-
-/** Open a shared library. */
-LAKE_NONNULL_ALL 
-LAKEAPI void *LAKECALL 
-lake_open_library(char const *libname);
-
-/** Close a shared library. */
-LAKE_NONNULL_ALL 
-LAKEAPI void LAKECALL 
-lake_close_library(void *library);
-
-/** Get a procedure address from a shared library. */
-LAKE_NONNULL_ALL LAKE_HOT_FN
-LAKEAPI void *LAKECALL
-lake_get_proc_address(void *library, char const *procname);
 
 /** Hints provided by the application as arguments to the core engine systems. */
 typedef struct lake_bedrock_hints {
@@ -107,10 +101,10 @@ typedef struct lake_bedrock {
     lake_bedrock_host   host;
 } lake_bedrock;
 
-/** Used to implement different interfaces. */
-typedef LAKE_NODISCARD void *(LAKECALL *PFN_lake_interface_impl)(void const *assembly);
-#define FN_LAKE_INTERFACE_IMPL(T, fn, data) \
-    LAKE_NODISCARD struct T##_impl *LAKECALL T##_interface_impl_##fn(data const *assembly)
+/** Function prototype to implement an interface. */
+typedef LAKE_NODISCARD void *(LAKECALL *PFN_lake_interface_impl)(lake_bedrock const *bedrock);
+#define FN_LAKE_INTERFACE_IMPL(T, fn) \
+    LAKE_NODISCARD struct T##_impl *LAKECALL T##_interface_impl_##fn(lake_bedrock const *bedrock)
 
 /** Systems can use an atomic counter for references to itself. A reference count of 0
  *  or less means that the system can be safely destroyed, as it is no longer in use. */
@@ -221,8 +215,8 @@ typedef struct lake_interface_header {
 
 /** Entry point defined by an application. */
 typedef void (LAKECALL *PFN_lake_bedrock_main)(void *userdata, lake_bedrock const *bedrock);
-#define FN_LAKE_BEDROCK_MAIN(fn) \
-    void LAKECALL fn(void *userdata, lake_bedrock const *bedrock)
+#define FN_LAKE_BEDROCK_MAIN(fn, T) \
+    void LAKECALL fn(T, lake_bedrock const *bedrock)
 
 /** Setups the bedrock from given hints, and passes the configuration back to an application 
  *  defined entry point. The initialization will process hints given in the `lake_bedrock_main` 

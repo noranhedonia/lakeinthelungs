@@ -1,4 +1,4 @@
-#include <lake/bedrock/bedrock.h>
+#include "bedrock_impl.h"
 
 struct malloc_allocation_header {
     void *outer;    /**< Unaligned pointer returned by malloc(). */

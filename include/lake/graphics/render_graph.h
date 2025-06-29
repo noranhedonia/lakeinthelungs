@@ -18,6 +18,7 @@
  *    Its work that can be mostly parallelized.
  */
 #include <lake/modules/moon.h>
+#include <lake/data_structures/dagraph.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -68,6 +69,7 @@ typedef struct lake_render_graph {
     /** The command queue for which this rendering work will be submitted. */
     moon_queue_type queue_type;
     /* TODO */
+    lake_dagraph    dagraph;
 } lake_render_graph;
 
 #ifdef __cplusplus

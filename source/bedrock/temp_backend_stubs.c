@@ -1,7 +1,7 @@
 #include <lake/inthelungs.h>
 
 #define  IMPL_BACKEND_STUB(module, var) \
-    FN_LAKE_INTERFACE_IMPL(module, var, module##_interface_assembly) { (void)assembly; return nullptr; }
+    FN_LAKE_INTERFACE_IMPL(module, var) { (void)bedrock; return nullptr; }
 
 #ifdef HADAL_WIN32
 IMPL_BACKEND_STUB(hadal, win32)

@@ -7,11 +7,17 @@ lake_fs_observer *lake_fs_observer_assembly(lake_fs_observer_ref *ref)
     return nullptr;
 }
 
-bool lake_fs_observer_append(lake_fs_observer *observer, lake_fs_observer_ref *ref)
+s32 lake_fs_observer_append_ref(lake_fs_observer *observer, lake_fs_observer_ref *ref)
 {
     (void)observer;
     (void)ref;
-    return false;
+    return -1;
+}
+
+void lake_fs_observer_remove_ref(lake_fs_observer *observer, s32 context)
+{
+    (void)observer;
+    (void)context;
 }
 
 FN_LAKE_WORK(lake_fs_observer_destructor, lake_fs_observer *observer)

@@ -680,37 +680,36 @@ struct hadal_interface_impl {
 /* I guess only the window is what the application creates directly. */
 LAKE_IMPL_HANDLE_INTERFACED(hadal_window, hadal_interface hadal,  s32 fb_width, fb_height; char const *title; )
 
-typedef lake_bedrock hadal_interface_assembly;
 #ifdef HADAL_WIN32
-LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, win32, hadal_interface_assembly);
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, win32);
 #endif /* HADAL_WIN32 */
 #ifdef HADAL_COCOA
-LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, cocoa, hadal_interface_assembly);
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, cocoa);
 #endif /* HADAL_COCOA */
 #ifdef HADAL_UIKIT
-LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, uikit, hadal_interface_assembly);
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, uikit);
 #endif /* HADAL_UIKIT */
 #ifdef HADAL_ANDROID
-LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, android, hadal_interface_assembly);
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, android);
 #endif /* HADAL_ANDROID */
 #ifdef HADAL_HAIKU
-LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, haiku, hadal_interface_assembly);
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, haiku);
 #endif /* HADAL_HAIKU */
 #ifdef HADAL_HTML5
-LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, html5, hadal_interface_assembly);
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, html5);
 #endif /* HADAL_HTML5 */
 #ifdef HADAL_WAYLAND
-LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, wayland, hadal_interface_assembly);
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, wayland);
 #endif /* HADAL_WAYLAND */
 #ifdef HADAL_XCB
-LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, xcb, hadal_interface_assembly);
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, xcb);
 #endif /* HADAL_XCB */
 #ifdef HADAL_KMS
-LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, kms, hadal_interface_assembly);
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, kms);
 #endif /* HADAL_KMS */
 
 /** Headless display backend, used for validation and rendering without a swapchain. */
-LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, headless, hadal_interface_assembly);
+LAKEAPI FN_LAKE_INTERFACE_IMPL(hadal, headless);
 
 #ifdef __cplusplus
 }

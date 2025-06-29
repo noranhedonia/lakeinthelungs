@@ -1,4 +1,4 @@
-#include "../bedrock_impl.h"
+#include "bedrock_impl.h"
 
 #if defined(LAKE_PLATFORM_UNIX)
 #include <unistd.h>
@@ -28,7 +28,7 @@ void *sys_mmap(usize page_aligned, usize hugepage_size)
     }
     mapped = mmap(NULL, page_aligned, PROT_NONE, flags, -1, 0);
     if (mapped == MAP_FAILED) {
-        lake_log_from_critical_path(-4, "mmap failed to reserve virtual memory of %lu bytes (%lumb): %s.", 
+        lake_log_from_critical_path(2, "mmap failed to reserve virtual memory of %lu bytes (%lumb): %s.", 
                 page_aligned, page_aligned >> 20, strerror(errno));
 #ifndef LAKE_NDEBUG
         lake_debugtrap();
@@ -41,7 +41,7 @@ void *sys_mmap(usize page_aligned, usize hugepage_size)
 void sys_munmap(void *mapped, usize size_page_aligned)
 {
     s32 res = munmap(mapped, size_page_aligned);
-    if (res != 0) { lake_log_from_critical_path(-4, "Failed munmap with status %d.", res); }
+    if (res != 0) { lake_log_from_critical_path(2, "Failed munmap with status %d.", res); }
 }
 
 bool sys_madvise(void *mapped, usize offset, usize size, bool commit_or_release)
@@ -68,11 +68,11 @@ bool sys_madvise(void *mapped, usize offset, usize size, bool commit_or_release)
     }
     /* check for errors */
     if (!success) {
-        lake_log_from_critical_path(2, "Failed %s of physical memory: %lu bytes (%lu MB) at %lu mapped offset (%lu MB).", errtype,
+        lake_log_from_critical_path(3, "Failed %s of physical memory: %lu bytes (%lu MB) at %lu mapped offset (%lu MB).", errtype,
                 size, size >> 20, offset, offset >> 20);
 #ifdef LAKE_DEBUG
     } else {
-        lake_log_from_critical_path(2, "Advise %s of physical memory: %lu bytes (%lu MB) at %lu mapped offset (%lu MB).", errtype,
+        lake_log_from_critical_path(3, "Advise %s of physical memory: %lu bytes (%lu MB) at %lu mapped offset (%lu MB).", errtype,
                 size, size >> 20, offset, offset >> 20);
 #endif /* LAKE_DEBUG */
     }

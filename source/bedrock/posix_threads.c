@@ -2,7 +2,7 @@
 #define _GNU_SOURCE
 #endif
 
-#include "../bedrock_impl.h"
+#include "bedrock_impl.h"
 #if defined(LAKE_PLATFORM_UNIX)
 #include <unistd.h>
 #include <pthread.h>
