@@ -5,6 +5,8 @@
  *
  *  TODO docs
  */
+#include <lake/modules/hadal.h>
+#include <lake/modules/hadean.h>
 #include <lake/modules/moon.h>
 
 #ifdef LAKE_HAS_RENDERDOC
@@ -41,6 +43,10 @@ typedef enum lake_render_mgpu_strategy : s8 {
 
 /** Information needed to setup a renderer. */
 typedef struct lake_renderer_assembly {
+    /** Interface of the display backend. */
+    hadal_interface                 hadal;
+    /** Interface of the XR backend, is optional. */
+    hadean_interface                hadean;
     /** Interface of the rendering backend. */
     moon_interface                  moon;
     /** Requested mGPU strategy. */
@@ -49,6 +55,8 @@ typedef struct lake_renderer_assembly {
     s32                             primary_device_idx;
     /** Maximum devices to be used in an mGPU setting. */
     s32                             max_devices;
+    /** How many viewports can be at use, always assume a minimum of 1. */
+    s32                             max_viewports;
     /** Creates virtual devices from a single GPU, useful for testing mGPU work on single GPU systems.
      *  This setting is always ignored on non-debug builds, or if debug instruments are disabled. */
     s32                             dbg_virtual_devices;
@@ -56,22 +64,34 @@ typedef struct lake_renderer_assembly {
     u32                             frames_in_flight;
 } lake_renderer_assembly;
 
+/** Collects handles related to a single window. */
+typedef struct lake_render_viewport {
+    /** The window this viewport relates to. */
+    hadal_window                    window;
+    /** Swapchain bound to the window surface. */
+    moon_swapchain                  swapchain;
+} lake_video_viewport;
+
 /** Encapsulates rendering work for parallel and mGPU setups. */
 typedef struct lake_renderer {
     /** Details used to create this renderer. */
     lake_renderer_assembly          assembly;
+    /** The native windows from the display backend. */
+    struct hadal_window_impl      **windows;
+    /** Swapchain obtained from the renderer, indices match windows. */
+    struct moon_swapchain_impl    **swapchains;
     /** A list of all created devices, device at index 0 is the primary. */
     struct moon_device_impl       **devices;
-    /** How many devices are available to us. */
-    s32                             device_count;
     /** Devices in our mGPU strategies are explicitly managed, where one device is considered the 
      *  primary device, and others are considered secondary. The primary has more responsibility. */
     moon_device                     primary_device;
-    /** An array of render submits, allocated from (device_count * assembly->max_frames_in_flight).
-     *  They should be redistributed between pipeline works, with a per-device submit list per frame.
-     *
-     *  Access this way: submits[device_idx + (timeline % max_frames_in_flight) * device_count]. */
-    struct lake_render_submit      *submits;
+    /** How many devices are available to us. */
+    s32                             device_count;
+    /** How many viewports are active. */
+    atomic_s32                      active_viewport_count;
+    /** Collects handles of the primary window and it's rendering context.
+     *  If the window in this viewport closes, the renderer will too. */
+    lake_video_viewport             primary_viewport;
 } lake_renderer;
 
 /** Per-device GPU submition, acquired from the results of rendering. 

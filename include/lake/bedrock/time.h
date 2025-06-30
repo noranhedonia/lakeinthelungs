@@ -45,18 +45,19 @@ LAKEAPI void LAKECALL
 lake_frame_time_record(
     u64 time_app_start, 
     u64 time_now, 
-    f64 dt_frequency_reciprocal);
+    f64 dt_freq_reciprocal);
 
 /** Retrieves the current estimate of the frame time in seconds. It is the median 
  *  of a certain number of previously recorded frame times. */
 LAKEAPI f32 LAKECALL 
 lake_frame_time_median(void);
 
-/** Prints the current estimate of the total frame time periodically, namely once 
- *  per given time interval, assuming this function is called once per frame. */
+/** Prints the current estimate of the total frame time periodically, namely once per 
+ *  given time interval, assuming this function is called once per frame. The interval 
+ *  must be given in relation to the dt_freq_reciprocal used while recording. */
 LAKEAPI void LAKECALL 
 lake_frame_time_print(
-    f32 interval_ms);
+    f32 interval_from_dt_freq);
 
 #ifdef __cplusplus
 }

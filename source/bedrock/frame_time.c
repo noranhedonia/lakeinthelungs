@@ -9,12 +9,12 @@ static f64 g_recorded_frame_times[FRAME_TIME_COUNT] = {0.0};
 static u32 g_recorded_frame_time_idx = FRAME_TIME_COUNT - 1;
 static f64 g_last_print_time = 0.0;
 
-void lake_frame_time_record(u64 time_app_start, u64 time_now, f64 dt_frequency_reciprocal)
+void lake_frame_time_record(u64 time_app_start, u64 time_now, f64 dt_freq_reciprocal)
 {
     g_recorded_frame_time_idx++;
     if (g_recorded_frame_time_idx >= FRAME_TIME_COUNT)
         g_recorded_frame_time_idx -= FRAME_TIME_COUNT;
-    g_recorded_frame_times[g_recorded_frame_time_idx] = ((f64)(time_now - time_app_start) * dt_frequency_reciprocal);
+    g_recorded_frame_times[g_recorded_frame_time_idx] = ((f64)(time_now - time_app_start) * dt_freq_reciprocal);
 }
 
 static s32 compare_floats(void const *lhs_raw, void const *rhs_raw)
@@ -44,16 +44,16 @@ f32 lake_frame_time_median(void)
     return frame_times[recorded_count / 2];
 }
 
-void lake_frame_time_print(f32 interval_ms)
+void lake_frame_time_print(f32 interval_from_dt_freq)
 {
     s32 log_level = lake_log_get_level(); 
     if (log_level < 0) return;
 
     f64 current_time = g_recorded_frame_times[g_recorded_frame_time_idx];
-    if (g_last_print_time == 0.0f || g_last_print_time + (f64)interval_ms < current_time) {
+    if (g_last_print_time == 0.0f || g_last_print_time + (f64)interval_from_dt_freq < current_time) {
         f32 frame_time = lake_frame_time_median();
         if (frame_time > 0.0f) {
-            lake_trace("Frame time: %.3f ms (%.0f FPS)", frame_time, 1000/frame_time);
+            lake_trace("Frame time: %.3f ms (%.0f FPS)", 1000*frame_time, 1/frame_time);
         }
         g_last_print_time = current_time;
     }

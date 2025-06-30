@@ -9,7 +9,7 @@
 
 /** This function must be implemented by the application in the 
  *  main source file, where LAKE_IN_THE_LUNGS_MAIN was defined. */
-extern s32 LAKECALL lake_main(lake_bedrock *bedrock, s32 argc, char const *argv[]);
+extern s32 LAKECALL lake_main(lake_bedrock *bedrock);
 
 #if defined(LAKE_PLATFORM_WINDOWS)
 #include <lake/bedrock/private/windows.h>
@@ -26,12 +26,12 @@ s32 main(s32 argc, char const *argv[])
         .app_name = bedrock.engine_name,
         .build_engine_ver = LAKE_VERSION,
         .build_app_ver = LAKE_VERSION,
+        .argc = argc,
+        .argv = argv,
         .hints.frames_in_flight = 2,
-#ifdef LAKE_DEBUG
-        .hints.enable_debug_instruments = true,
-#endif /* LAKE_DEBUG */
+        .hints.enable_debug_instruments = LAKE_DEBUG_INSTRUMENTS,
         .hints.networking_offline = false,
     };
-    return lake_main(&bedrock, argc, argv);
+    return lake_main(&bedrock);
 }
 #endif

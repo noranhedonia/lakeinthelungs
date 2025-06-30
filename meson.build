@@ -60,8 +60,17 @@ include_dirs = [ include_directories('include') ]
 
 subdir('source')
 if get_option('build-main')
-subdir('main')
+    lakeinthelungs = executable(
+        'lakeinthelungs', [
+            'source/gameplay.c',
+            'source/gpuexec.c',
+            'source/main.c',
+            'source/rendering.c',
+        ],
+        dependencies: [ sorceress_dep ],
+        install: true)
 endif
+
 if get_option('build-tests')
 subdir('tests')
 endif

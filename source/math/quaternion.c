@@ -1,4 +1,5 @@
-#include <lake/math/quat.h>
+#include <lake/math/quaternion.h>
+#include <lake/math/trigonometry.h>
 
 #if defined(LAKE_ARCH_X86_SSE2)
 void lake_quat_mul_sse2(quat p, quat q, quat dest)
@@ -42,28 +43,28 @@ void lake_quat_from_mat4(mat4 m, quat dest)
 
     trace = m[0][0] + m[1][1] + m[2][2];
     if (trace >= 0.0f) {
-        r = sqrtf(1.0f + trace);
+        r = lake_sqrtf(1.0f + trace);
         rinv = 0.5f / r;
         dest[0] = rinv * (m[1][2] - m[2][1]);
         dest[1] = rinv * (m[2][0] - m[0][2]);
         dest[2] = rinv * (m[0][1] - m[1][0]);
         dest[3] =    r * 0.5f;
     } else if (m[0][0] >= m[1][1] && m[0][0] >= m[2][2]) {
-        r = sqrtf(1.0f - m[1][1] - m[2][2] + m[0][0]);
+        r = lake_sqrtf(1.0f - m[1][1] - m[2][2] + m[0][0]);
         rinv = 0.5f / r;
         dest[0] =    r * 0.5f;
         dest[1] = rinv * (m[0][1] - m[1][0]);
         dest[2] = rinv * (m[0][2] - m[2][0]);
         dest[3] = rinv * (m[1][2] - m[2][1]);
     } else if (m[1][1] >= m[2][2]) {
-        r = sqrtf(1.0f - m[0][0] - m[2][2] + m[1][1]);
+        r = lake_sqrtf(1.0f - m[0][0] - m[2][2] + m[1][1]);
         rinv = 0.5f / r;
         dest[0] = rinv * (m[0][1] - m[1][0]);
         dest[1] =    r * 0.5f;
         dest[2] = rinv * (m[1][2] - m[2][1]);
         dest[3] = rinv * (m[2][0] - m[0][2]);
     } else {
-        r = sqrtf(1.0f - m[0][0] - m[1][1] + m[2][2]);
+        r = lake_sqrtf(1.0f - m[0][0] - m[1][1] + m[2][2]);
         rinv = 0.5f / r;
         dest[0] = rinv * (m[0][2] - m[2][0]);
         dest[1] = rinv * (m[1][2] - m[2][1]);

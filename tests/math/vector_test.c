@@ -1,10 +1,10 @@
 #include "../test_framework.h"
 
 static struct test_case_details g_tests[] = {
-    //IMPL_TEST_CASE(DS_hashmap, todo),
+    //IMPL_TEST_CASE(Math_vector, todo),
 };
 
-FN_TEST_SUITE_INIT(DS_hashmap)
+FN_TEST_SUITE_INIT(Math_vector)
 {
     *out = (struct test_suite_details){
         .count = lake_arraysize(g_tests),
@@ -14,7 +14,7 @@ FN_TEST_SUITE_INIT(DS_hashmap)
     (void)bedrock;
 }
 
-FN_TEST_SUITE_FINI(DS_hashmap)
+FN_TEST_SUITE_FINI(Math_vector)
 {
     (void)userdata;
 }

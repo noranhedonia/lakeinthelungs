@@ -1,12 +1,8 @@
-#include <lake/sorceress.h>
+#include "main.h"
 
-FN_LAKE_WORK(sorceress_pipeline_gameplay, sorceress_pipeline_work *work)
+FN_SORCERESS_STAGE_GAMEPLAY(lungs)
 {
-    bool const do_primary_viewport = work->encore->video.primary_viewport.window.v != nullptr;
-    bool const do_work =
-        do_primary_viewport;
-
-    if (!do_work) return;
-
-    /* TODO process window events */
+    /* TODO debug exit, delete later */
+    if (work->header.timeline >= 2048) 
+        work->header.control |= sorceress_control_flag_should_exit;
 }

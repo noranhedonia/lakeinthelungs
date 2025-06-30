@@ -18,11 +18,10 @@
 
 #include <lake/math/bits.h>
 #include <lake/math/camera.h>
-#include <lake/math/mat2.h>
-#include <lake/math/mat3.h>
-#include <lake/math/mat4.h>
-#include <lake/math/quat.h>
-#include <lake/math/vec4.h>
+#include <lake/math/matrix.h>
+#include <lake/math/quaternion.h>
+#include <lake/math/trigonometry.h>
+#include <lake/math/vector.h>
 
 #include <lake/modules/hadal.h>
 #include <lake/modules/hadean.h>
@@ -31,6 +30,7 @@
 #include <lake/modules/moon.h>
 #include <lake/modules/riven.h>
 #include <lake/modules/soma.h>
+#include <lake/modules/sorceress.h>
 #include <lake/modules/volta.h>
 
 #include <lake/audio/dsp.h>
@@ -41,7 +41,6 @@
 #include <lake/graphics/pipeline_builder.h>
 #include <lake/graphics/render_graph.h>
 #include <lake/graphics/renderer.h>
-#include <lake/graphics/video.h>
 
 #ifdef LAKE_IN_THE_LUNGS_MAIN
 #include <lake/bedrock/private/main_impl.h>

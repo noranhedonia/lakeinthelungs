@@ -1,11 +1,11 @@
 #pragma once
 
-/** @file lake/math/mat3.h
+/** @file lake/math/matrix.h
  *  @brief TODO docs
  */
 #include <lake/bedrock/simd.h>
 #include <lake/bedrock/log.h>
-#include <lake/math/vec4.h>
+#include <lake/math/vector.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -141,8 +141,38 @@ LAKEAPI LAKE_NONNULL_ALL
 void LAKECALL lake_mat4_mul_avx(mat4 m1, mat4 m2, mat4 dest);
 
 #endif /* LAKE_ARCH_X86_AVX */
-
 #if defined(LAKE_ARCH_X86_SSE2)
+
+LAKE_FORCE_INLINE LAKE_NONNULL_ALL 
+void lake_mat2_transp_sse2(mat2 m, mat2 dest) 
+{
+    /* d c b a */
+    /* d b c a */
+    lake_simd_write(dest[0], lake_simd_shuffle1(lake_simd_read(m[0]), 3, 1, 2, 0));
+}
+
+LAKEAPI LAKE_NONNULL_ALL
+void LAKECALL lake_mat2_mul_sse2(mat2 m1, mat2 m2, mat2 dest);
+
+LAKEAPI LAKE_NONNULL_ALL
+void LAKECALL lake_mat3_mul_sse2(mat3 m1, mat3 m2, mat3 dest) ;
+
+/** Copy mat3 to mat4's upper-left. */
+LAKE_FORCE_INLINE LAKE_NONNULL_ALL
+void lake_mat3_ins3(mat3 m, mat4 dest)
+{
+    dest[0][0] = m[0][0];
+    dest[0][1] = m[0][1];
+    dest[0][2] = m[0][2];
+
+    dest[1][0] = m[1][0];
+    dest[1][1] = m[1][1];
+    dest[1][2] = m[1][2];
+
+    dest[2][0] = m[2][0];
+    dest[2][1] = m[2][1];
+    dest[2][2] = m[2][2];
+}
 
 LAKEAPI LAKE_NONNULL_ALL
 void LAKECALL lake_mat4_scale_sse2(mat4 m, float s);

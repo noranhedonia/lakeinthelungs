@@ -14,14 +14,12 @@
 #include <cstdint>
 #include <climits>
 #include <cfloat>
-#include <cmath>
 #else
 #include <stddef.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <limits.h>
 #include <float.h>
-#include <math.h>
 #endif /* __cplusplus */
 
 /** Declares API function visibility for DLL builds. */

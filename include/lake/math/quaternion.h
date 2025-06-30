@@ -1,6 +1,6 @@
 #pragma once
 
-/** @file lake/math/quat.h
+/** @file lake/math/quaternion.h
  *  @brief TODO docs
  */
 #include <lake/bedrock/simd.h>

@@ -15,6 +15,7 @@
 #include <lake/bedrock/atomic.h>
 #include <lake/bedrock/complex.h>
 #include <lake/bedrock/endian.h>
+#include <lake/bedrock/module.h>
 #include <lake/bedrock/time.h>
 #include <lake/bedrock/simd.h>
 #include <lake/bedrock/log.h>
@@ -23,10 +24,10 @@
 #include <lake/bedrock/machina.h>
 #include <lake/bedrock/tagged_heap.h>
 #include <lake/bedrock/truetype.h>
+#include <lake/bedrock/unicode.h>
 #include <lake/bedrock/network.h>
 #include <lake/bedrock/job_system.h>
 #include <lake/bedrock/file_system.h>
-#include <lake/bedrock/module.h>
 
 #define LAKE_VERSION  LAKE_VERSION_NUM(0, 2, 0)
 
@@ -97,6 +98,8 @@ typedef struct lake_bedrock {
     u32                 build_engine_ver;
     u32                 build_app_ver;
     u64                 timer_start;
+    s32                 argc;
+    char const        **argv;
     lake_bedrock_hints  hints;
     lake_bedrock_host   host;
 } lake_bedrock;

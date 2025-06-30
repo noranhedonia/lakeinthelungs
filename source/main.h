@@ -1,68 +1,13 @@
-#define LAKE_IN_THE_LUNGS_MAIN
-#include <lake/sorceress.h>
+#pragma once
+#include <lake/inthelungs.h>
+
+FN_SORCERESS_ACQUIRE_WORK(lungs);
+FN_SORCERESS_RELEASE_WORK(lungs);
+FN_SORCERESS_STAGE_GAMEPLAY(lungs);
+FN_SORCERESS_STAGE_RENDERING(lungs);
+FN_SORCERESS_STAGE_GPUEXEC(lungs);
 
 #define MAX_FRAMES_IN_FLIGHT 4
-
-/* XXX The shader pipelines and resources like samplers, textures, buffers, acceleration structures,
- * can later be moved into higher-level structures for the renderer. For now keep things simple. */
-
-/* The test scene contains a floor plane, and a cube placed on top of it at the center. */
-static constexpr vec3 g_scene_vtx_data[] = {
-    /* floor plane */
-    {-100.0f, 0,  100.0f},
-    { 100.0f, 0,  100.0f},
-    { 100.0f, 0, -100.0f},
-    {-100.0f, 0, -100.0f},
-    /* cube face (+y) */
-    {-1.0f, 2.0,  1.0f},
-    { 1.0f, 2.0,  1.0f},
-    { 1.0f, 2.0, -1.0f},
-    {-1.0f, 2.0, -1.0f},
-    /* cube face (+z) */
-    {-1.0f, 0.0, 1.0f},
-    { 1.0f, 0.0, 1.0f},
-    { 1.0f, 2.0, 1.0f},
-    {-1.0f, 2.0, 1.0f},
-    /* cube face (-z) */
-    {-1.0f, 0.0, -1.0f},
-    {-1.0f, 2.0, -1.0f},
-    { 1.0f, 2.0, -1.0f},
-    { 1.0f, 0.0, -1.0f},
-    /* cube face (-x) */
-    {-1.0f, 0.0, -1.0f},
-    {-1.0f, 0.0,  1.0f},
-    {-1.0f, 2.0,  1.0f},
-    {-1.0f, 2.0, -1.0f},
-    /* cube face (+x) */
-    {1.0f, 2.0, -1.0f},
-    {1.0f, 2.0,  1.0f},
-    {1.0f, 0.0,  1.0f},
-    {1.0f, 0.0, -1.0f},
-};
-static constexpr int g_scene_idx_data[] = {
-     0,  1,  2,  0,  2,  3,  4,  5,  6,  4,  6,  7,
-     8,  9, 10,  8, 10, 11, 12, 13, 14, 12, 14, 15,
-    16, 17, 18, 16, 18, 19, 20, 21, 22, 20, 22, 23
-};
-
-struct primitive {
-    vec4 data;
-    vec4 color;
-};
-static constexpr struct primitive g_scene_primitive_data[] = {
-    {{ 0.0f, 1.0f,  0.0f, 0.0f}, {0.75f, 0.8f,  0.85f, 1.0f}},
-    {{ 0.0f, 1.0f,  0.0f, 0.0f}, {0.75f, 0.8f,  0.85f, 1.0f}},
-    {{ 0.0f, 1.0f,  0.0f, 0.0f}, {0.95f, 0.85f, 0.05f, 1.0f}},
-    {{ 0.0f, 1.0f,  0.0f, 0.0f}, {0.95f, 0.85f, 0.05f, 1.0f}},
-    {{ 0.0f, 0.0f,  1.0f, 0.0f}, {0.95f, 0.85f, 0.05f, 1.0f}},
-    {{ 0.0f, 0.0f,  1.0f, 0.0f}, {0.95f, 0.85f, 0.05f, 1.0f}},
-    {{ 0.0f, 0.0f, -1.0f, 0.0f}, {0.95f, 0.85f, 0.05f, 1.0f}},
-    {{ 0.0f, 0.0f, -1.0f, 0.0f}, {0.95f, 0.85f, 0.05f, 1.0f}},
-    {{-1.0f, 0.0f,  0.0f, 0.0f}, {0.95f, 0.85f, 0.05f, 1.0f}},
-    {{-1.0f, 0.0f,  0.0f, 0.0f}, {0.95f, 0.85f, 0.05f, 1.0f}},
-    {{ 1.0f, 0.0f,  0.0f, 0.0f}, {0.95f, 0.85f, 0.05f, 1.0f}},
-    {{ 1.0f, 0.0f,  0.0f, 0.0f}, {0.95f, 0.85f, 0.05f, 1.0f}},
-};
 
 /** Available methods for sampling polygonal lights. */
 enum sample_polygon_technique : s8 {
@@ -285,8 +230,9 @@ struct scene_details {
 /** Implements the `sorceress` interface. */
 struct sorceress_impl {
     struct sorceress_interface_impl interface;
+    /** Encapsulates the video layer and rendering work for mGPU setups. */
+    lake_renderer                   renderer;
 
-    /* XXX All these details that depend on other interfaces must be handled via movements. */
     struct scene_details            scene;
     moon_raster_pipeline            raster_passes[raster_pipeline_count];
     moon_ray_tracing_pipeline       ray_tracing_passes[ray_tracing_pipeline_count];
@@ -294,53 +240,16 @@ struct sorceress_impl {
     moon_sampler_id                 samplers[sampler_type_count];
 };
 
-static FN_SORCERESS_MOVEMENT(inthelungs) 
-{
-    (void)encore_composer;
-}
-
-static FN_LAKE_WORK(_sorceress_inthelungs_zero_refcnt, struct sorceress_impl *sorceress)
-{
-    __lake_free(sorceress);
-}
-
-FN_LAKE_INTERFACE_IMPL(sorceress, inthelungs)
-{
-    char const *name = "inthelungs";
-
-    struct sorceress_impl *sorceress = __lake_malloc_t(struct sorceress_impl);
-    lake_zerop(sorceress);
-
-    sorceress->interface.header.bedrock = bedrock;
-    sorceress->interface.header.zero_refcnt = (PFN_lake_work)_sorceress_inthelungs_zero_refcnt;
-    sorceress->interface.header.name.len = lake_strlen(name);
-    lake_memcpy(sorceress->interface.header.name.str, name, sorceress->interface.header.name.len);
-
-    (void)g_scene_vtx_data;
-    (void)g_scene_idx_data;
-    (void)g_scene_primitive_data;
-
-    sorceress->interface.movement = _sorceress_inthelungs_movement;
-
-    lake_trace("Connected to spell::%s.", name);
-    lake_inc_refcnt(&sorceress->interface.header.refcnt);
-    return sorceress;
-}
-
-s32 LAKECALL lake_main(lake_bedrock *bedrock, s32 argc, char const **argv)
-{
-    sorceress_composition composition;
-    bedrock->hints.fiber_stack_size = 128*1024;
-    bedrock->hints.frames_in_flight = 3;
-    bedrock->hints.enable_debug_instruments = LAKE_DEBUG_INSTRUMENTS;
-    bedrock->engine_name = "sorceress";
-    bedrock->app_name = "Lake in the Lungs";
-    lake_log_enable_colors(true);
-
-    s32 result = sorceress_compose_w_args(&composition, argc, argv);
-    composition.sorceress_interface_impl = (PFN_lake_interface_impl)sorceress_interface_impl_inthelungs;
-
-    if (result == LAKE_SUCCESS)
-        result = lake_in_the_lungs((PFN_lake_bedrock_main)sorceress_bedrock_main, &composition, bedrock);
-    return result;
-}
+struct sorceress_work_impl {
+    sorceress_work_header           header;
+    /** A submit covers any combination of GPU commands and queues staged for execution.
+     *  These can all run in parallel, for every device in question. One submit structure 
+     *  is assembled per device in a mGPU setup.. Access this way: submits[device_idx]; 
+     *  (calculated from: [device_idx + (timeline & (max_frames_in_flight-1))*device_count]; */
+    lake_render_submit             *submits;
+    /** Presentation is a responsibility of the primary device, as it's the only device allowed
+     *  to create and manage swapchains. The array of swapchains included in present should 
+     *  refer to swapchains defined in `sorceress->video`, unless a lost window surface or 
+     *  other kind of error has made one or more swapchains obsolete for presentation. */
+    moon_device_present             present;
+};

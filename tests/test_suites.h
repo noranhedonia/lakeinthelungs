@@ -1,4 +1,4 @@
-#include "framework.h"
+#include "test_framework.h"
 
 #define IMPL_TEST_SUITE(NAME) \
     FN_TEST_SUITE_INIT(NAME); \
@@ -12,11 +12,13 @@ IMPL_TEST_SUITE(Bedrock_job_system);
 IMPL_TEST_SUITE(Bedrock_machina);
 IMPL_TEST_SUITE(Bedrock_network);
 IMPL_TEST_SUITE(Bedrock_tagged_heap);
+IMPL_TEST_SUITE(Bedrock_truetype);
 
 /* data structures */
 IMPL_TEST_SUITE(DS_arena_allocator);
 IMPL_TEST_SUITE(DS_bitset);
 IMPL_TEST_SUITE(DS_block_allocator);
+IMPL_TEST_SUITE(DS_dagraph);
 IMPL_TEST_SUITE(DS_darray);
 IMPL_TEST_SUITE(DS_deque);
 IMPL_TEST_SUITE(DS_hashmap);
@@ -30,12 +32,11 @@ IMPL_TEST_SUITE(DS_switch_list);
 /* math */
 IMPL_TEST_SUITE(Math_bits);
 IMPL_TEST_SUITE(Math_camera);
-IMPL_TEST_SUITE(Math_mat2);
-IMPL_TEST_SUITE(Math_mat3);
-IMPL_TEST_SUITE(Math_mat4);
-IMPL_TEST_SUITE(Math_quat);
+IMPL_TEST_SUITE(Math_matrix);
+IMPL_TEST_SUITE(Math_quaternion);
 IMPL_TEST_SUITE(Math_simd);
-IMPL_TEST_SUITE(Math_vec4);
+IMPL_TEST_SUITE(Math_trigonometry);
+IMPL_TEST_SUITE(Math_vector);
 
 /* display backend implementations */
 #ifdef HADAL_WIN32
@@ -124,9 +125,6 @@ IMPL_TEST_SUITE(SomaImpl_alsa)
 #endif /* SOMA_ALSA */
 IMPL_TEST_SUITE(SomaImpl_dummy)
 
-/* ui */
-IMPL_TEST_SUITE(Lovage_todo)
-
 /* entity-component-system */
 IMPL_TEST_SUITE(Riven_core)
 IMPL_TEST_SUITE(Riven_entity)
@@ -136,10 +134,16 @@ IMPL_TEST_SUITE(Riven_archetype)
 IMPL_TEST_SUITE(Riven_query)
 
 /* physics */
-IMPL_TEST_SUITE(Volta_todo);
+IMPL_TEST_SUITE(Volta_todo)
 
 /* animation */
-IMPL_TEST_SUITE(IpomoeaAlba_todo);
+IMPL_TEST_SUITE(Ipomoea_todo)
+
+/* ui */
+IMPL_TEST_SUITE(Lovage_todo)
+
+/* framework */
+IMPL_TEST_SUITE(Sorceress_todo)
 
 /* audio */
 IMPL_TEST_SUITE(Audio_dsp)

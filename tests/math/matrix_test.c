@@ -1,10 +1,10 @@
-#include "../framework.h"
+#include "../test_framework.h"
 
 static struct test_case_details g_tests[] = {
-    //IMPL_TEST_CASE(Math_mat4, todo),
+    //IMPL_TEST_CASE(Math_matrix, todo),
 };
 
-FN_TEST_SUITE_INIT(Math_mat4)
+FN_TEST_SUITE_INIT(Math_matrix)
 {
     *out = (struct test_suite_details){
         .count = lake_arraysize(g_tests),
@@ -14,7 +14,7 @@ FN_TEST_SUITE_INIT(Math_mat4)
     (void)bedrock;
 }
 
-FN_TEST_SUITE_FINI(Math_mat4)
+FN_TEST_SUITE_FINI(Math_matrix)
 {
     (void)userdata;
 }

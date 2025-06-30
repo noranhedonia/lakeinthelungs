@@ -48,11 +48,13 @@ static struct test_suite_entry g_test_suites[] = {
     TEST_SUITE_ENTRY(Bedrock_machina),
     TEST_SUITE_ENTRY(Bedrock_network),
     TEST_SUITE_ENTRY(Bedrock_tagged_heap),
+    TEST_SUITE_ENTRY(Bedrock_truetype),
 
     /* data structures */
     TEST_SUITE_ENTRY(DS_arena_allocator),
     TEST_SUITE_ENTRY(DS_bitset),
     TEST_SUITE_ENTRY(DS_block_allocator),
+    TEST_SUITE_ENTRY(DS_dagraph),
     TEST_SUITE_ENTRY(DS_darray),
     TEST_SUITE_ENTRY(DS_deque),
     TEST_SUITE_ENTRY(DS_hashmap),
@@ -66,12 +68,11 @@ static struct test_suite_entry g_test_suites[] = {
     /* math */
     TEST_SUITE_ENTRY(Math_bits),
     TEST_SUITE_ENTRY(Math_camera),
-    TEST_SUITE_ENTRY(Math_mat2),
-    TEST_SUITE_ENTRY(Math_mat3),
-    TEST_SUITE_ENTRY(Math_mat4),
-    TEST_SUITE_ENTRY(Math_quat),
+    TEST_SUITE_ENTRY(Math_matrix),
+    TEST_SUITE_ENTRY(Math_quaternion),
     TEST_SUITE_ENTRY(Math_simd),
-    TEST_SUITE_ENTRY(Math_vec4),
+    TEST_SUITE_ENTRY(Math_trigonometry),
+    TEST_SUITE_ENTRY(Math_vector),
 
 /* display backend implementations */
 #ifdef HADAL_WIN32
@@ -157,9 +158,6 @@ static struct test_suite_entry g_test_suites[] = {
 #endif /* SOMA_ALSA */
     TEST_SUITE_ENTRY(SomaImpl_dummy),
 
-    /* ui */
-    TEST_SUITE_ENTRY(Lovage_todo),
-
     /* entity-component-system */
     TEST_SUITE_ENTRY(Riven_core),
     TEST_SUITE_ENTRY(Riven_entity),
@@ -172,7 +170,13 @@ static struct test_suite_entry g_test_suites[] = {
     TEST_SUITE_ENTRY(Volta_todo),
 
     /* animation */
-    TEST_SUITE_ENTRY(IpomoeaAlba_todo),
+    TEST_SUITE_ENTRY(Ipomoea_todo),
+
+    /* ui */
+    TEST_SUITE_ENTRY(Lovage_todo),
+
+    /* framework */
+    TEST_SUITE_ENTRY(Sorceress_todo),
 
     /* audio */
     TEST_SUITE_ENTRY(Audio_dsp),
@@ -351,7 +355,7 @@ void LAKECALL testing(void *, lake_bedrock const *bedrock)
         lake_log(-6, "All ran tests were #[green]OK#[normal]. :D");
 }
 
-s32 LAKECALL lake_main(lake_bedrock *bedrock, s32 argc, const char **argv) 
+s32 LAKECALL lake_main(lake_bedrock *bedrock) 
 {
     bedrock->engine_name = "Lake Testing Framework",
     bedrock->app_name = "Lake in the Lungs";
@@ -360,11 +364,12 @@ s32 LAKECALL lake_main(lake_bedrock *bedrock, s32 argc, const char **argv)
     bedrock->hints.networking_offline = false;
     bedrock->hints.fiber_stack_size = 128*1024;
     bedrock->hints.log2_work_count = 11;
+    if (bedrock->argc > 1) 
+        g_run_target = bedrock->argv[1];
     lake_log_enable_colors(true);
     lake_log_enable_context(false);
     lake_log_enable_threading(false);
     lake_log_enable_timestamps(false);
     lake_log_set_level(-3);
-    if (argc > 1) g_run_target = argv[1];
     return lake_in_the_lungs(testing, nullptr, bedrock);
 }

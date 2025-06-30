@@ -1,6 +1,6 @@
 #pragma once
 
-/** @file lake/math/vec4.h
+/** @file lake/math/vector.h
  *  @brief TODO docs
  */
 #include <lake/bedrock/simd.h>

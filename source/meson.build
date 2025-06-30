@@ -1,8 +1,8 @@
-engine_sources = []
-threads_dep = dependency('threads', required: false)
-math_dep = cc.find_library('m', required: false)
+pre_args += ['-DLAKE_SORCERESS=1']
+engine_sources = files('sorceress.c')
 
-engine_deps = [ threads_dep, math_dep ]
+threads_dep = dependency('threads', required: false)
+engine_deps = [ threads_dep ]
 engine_link_args = []
 
 system_has_kms_drm = ['openbsd', 'netbsd', 'freebsd', 'gnu/kfreebsd', 'dragonfly', 'linux', 'sunos', 'android'].contains(host_machine.system())
@@ -98,13 +98,6 @@ if _graphics.contains('auto')
     with_webgpu = with_webgpu or with_platform_emscripten
 endif
 
-pre_args += ['-DLAKE_SORCERESS=1']
-engine_sources += files(
-    'gameplay.c',
-    'gpuexec.c',
-    'rendering.c',
-    'sorceress.c',
-)
 subdir('asm')
 subdir('audio')
 subdir('bedrock')

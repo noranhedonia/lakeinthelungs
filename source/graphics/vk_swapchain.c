@@ -141,7 +141,8 @@ static lake_result recreate_swapchain(struct moon_swapchain_impl *swapchain)
             },
             .usage = usage,
         };
-        texture_assembly.name.len = snprintf(texture_assembly.name.str + texture_assembly.name.len, LAKE_SMALL_STRING_CAPACITY - texture_assembly.name.len, "%s sc img %u", swapchain->header.assembly.name.str, i);
+        texture_assembly.name.len = snprintf(texture_assembly.name.str + texture_assembly.name.len, 
+            LAKE_SMALL_STRING_CAPACITY - texture_assembly.name.len, "%s sc img %u", swapchain->header.assembly.name.str, i);
         moon_texture_id id;
         result = create_texture_from_swapchain_image(device, 
                 images[i], swapchain->vk_surface_format.format, 
@@ -191,7 +192,8 @@ FN_MOON_SWAPCHAIN_ASSEMBLY(vulkan)
 
     /* create the surface */
     result = create_or_recreate_surface(&swapchain);
-    lake_defer_return_if_status(result);
+    if (result != LAKE_SUCCESS) 
+        { lake_defer_return result; }
 
     /* save supported present modes */
     u32 present_mode_count = 0;
@@ -243,7 +245,8 @@ FN_MOON_SWAPCHAIN_ASSEMBLY(vulkan)
 
     /* most of the swapchain creation work comes from here :D */
     result = recreate_swapchain(&swapchain);
-    lake_defer_return_if_status(result);
+    if (result != LAKE_SUCCESS)
+        { lake_defer_return result; }
 
     /* an acquire semaphore for each frame in flight */
     s32 const frames_in_flight = moon->interface.header.bedrock->hints.frames_in_flight;
@@ -251,7 +254,8 @@ FN_MOON_SWAPCHAIN_ASSEMBLY(vulkan)
         struct moon_binary_semaphore_impl *sem;
         moon_binary_semaphore_assembly const sem_assembly = {0};
         result = _moon_vulkan_binary_semaphore_assembly(device, &sem_assembly, &sem);
-        lake_defer_return_if_status(result);
+        if (result != LAKE_SUCCESS)
+            { lake_defer_return result; }
         lake_darray_append_t(&swapchain.acquire_semaphores.da, struct moon_binary_semaphore_impl *, &sem);
     }
 
@@ -260,7 +264,8 @@ FN_MOON_SWAPCHAIN_ASSEMBLY(vulkan)
         struct moon_binary_semaphore_impl *sem;
         moon_binary_semaphore_assembly const sem_assembly = {0};
         result = _moon_vulkan_binary_semaphore_assembly(device, &sem_assembly, &sem);
-        lake_defer_return_if_status(result);
+        if (result != LAKE_SUCCESS)
+            { lake_defer_return result; }
         lake_darray_append_t(&swapchain.present_semaphores.da, struct moon_binary_semaphore_impl *, &sem);
     }
 
@@ -272,7 +277,8 @@ FN_MOON_SWAPCHAIN_ASSEMBLY(vulkan)
     tsem_assembly.name.str[tsem_assembly.name.len++] = 't';
     tsem_assembly.name.str[tsem_assembly.name.len++] = 's';
     result = _moon_vulkan_timeline_semaphore_assembly(device, &tsem_assembly, &swapchain.gpu_timeline);
-    lake_defer_return_if_status(result);
+    if (result != LAKE_SUCCESS)
+        { lake_defer_return result; }
 
     lake_inc_refcnt(&device->header.refcnt);
     lake_inc_refcnt(&swapchain.header.refcnt);

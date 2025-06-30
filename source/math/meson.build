@@ -1,7 +1,7 @@
 engine_sources += files(
     'ffsbit.c',
-    'mat3.c',
-    'mat4.c',
+    'matrix.c',
     'popcnt.c',
-    'quat.c',
+    'quaternion.c',
+    'trigonometry.c',
 )

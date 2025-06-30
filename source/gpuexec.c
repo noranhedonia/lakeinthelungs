@@ -1,6 +1,6 @@
-#include <lake/sorceress.h>
+#include "main.h"
 
-FN_LAKE_WORK(sorceress_pipeline_gpuexec, sorceress_pipeline_work *work)
+FN_SORCERESS_STAGE_GPUEXEC(lungs)
 {
     (void)work;
 }
