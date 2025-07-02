@@ -244,7 +244,7 @@ void lake_printv_(
     if (lake_unlikely(!l->buf.alloc)) {
         usize const default_log_size = 8192 + n;
         l->tail_cursor = f->drifter.tail_cursor;
-        l->buf.v = lake_drift(default_log_size, 1);
+        l->buf.v = lake_drift_allocate(default_log_size, 1);
         l->buf.alloc = default_log_size;
         l->buf.v[0] = '\0';
     } else if (l->buf.len + n > l->buf.alloc) {

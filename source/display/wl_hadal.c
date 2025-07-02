@@ -474,7 +474,7 @@ static void handle_wl_registry_global(
         hadal->wl_shm = wl_registry_bind(registry, name, &wl_shm_interface, 1);
     } else if (!strcmp(interface, "wl_output")) {
         lake_dbg_3("TODO add wayland output: %u ver. %u", name, version);
-        hadal->interface.displays.da.size++;
+        hadal->interface.displays.len++; /* TODO */
     } else if (!strcmp(interface, "xdg_wm_base")) {
         hadal->shell.xdg = wl_registry_bind(registry, name, &xdg_wm_base_interface, 1);
         xdg_wm_base_add_listener(hadal->shell.xdg, &g_wm_base_listener, hadal);
@@ -1156,7 +1156,7 @@ disconnect:
     hadal->interface.vulkan_create_surface = _hadal_wayland_vulkan_create_surface;
 #endif /* MOON_VULKAN */
 
-    lake_trace("Connected to hadal::%s, %d displays available.", name, hadal->interface.displays.da.size);
+    lake_trace("Connected to hadal::%s, %d displays available.", name, lake_darray_len(&hadal->interface.displays));
     lake_inc_refcnt(&hadal->interface.header.refcnt);
     return hadal;
 }

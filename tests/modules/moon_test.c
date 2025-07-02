@@ -18,7 +18,7 @@ static bool interface_impl_is_valid(struct moon_interface_impl *impl)
     /* if any procedure is missing we would like to log this */
     bool is_valid = true;
     lake_drift_push();
-    lake_strbuf buf = { .v = lake_drift(4096, 1), .len = 0, .alloc = 4096 };
+    lake_strbuf buf = { .v = lake_drift_allocate(4096, 1), .len = 0, .alloc = 4096 };
     char const *whitespace = "\n            ";
 
 #define VALIDATE_PROC(FN) \
@@ -174,7 +174,7 @@ static bool interface_impl_is_valid(struct moon_interface_impl *impl)
 #define IMPL_MOON_TEST_SUITE(VAR) \
     FN_TEST_SUITE_INIT(MoonImpl_##VAR) \
     { \
-        struct frame *work = lake_drift_t(struct frame); \
+        struct frame *work = lake_drift_allocate_t(struct frame); \
         work->moon.impl = moon_interface_impl_##VAR(bedrock); \
         if (!interface_impl_is_valid(work->moon.interface)) { \
             *out = (struct test_suite_details){0}; \

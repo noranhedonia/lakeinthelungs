@@ -2080,11 +2080,11 @@ static FN_LAKE_WORK(query_physical_device, struct query_physical_device_work *wo
 FN_MOON_LIST_DEVICE_DETAILS(vulkan)
 {
     lake_dbg_assert(moon && out_device_count, LAKE_INVALID_PARAMETERS, nullptr);
-    u32 const pd_count = moon->physical_devices.da.size;
+    u32 const pd_count = lake_darray_len(&moon->physical_devices);
 
     if (out_details) {
         for (u32 i = 0; i < lake_min(pd_count, *out_device_count); i++)
-            out_details[i] = &moon->physical_devices.v[i].details;
+            out_details[i] = &lake_darray_at_t(&moon->physical_devices, struct physical_device, i)->details;
     }
     *out_device_count = pd_count;
 }
@@ -2202,7 +2202,7 @@ static FN_LAKE_WORK(_moon_vulkan_zero_refcnt, struct moon_impl *moon)
         moon->vkDestroyDebugUtilsMessengerEXT(moon->vk_instance, moon->vk_debug_messenger, &moon->vk_allocator);
 #endif /* LAKE_NDEBUG */
 
-    lake_darray_fini(&moon->physical_devices.da);
+    lake_darray_fini(&moon->physical_devices, lake_machina);
     if (moon->vk_instance)
         moon->vkDestroyInstance(moon->vk_instance, &moon->vk_allocator);
     if (moon->vulkan_library)
@@ -2449,7 +2449,7 @@ LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, vulkan)
         indices_bytes;
 
     usize o = 0;
-    u8 *raw = (u8 *)__lake_malloc(total_bytes, 16);
+    u8 *raw = (u8 *)lake_drift_allocate(total_bytes, 16);
     lake_memset(raw, 0, total_bytes);
 
     VkPhysicalDevice *vk_physical_devices = (VkPhysicalDevice *)raw;
@@ -2473,7 +2473,7 @@ LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, vulkan)
         query_physical_device_work[i].write.vk_physical_device = vk_physical_devices[i];
         query_work[i].procedure = (PFN_lake_work)query_physical_device;
         query_work[i].argument = (void *)&query_physical_device_work[i];
-        query_work[i].name = "moon/vulkan/query_physical_device";
+        query_work[i].name = "moon::vulkan::query_physical_device";
     }
     lake_submit_work_and_yield(physical_device_count, query_work);
 
@@ -2486,7 +2486,6 @@ LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, vulkan)
         lake_dbg_1("%s: invalidated all available physical devices (%u):", name, physical_device_count);
         for (u32 i = 0; i < physical_device_count; i++)
             lake_dbg_1("    - (idx:%u) %s", i, query_physical_device_work[i].write.vk_properties.properties2.properties.deviceName);
-        __lake_free(raw);
         _moon_vulkan_zero_refcnt(moon);
         return nullptr;
     }
@@ -2502,10 +2501,9 @@ LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, vulkan)
         lake_swap(indices[max_idx], indices[i]);
     }
     /* create the actual physical devices array */
-    lake_darray_init_t(&moon->physical_devices.da, struct physical_device, o);
+    lake_darray_init_t(&moon->physical_devices, struct physical_device, o, lake_machina);
     for (u32 i = 0; i < o; i++)
-        lake_darray_append_t(&moon->physical_devices.da, struct physical_device, &query_physical_device_work[indices[i]].write);
-    __lake_free(raw);
+        lake_darray_append_t(&moon->physical_devices, struct physical_device, 1, &query_physical_device_work[indices[i]].write, lake_machina);
 
     /* write the interface */
     moon->interface.connect_to_hadal = _moon_vulkan_connect_to_hadal;
@@ -2646,7 +2644,7 @@ LAKEAPI FN_LAKE_INTERFACE_IMPL(moon, vulkan)
     moon->interface.cmd_draw_mesh_tasks_indirect_count = _moon_vulkan_cmd_draw_mesh_tasks_indirect_count;
 
     lake_trace("Connected to moon::%s, instance ver. %u.%u.%u, %u physical devices available.", name, 
-        (api_version >> 22u), (api_version >> 12u) & 0x3ffu, (api_version & 0xfffu), moon->physical_devices.da.size);
+        (api_version >> 22u), (api_version >> 12u) & 0x3ffu, (api_version & 0xfffu), moon->physical_devices.len);
     lake_inc_refcnt(&moon->interface.header.refcnt);
     return moon;
 }

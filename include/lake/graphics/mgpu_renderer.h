@@ -1,7 +1,7 @@
 #pragma once
 
-/** @file lake/graphics/renderer.h
- *  @brief Responsible for scheduling graphics work and managing render data.
+/** @file lake/graphics/mgpu_renderer.h
+ *  @brief Responsible for scheduling graphics work and managing render data between GPUs.
  *
  *  TODO docs
  */
@@ -18,31 +18,31 @@ extern "C" {
 #endif /* __cplusplus */
 
 /** Controls how rendering work is done. */
-typedef enum lake_render_mgpu_strategy : s8 {
+typedef enum lake_mgpu_strategy : s8 {
     /** Allow the initialization process to figure out what strategy is optimal. */
-    lake_render_mgpu_strategy_auto_optimal = 0,
+    lake_mgpu_strategy_auto_optimal = 0,
     /** Rendering is done on a single primary device, no mGPU-related scheduling or transfer overhead.
      *  It's the default strategy if any other strategies were deemed unoptimal. Most systems that 
      *  only have a single GPU in their system will be using this strategy. */
-    lake_render_mgpu_strategy_primary_optimal,
+    lake_mgpu_strategy_primary_optimal,
     /** Rendering on the discrete GPU is supported by the less-powerful integrated GPU.
      *  The rendering work is distributed such that the integrated GPU nor work transfers 
      *  must not be a bottleneck. Only secondary-priority work is distributed to the iGPU. */
-    lake_render_mgpu_strategy_pair_discrete_integrated,
+    lake_mgpu_strategy_pair_discrete_integrated,
     /** Multi-device rendering, explicit primary device and multiple secondary devices. 
      *  Sort first redistributes primitives early in the graphics pipeline, during geometry 
      *  processing. This is achieved by dividing the screenspace such that each GPU renders 
      *  it's own region, and the final image is composed from the contributing regions. */
-    lake_render_mgpu_strategy_sort_first,
+    lake_mgpu_strategy_sort_first,
     /** Multi-device rendering, explicit primary device and multiple secondary devices.
      *  Sort last is defined as deferring primitive redistribution until the end of the graphics 
      *  pipeline. It divides primitives such that each GPU renders it's own portion of mesh data 
      *  into the framebuffer. Then these are composed into the final image. */
-    lake_render_mgpu_strategy_sort_last,
-} lake_render_mgpu_strategy;
+    lake_mgpu_strategy_sort_last,
+} lake_mgpu_strategy;
 
 /** Information needed to setup a renderer. */
-typedef struct lake_renderer_assembly {
+typedef struct lake_mgpu_renderer_assembly {
     /** Interface of the display backend. */
     hadal_interface                 hadal;
     /** Interface of the XR backend, is optional. */
@@ -50,7 +50,7 @@ typedef struct lake_renderer_assembly {
     /** Interface of the rendering backend. */
     moon_interface                  moon;
     /** Requested mGPU strategy. */
-    lake_render_mgpu_strategy       mgpu_strategy;
+    lake_mgpu_strategy              mgpu_strategy;
     /** Index into PFN_moon_list_device_details to use as the primary device. */
     s32                             primary_device_idx;
     /** Maximum devices to be used in an mGPU setting. */
@@ -62,7 +62,7 @@ typedef struct lake_renderer_assembly {
     s32                             dbg_virtual_devices;
     /** Must be no less than the count of stages that access the renderer to run in parallel. */
     u32                             frames_in_flight;
-} lake_renderer_assembly;
+} lake_mgpu_renderer_assembly;
 
 /** Collects handles related to a single window. */
 typedef struct lake_render_viewport {
@@ -73,9 +73,9 @@ typedef struct lake_render_viewport {
 } lake_video_viewport;
 
 /** Encapsulates rendering work for parallel and mGPU setups. */
-typedef struct lake_renderer {
+typedef struct lake_mgpu_renderer {
     /** Details used to create this renderer. */
-    lake_renderer_assembly          assembly;
+    lake_mgpu_renderer_assembly     assembly;
     /** The native windows from the display backend. */
     struct hadal_window_impl      **windows;
     /** Swapchain obtained from the renderer, indices match windows. */
@@ -92,27 +92,7 @@ typedef struct lake_renderer {
     /** Collects handles of the primary window and it's rendering context.
      *  If the window in this viewport closes, the renderer will too. */
     lake_video_viewport             primary_viewport;
-} lake_renderer;
-
-/** Per-device GPU submition, acquired from the results of rendering. 
- *  Every per-command queue submit may refer to a specific render graph frequency. */
-typedef struct lake_render_submit {
-    union {
-        struct {
-            moon_device_submit      main; /**< One per frame, MOON_QUEUE_MAIN */
-            moon_device_submit      compute[MOON_MAX_COMPUTE_QUEUE_COUNT];
-            moon_device_submit      transfer[MOON_MAX_TRANSFER_QUEUE_COUNT];
-            moon_device_submit      sparse[MOON_MAX_SPARSE_BINDING_QUEUE_COUNT];
-            moon_device_submit      decode[MOON_MAX_VIDEO_DECODE_QUEUE_COUNT];
-            moon_device_submit      encode[MOON_MAX_VIDEO_ENCODE_QUEUE_COUNT];
-        };
-        moon_device_submit          queue[MOON_QUEUE_INDEX_COUNT]; 
-    } command;
-    /** Bitmask constructed from (1u << MOON_QUEUE_INDEX) bits to access submitions
-     *  defined above, for specific command queues. A quick popcnt calculates total 
-     *  submits and distributes this work between independent jobs during GPUexec. */
-    u32                             bitmask;
-} lake_render_submit;
+} lake_mgpu_renderer;
 
 #ifdef __cplusplus
 }

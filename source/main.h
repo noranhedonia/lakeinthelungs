@@ -1,8 +1,11 @@
 #pragma once
 #include <lake/inthelungs.h>
 
+FN_SORCERESS_INVOKE_MOVEMENTS(lungs);
 FN_SORCERESS_ACQUIRE_WORK(lungs);
 FN_SORCERESS_RELEASE_WORK(lungs);
+FN_SORCERESS_BEGIN_OF_PIPE(lungs);
+FN_SORCERESS_END_OF_PIPE(lungs);
 FN_SORCERESS_STAGE_GAMEPLAY(lungs);
 FN_SORCERESS_STAGE_RENDERING(lungs);
 FN_SORCERESS_STAGE_GPUEXEC(lungs);
@@ -231,7 +234,7 @@ struct scene_details {
 struct sorceress_impl {
     struct sorceress_interface_impl interface;
     /** Encapsulates the video layer and rendering work for mGPU setups. */
-    lake_renderer                   renderer;
+    lake_mgpu_renderer              renderer;
 
     struct scene_details            scene;
     moon_raster_pipeline            raster_passes[raster_pipeline_count];
@@ -246,7 +249,7 @@ struct sorceress_work_impl {
      *  These can all run in parallel, for every device in question. One submit structure 
      *  is assembled per device in a mGPU setup.. Access this way: submits[device_idx]; 
      *  (calculated from: [device_idx + (timeline & (max_frames_in_flight-1))*device_count]; */
-    lake_render_submit             *submits;
+    moon_device_gpu_work           *mgpu_work;
     /** Presentation is a responsibility of the primary device, as it's the only device allowed
      *  to create and manage swapchains. The array of swapchains included in present should 
      *  refer to swapchains defined in `sorceress->video`, unless a lost window surface or 

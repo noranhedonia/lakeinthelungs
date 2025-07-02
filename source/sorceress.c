@@ -1,4 +1,4 @@
-#include <lake/inthelungs.h>
+#include <lake/modules/sorceress.h>
 #ifdef LAKE_SORCERESS
 
 enum : s8 {
@@ -20,31 +20,17 @@ FN_LAKE_BEDROCK_MAIN(sorceress_bedrock_main, PFN_lake_interface_impl impl)
     /* Controls the gameloop and engine state transitions. */
     sorceress_control_flags control = sorceress_control_flag_should_compose;
 
-    /* Holds all engine and game state. */
+    /* Holds all engine and game state, lets setup it right now. */
     sorceress_interface sorceress = { .impl = impl(bedrock), };
-    if (sorceress.impl == nullptr) { 
+    if (sorceress.v == nullptr) { 
         lake_exit_status(LAKE_ERROR_INITIALIZATION_FAILED); 
         return; 
     }
-    /* TODO setup movements for initial engine state, so first perform_movements
-     * will commit into all necessary state initialization. This could be serialized
-     * into a config file and read from here, or i could refactor sorceress_bedrock_main 
-     * to instead of PFN_lake_interface_impl accept as argument a way to figure out this 
-     * initial state, either by passing down a config file to read, or by composing that 
-     * config structure from command line arguments. */
-    /* TODO ^^ */
-
     /* This additional loop is responsible for commiting any changes to the engine state, that here we'll 
      * be calling "movements". These may include init or fini of all engine systems, hot-reloading dynamic 
      * modules and systems that use them as dependencies, user changing settings that normally would require 
      * a reboot, or for any sanitary work to resolve critical issues during game runtime. */
-    do {sorceress_compose_movements(sorceress.impl, &control);
-
-        /* Just ignore the gameloop if movements failed. */
-        if (control & sorceress_control_flag_should_exit_or_compose) 
-            continue;
-        /* Set the cursor here to allow PFN_sorceress_acquire_work to use drifter's stack as the memory allocator. */
-        lake_drift_push();
+    do {lake_drift_push();
 
         /* Will be acquired from PFN_sorceress_acquire_work. */
         u32 work_count = 0;
@@ -56,7 +42,8 @@ FN_LAKE_BEDROCK_MAIN(sorceress_bedrock_main, PFN_lake_interface_impl impl)
 
         /* Job details per pipeline stage. They will run asynchronously, the responsibility 
          * of the gameloop is to keep them synchronized and to wait for them to end whenever
-         * unsafe state transitions were issued. */
+         * unsafe state transitions were issued. We set them up here in case the interface 
+         * has reloaded it's implementation during movements. */
         lake_work_details work_details[PIPELINE_STAGE_COUNT];
         work_details[PIPELINE_GAMEPLAY_STAGE_IDX] = (lake_work_details){
             .procedure = (PFN_lake_work)sorceress.interface->stage_gameplay,
@@ -99,16 +86,24 @@ FN_LAKE_BEDROCK_MAIN(sorceress_bedrock_main, PFN_lake_interface_impl impl)
 #define RUN_PIPELINE_STAGE(stage, idx, ...) \
             work = &work_details[idx]; \
             chain = &work_chains[idx]; \
-            resolve.v = (sorceress_work *)work->argument; \
+            resolve.v = work->argument; \
             work->argument = stage.v; \
             if (resolve.v) { \
                 lake_yield(*chain); \
                 *chain = nullptr; \
-                control |= resolve.header->control & (sorceress_control_flag_should_exit_or_compose); \
+                control |= resolve.header->control; \
                 __VA_ARGS__ \
             } if (stage.v)
 
-            /* GAMEPLAY - timeline N */
+            /* GPUEXEC     timeline N-2 */
+            RUN_PIPELINE_STAGE(gpuexec, PIPELINE_GPUEXEC_STAGE_IDX, sorceress.interface->end_of_pipe(resolve.impl); )
+                { lake_submit_work(1, work, chain); }
+
+            /* RENDERING   timeline N-1 */
+            RUN_PIPELINE_STAGE(rendering, PIPELINE_RENDERING_STAGE_IDX)
+                { lake_submit_work(1, work, chain); }
+
+            /* GAMEPLAY    timeline N   */
             RUN_PIPELINE_STAGE(gameplay, PIPELINE_GAMEPLAY_STAGE_IDX) {
                 time_last = time_now;
                 time_now = lake_rtc_counter();
@@ -116,75 +111,36 @@ FN_LAKE_BEDROCK_MAIN(sorceress_bedrock_main, PFN_lake_interface_impl impl)
                 lake_frame_time_print(10.f);
                 gameplay.header->timeline = timeline++;
                 gameplay.header->dt = ((f64)(time_now - time_last) * dt_freq_reciprocal);
+                control |= gameplay.header->control = sorceress.interface->begin_of_pipe(gameplay.impl);
                 lake_submit_work(1, work, chain);
             }
-            /* RENDERING - timeline N-1 */
-            RUN_PIPELINE_STAGE(rendering, PIPELINE_RENDERING_STAGE_IDX)
-                { lake_submit_work(1, work, chain); }
-
-            /* GPUEXEC - timeline N-2 */
-            RUN_PIPELINE_STAGE(gpuexec, PIPELINE_GPUEXEC_STAGE_IDX)
-                { lake_submit_work(1, work, chain); }
-
 #undef RUN_PIPELINE_STAGE
             /* Cycle the pipeline work, or begin a transition. */
             gpuexec = rendering; 
             rendering = gameplay;
-            gameplay.v = (control & sorceress_control_flag_should_exit_or_compose)
-                ? nullptr : lake_elem(work_impl, work_stride, timeline & (work_count-1));
+            gameplay.v = !(control & sorceress_control_flag_should_exit_or_compose) 
+                ? lake_elem(work_impl, work_stride, timeline & (work_count-1)) : nullptr;
         } 
-        /* End of gameloop. Wait for remaining work to finish. */
+        /* End of gameloop. Wait for any remaining work to finish. */
         for (u32 i = 0; i < PIPELINE_STAGE_COUNT; i++) { 
-            lake_yield(work_chains[i]); 
+            lake_work_chain chain = work_chains[i];
+
+            if (chain != nullptr) {
+                sorceress_work resolve = { .v = work_details[i].argument };
+                lake_yield(work_chains[i]); 
+                control |= resolve.header->control;
+                sorceress.interface->end_of_pipe(resolve.impl);
+            }
             work_chains[i] = nullptr;
         }
         sorceress.interface->release_work(work_count, work_impl);
         lake_drift_pop();
-        /* If only a transition was requested, this loop will iterate to commit any engine state updates and continue. */
-    } while ((control & sorceress_control_flag_should_exit_or_compose) == sorceress_control_flag_should_compose);
 
-    f64 const median = lake_frame_time_median();
+        sorceress.interface->invoke_movements(sorceress.impl, &control);
+    } while (!(control & sorceress_control_flag_should_exit));
+
+    f32 const median = lake_frame_time_median();
     lake_trace("Last recorded frame time: %.3f ms (%.0f FPS).", 1000.f*median, 1.f/median);
-
-    /* Destroy all engine state before exit. */
-    sorceress_compose_movements(sorceress.impl, &control);
-}
-
-void sorceress_compose_movements(
-    struct sorceress_impl      *impl,
-    sorceress_control_flags    *control)
-{
-    lake_defer_begin;
-    sorceress_control_flags flags = *control & ~(sorceress_control_flag_should_compose);
-
-    /* An empty current transition means there is no engine state, and resolving details is simpler. */
-    bool const do_init = 0;//!lake_popcnt((u8 const *)live_composition, sizeof(sorceress_composition));
-    /* An empty transition structure equals `sorceress_control_flag_exit_app` and will destroy all state. */
-    bool const do_fini = 0;//!lake_popcnt((u8 const *)write_composition, sizeof(sorceress_composition));
-    if (do_fini) flags |= sorceress_control_flag_should_exit;
-    /* If neither initialization nor finalization, we'll only touch whatever detail has changed. */
-    bool const do_update = !do_init && !do_fini;
-
-    /* I'd like to not hold onto our temporary stuff here. ;3 */
-    lake_drift_push();
-    lake_defer({ 
-        lake_drift_pop(); 
-        *control = flags;
-    });
-
-    /* XXX if init, destroying state can be skipped */
-    /* XXX if fini, creating state can be skipped */
-    /* TODO DO THE THING MAN */
-
-    /* TODO calculate and compare control sums for the current and pending transitions */
-    (void)do_update;
-    (void)impl;
-
-    /* TODO disable "fallback_to_any" inside modules, as it's intended to be a fail safe for either 
-     * initialization or for hot-reloading custom modules. */
-
-    /* TODO init prototype */
-
-    lake_defer_return;
+    sorceress_interface_unref(sorceress);
 }
 #endif /* LAKE_SORCERESS */

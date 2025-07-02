@@ -8,257 +8,142 @@
  */
 #include <lake/bedrock/bedrock.h>
 
+#include <lake/math/bits.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
 /** A dynamic array expected to change in size. */
 typedef struct lake_darray {
-    void *v;        /**< The dynamic array of data. */
-    s32   size;     /**< The current size of the array. */
-    s32   alloc;    /**< Size of the allocation for the array. */
+    void *v;
+    s32   len, cap;
 } lake_darray;
 
-/** Define a custom darray type. */
-#define lake_darray_t(T) \
-    union { lake_darray da; T *v; }
+/** Zero out the darray. */
+#define lake_darray_clear() \
+    (lake_darray){ .v = nullptr, .len = 0, .cap = 0 }
 
-#define lake_darray_new() \
-    (lake_darray){ .v = nullptr, .size = 0, .alloc = 0 }
+/** Reset data in darray. */
+#define lake_darray_reset(da) ({ (da)->len = 0; })
 
-/** Initialize the dynamic array, allocate atleast bytes*n for future resources.
- *  TODO custom allocator? */
-LAKEAPI void LAKECALL 
-lake_darray_init_w_dbg(
-    lake_darray    *da, 
-    s32             stride, 
-    s32             align, 
-    s32             n, 
-    char const     *type);    
-#define lake_darray_init_t(da, T, n) \
-    lake_darray_init_w_dbg(da, lake_ssizeof(T), lake_salignof(T), n, "darray<"#T">")
+#define lake_darray_len(da)     ((da)->len)
+#define lake_darray_cap(da)     ((da)->cap)
+#define lake_darray_empty(da)   ((da)->len == 0)
 
-/** Release the allocation and clear the array.
- *  TODO custom allocator? */
-#define lake_darray_fini(da) \
-    do { \
-        if ((da)->v) __lake_free((da)->v); \
-        *(da) = (lake_darray){ nullptr, 0, 0 }; \
-    } while(0)
+/** Resize the darray, allocate atleast stride*n for future resources. */
+#define __lake_darray_resize_w_dbg(da, stride, align, n, type_name, allocator, deallocator) \
+    ({ \
+        lake_san_assert(stride != 0 && (n) > 0, LAKE_INVALID_PARAMETERS, "darray<"type_name">"); \
+        s32 __len = n; \
+        if (__len < (da)->len) \
+            __len = (da)->len; \
+        if ((da)->len == 0) { \
+            (da)->v = allocator((stride) * (n), (align)); \
+            (da)->len = 0; \
+            (da)->cap = n; \
+        } else if ((da)->cap != __len) { \
+            (da)->cap = (stride) * (n); \
+            void *__v = lake_memcpy(allocator((da)->cap, (align)), (da)->v, (da)->len); \
+            deallocator((da)->v); \
+            (da)->v = __v; \
+        } \
+    }) 
+#define lake_darray_resize_w_dbg(da, stride, align, n, type_name, ...) \
+    __lake_darray_resize_w_dbg(da, stride, align, n, type_name, __VA_ARGS__)
+#define lake_darray_resize_t(da, T, n, ...) \
+    __lake_darray_resize_w_dbg(da, lake_ssizeof(T), lake_salignof(T), n, #T, __VA_ARGS__)
 
-#define lake_darray_size(da)    ((da)->size)
-#define lake_darray_alloc(da)   ((da)->alloc)
-#define lake_darray_empty(da)   ((da)->size == 0)
-#define lake_darray_clear(da)   ((da)->size = 0)
+/** Initialize the darray allocation. */
+#define lake_darray_init_w_dbg(da, stride, align, n, type_name, ...) \
+    ({ \
+        *(da) = lake_darray_clear(); \
+        __lake_darray_resize_w_dbg(da, stride, align, n, type_name, __VA_ARGS__); \
+    })
+#define lake_darray_init_t(da, T, n, ...) \
+    lake_darray_init_w_dbg(da, lake_ssizeof(T), lake_salignof(T), n, #T, __VA_ARGS__)
 
-#define lake_darray_pop(da) \
-    do {((da)->size--); } while(0)
-#define lake_darray_pop_n(da,n) do {((da)->size = lake_min(0, (da)->size - n)); } while(0)
-
-#define lake_darray_elem_t(da, T, idx) \
-    lake_reinterpret_cast(T *, lake_elem_t((da)->v, T, idx))
-
-#define lake_darray_last_t(da, T) \
-    lake_reinterpret_cast(T *, lake_elem_t((da)->v, T, (da)->size - 1))
-
-#define lake_darray_beyond_t(da, T) \
-    lake_reinterpret_cast(T *, lake_elem_t((da)->v, T, (da)->size))
+/** Release the allocation and clear the array, allows optional free((da)->v). */
+#define __lake_darray_fini(da, allocator, deallocator) \
+    ({ \
+        if ((da)->v) deallocator((da)->v); \
+        *(da) = lake_darray_clear(); \
+    })
+#define lake_darray_fini(da, ...) \
+    __lake_darray_fini(da, __VA_ARGS__)
 
 #define lake_darray_first_t(da, T) \
     lake_reinterpret_cast(T *, (da)->v)
 
-#define lake_darray_elem_v(va, idx) (&(va).v[idx])
-#define lake_darray_last_v(va)      (&(va).v[(va).da.size - 1])
-#define lake_darray_first_v(va)     ((va).v)
+#define lake_darray_at_t(da, T, idx) \
+    lake_reinterpret_cast(T *, lake_elem_t((da)->v, T, idx))
 
-/** Copy all data inside the dynamic array.
- *  TODO custom allocator?
- *  @return a copy of the array. */
-LAKEAPI lake_darray LAKECALL
-lake_darray_copy(
-    lake_darray const  *da, 
-    s32                 stride, 
-    s32                 align);
-#define lake_darray_copy_t(da, T) \
-    lake_darray_copy(da, lake_ssizeof(T), lake_salignof(T))
+#define lake_darray_last_t(da, T) \
+    lake_reinterpret_cast(T *, lake_elem_t((da)->v, T, (da)->len - 1))
 
-/** If possible, try to free memory unused memory.
- *  If the array is empty, the entire array will be released.
- *  TODO custom allocator? */
-LAKEAPI void LAKECALL
-lake_darray_reclaim(
-    lake_darray    *da, 
-    s32             stride, 
-    s32             align);
-#define lake_darray_reclaim_t(da, T) \
-    lake_darray_reclaim(da, lake_ssizeof(T), lake_salignof(T))
+#define lake_darray_beyond_t(da, T) \
+    lake_reinterpret_cast(T *, lake_elem_t((da)->v, T, (da)->len))
 
-/** Resize the dynamic array to a minimum size of (bytes*n).
- *  If the requested size is smaller than the current alloc, no change is done.
- *  TODO custom allocator? */
-LAKEAPI void LAKECALL
-lake_darray_resize_w_dbg(
-    lake_darray    *da, 
-    s32             stride, 
-    s32             align, 
-    s32             n,
-    char const     *type);
-#define lake_darray_resize_t(da, T, n) \
-    lake_darray_resize_w_dbg(da, lake_ssizeof(T), lake_salignof(T), n, "darray<"#T">")
+#define lake_darray_pop(da) \
+    ({ (da)->len--; })
+#define lake_darray_popn(da, n) \
+    ({ (da)->len = lake_max(0, (da)->len - n); })
 
-/** Insert items into the end of the array.
- *  @return pointer into the array where items begin. */
-LAKE_FORCE_INLINE
-void *lake_darray_append_items(
-    lake_darray    *da, 
-    void const     *items, 
-    s32             stride, 
-    s32             align, 
-    s32             n,
-    char const     *type)
-{
-    s32 size = da->size;
-    if (size + n - 1 >= da->alloc)
-        lake_darray_resize_w_dbg(da, stride, align, size + n, type);
-    da->size = size + n;
-    return lake_memcpy(lake_elem(da->v, stride, size), items, stride * n);
-}
-
-#define lake_darray_append_n(da, T, items, n) \
+/* PRIVATE: lock */
+#define __lake_darray_op_locked(da, ACQ, REL, lock, op, ...) \
     ({ \
-        T *__item = lake_reinterpret_cast(T *, lake_darray_append_items(da, items, lake_ssizeof(T), lake_salignof(T), n, "darray<"#T">")); \
-        __item; \
+         void *__item; \
+         ACQ(lock); \
+         __item = op(da, __VA_ARGS__); \
+         REL(lock); \
+         __item; \
     })
 
-#define lake_darray_append_t(da, T, item) \
+/** Insert items after the end of the darray.
+ *  @return Pointer to array where appended items begin. */
+#define lake_darray_append_w_dbg(da, stride, align, n, items, type_name, ...) \
     ({ \
-        T *__item = lake_reinterpret_cast(T *, lake_darray_append_items(da, item, lake_ssizeof(T), lake_salignof(T), 1, "darray<"#T">")); \
-        __item; \
+        s32 __idx = (da)->len; \
+        if (__idx + n > (da)->cap) \
+            lake_darray_resize_w_dbg(da, stride, align, __idx + n, type_name, __VA_ARGS__); \
+        (da)->len = __idx + n; \
+        lake_memcpy(lake_elem((da)->v, stride, __idx), items, (stride) * n); \
     })
+#define lake_darray_append_w_spinlock(da, T, n, items, lock, ...) \
+    ({ lake_reinterpret_cast(T *, __lake_darray_op_locked(da, lake_spinlock_acquire, lake_spinlock_release, lock, \
+            lake_darray_append_w_dbg, lake_ssizeof(T), lake_salignof(T), n, items, #T, __VA_ARGS__)); })
 
+#define lake_darray_append_t(da, T, n, items, ...) \
+    ({ lake_reinterpret_cast(T *, lake_darray_append_w_dbg(da, lake_ssizeof(T), lake_salignof(T), n, items, #T, __VA_ARGS__)); })
 
-#define lake_darray_append_v_locked(va, T, item, n, spinlock) \
+/** Insert items into the array, starting at given index.
+ *  Existing data will be moved upwards.
+ *  @return Pointer to array where inserted items begin. */
+#define lake_darray_insert_w_dbg(da, stride, align, n, items, at, type_name, ...) \
     ({ \
-        T *___item; \
-        lake_spinlock_acquire(spinlock); \
-        ___item = lake_reinterpret_cast(T *, lake_darray_append_items(&(va).da, item, lake_ssizeof(T), lake_salignof(T), n, "darray<"#T">")); \
-        lake_spinlock_release(spinlock); \
-        ___item; \
+        s32 const __idx = (da)->len; \
+        if (__idx + n > (da)->cap) \
+            lake_darray_resize_w_dbg(da, stride, align, __idx + n, type_name, __VA_ARGS__); \
+        (da)->len = __idx + n; \
+        s32 const __range = lake_min(at, __idx); \
+        lake_memmove(lake_elem((da)->v, stride, __range + n), lake_elem((da)->v, stride, __range), (stride) * (__idx - __range)); \
     })
+#define lake_darray_insert_w_spinlock(da, T, n, items, at, lock, ...) \
+    ({ lake_reinterpret_cast(T *, __lake_darray_op_locked(da, lake_spinlock_acquire, lake_spinlock_release, lock, \
+            lake_darray_insert_w_dbg, lake_ssizeof(T), lake_salignof(T), n, items, at, #T, __VA_ARGS__)); })
 
-/** Insert items into the array, starting from the index item.
- *  Existing data beginning from index will be moved upwards, keeping order.
- *  @return pointer into the array where items begin. */
-LAKE_FORCE_INLINE
-void *lake_darray_insert_items(
-    lake_darray    *da, 
-    void const     *items, 
-    s32             stride, 
-    s32             align, 
-    s32             n, 
-    s32             idx,
-    char const     *type)
-{
-    s32 size = da->size;
-    if (size + n - 1 >= da->alloc)
-        lake_darray_resize_w_dbg(da, stride, align, size + n, type);
-    da->size = size + n;
-    /* don't leave the range */
-    idx = lake_min(idx, size);
-    lake_memmove(lake_elem(da->v, stride, idx + n), 
-                 lake_elem(da->v, stride, idx), stride * (size - idx));
-    return lake_memcpy(lake_elem(da->v, stride, idx), items, stride * n);
-}
+#define lake_darray_insert_t(da, T, n, items, at, ...) \
+    ({ lake_reinterpret_cast(T *, lake_darray_insert_w_dbg(da, lake_ssizeof(T), lake_salignof(T), n, items, at, #T, __VA_ARGS__)); })
 
-#define lake_darray_insert_n(da, T, items, n, idx) \
-    ({ \
-        T *__item = lake_reinterpret_cast(T *, lake_darray_insert_items(da, items, lake_ssizeof(T), lake_salignof(T), n, idx, "darray<"#T">")); \
-        __item; \
-    })
-
-#define lake_darray_insert_t(da, T, item, idx) \
-    ({ \
-        T *__item = lake_reinterpret_cast(T *, lake_darray_insert_items(da, item, lake_ssizeof(T), lake_salignof(T), 1, idx, "darray<"#T">")); \
-        __item; \
-    })
-
-#define lake_darray_insert_v_locked(va, T, item, n, idx, spinlock) \
-    ({ \
-        T *___item; \
-        lake_spinlock_acquire(spinlock); \
-        ___item = lake_reinterpret_cast(T *, lake_darray_insert_items(&(va).da, item, lake_ssizeof(T), lake_salignof(T), n, idx, "darray<"#T">")); \
-        lake_spinlock_release(spinlock); \
-        ___item; \
-    })
-
-/** Remove items from the array, starting from the index item.
- *  Existing data beginning from index will be moved downwards, keeping order. */
-LAKE_FORCE_INLINE
-void lake_darray_remove_ordered_items(
-    lake_darray    *da, 
-    s32             stride, 
-    s32             n, 
-    s32             idx)
-{
-    s32 new_size = da->size = da->size - n;
-    if (idx == new_size)
-        return;
-    lake_memmove(lake_elem(da->v, stride, idx),
-                 lake_elem(da->v, stride, idx + n), stride * (new_size - idx));
-}
-
-#define lake_darray_remove_ordered_n(da, T, n, idx) \
-    lake_darray_remove_ordered_items(da, lake_ssizeof(T), n, idx)
-
-#define lake_darray_remove_ordered_t(da, T, idx) \
-    lake_darray_remove_ordered_items(da, lake_ssizeof(T), 1, idx)
-
-#define lake_darray_remove_ordered_v_locked(va, T, n, spinlock) \
-    ({ \
-        lake_spinlock_acquire(spinlock); \
-        lake_darray_remove_ordered_items(&(va).da, lake_ssizeof(T), n, idx)); \
-        lake_spinlock_release(spinlock); \
-    })
-
-/** Remove items from the array, starting from the index item.
- *  Last items in the array will be moved unordered, to pop the array.
- *  Should be faster than the ordered counterpart. */
-LAKE_FORCE_INLINE
-void lake_darray_remove_items(
-    lake_darray    *da, 
-    s32             stride, 
-    s32             n, 
-    s32             idx)
-{
-    s32 new_size = da->size = da->size - n;
-    if (idx == new_size)
-        return;
-    lake_memcpy(lake_elem(da->v, stride, idx),
-                lake_elem(da->v, stride, new_size), stride * n);
-}
-
-#define lake_darray_remove_n(da, T, n, idx) \
-    lake_darray_remove_items(da, lake_ssizeof(T), n, idx)
-
-#define lake_darray_remove_t(da, T, idx) \
-    lake_darray_remove_items(da, lake_ssizeof(T), 1, idx)
-
-#define lake_darray_remove_v_locked(va, T, n, spinlock) \
-    ({ \
-        lake_spinlock_acquire(spinlock); \
-        lake_darray_remove_items(&(va).da, lake_ssizeof(T), n, idx)); \
-        lake_spinlock_release(spinlock); \
-    })
-
-/** Union procedure, to traverse over all elements in a dynamic array. 
+/** Traverse over all elements in a dynamic array. 
  *  The `iter` is declared as a pointer to an item. */
-#define lake_darray_foreach_v(va, T, iter) \
-    for (T *(iter) = &(va).v[0]; (iter) < &(va).v[(va).da.size]; (iter)++)
+#define lake_darray_foreach_t(da, T, iter) \
+    for (T *(iter) = lake_darray_first_t(da, T); (iter) < lake_darray_beyond_t(da, T); (iter)++)
 
-/** Union procedure, to traverse over all elements in a dynamic array in reverse.
+/** Traverse over all elements in a dynamic array in reverse.
  *  The `iter` is declared as a pointer to an item. */
-#define lake_darray_foreach_reverse_v(va, T, iter) \
-    for (T *(iter) = &(va).v[(va).da.size]; (iter)-- > &(va).v[0]; )
+#define lake_darray_foreach_reverse_t(da, T, iter) \
+    for (T *(iter) = lake_darray_last_t(da, T); (iter)-- > lake_darray_first_t(da, T); )
 
 #ifdef __cplusplus
 }

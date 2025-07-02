@@ -1,6 +1,6 @@
 #include "bedrock_impl.h"
 
-static struct region *construct_drift_region(usize const block_aligned)
+static struct region *LAKECALL construct_drift_region(usize const block_aligned)
 {
     u8 *raw = (u8 *)g_bedrock;
     usize block = acquire_blocks(block_aligned);
@@ -15,7 +15,7 @@ static struct region *construct_drift_region(usize const block_aligned)
 }
 
 LAKE_HOT_FN LAKE_MALLOC
-static void *LAKECALL drift_allocation(struct drifter *d, usize size, usize align)
+static void *LAKECALL drifter_allocation(struct drifter *d, usize size, usize align)
 {
     u8 *raw = (u8 *)g_bedrock;
     struct region *tail = d->tail_page;
@@ -39,12 +39,12 @@ static void *LAKECALL drift_allocation(struct drifter *d, usize size, usize alig
     return (void *)(uptr)(raw + tail->v + aligned);
 }
 
-void *lake_drift(usize size, usize align)
+void *lake_drift_allocate(usize size, usize align)
 {
     struct tls *tls = get_thread_local_storage();
     struct fiber *f = &g_bedrock->fibers[tls->fiber_in_use];
     struct drifter *d = &f->drifter;
-    return drift_allocation(d, size, align);
+    return drifter_allocation(d, size, align);
 }
 
 void *lake_drift_alias(usize size, usize align)
@@ -54,7 +54,7 @@ void *lake_drift_alias(usize size, usize align)
     struct drifter *d = &f->drifter;
     struct region *tail = d->tail_page;
     usize offset = 0;
-    void *ret = drift_allocation(d, size, align); 
+    void *ret = drifter_allocation(d, size, align); 
 
     if (lake_likely(tail != nullptr))
         offset = d->tail_page->offset;
@@ -66,20 +66,20 @@ void *lake_drift_alias(usize size, usize align)
     return ret;
 }
 
-void lake_drift_scratch(s32 depth)
+void _lake_drift_scratch(s32 depth)
 {
     struct tls *tls = get_thread_local_storage();
     struct fiber *f = &g_bedrock->fibers[tls->fiber_in_use];
     struct drifter *d = &f->drifter;
 
-    if (depth == __lake_drift_scratch_push__) {
+    if (depth == _lake_drift_scratch_push) {
         struct drifter_cursor *cursor = (struct drifter_cursor *)
-            drift_allocation(d, sizeof(struct drifter_cursor), alignof(struct drifter_cursor));
+            drifter_allocation(d, sizeof(struct drifter_cursor), alignof(struct drifter_cursor));
         cursor->tail = d->tail_page;
         cursor->prev = d->tail_cursor;
         cursor->offset = d->tail_page->offset;
         d->tail_cursor = cursor;
-    } else if (depth == __lake_drift_scratch_pop__) {
+    } else if (depth == _lake_drift_scratch_pop) {
         struct drifter_cursor *cursor = d->tail_cursor;
 
         d->tail_cursor = cursor->prev;

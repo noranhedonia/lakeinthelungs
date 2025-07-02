@@ -101,7 +101,6 @@ endif
 subdir('asm')
 subdir('audio')
 subdir('bedrock')
-subdir('data_structures')
 subdir('display')
 subdir('graphics')
 subdir('math')

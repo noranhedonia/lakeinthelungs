@@ -177,7 +177,7 @@ static void LAKECALL bedrock_init(lake_bedrock *bedrock)
     lake_dbg_assert(!(((sptr)g_bedrock->bitmap)         & 15), LAKE_PANIC, nullptr);
     lake_dbg_assert(!(((sptr)g_bedrock->stack)          & 15), LAKE_PANIC, nullptr);
 
-    lake_mpmc_init_t(&g_bedrock->work_queue.ring, work_queue_node, work_count, work_nodes);
+    lake_mpmc_init_t(&g_bedrock->work_queue, work_queue_node, work_count, work_nodes);
 
     for (s32 i = 0; i < g_bedrock->fiber_count; i++) {
         lake_atomic_init(&g_bedrock->free[i], i);

@@ -1,6 +1,6 @@
 #pragma once
 
-/** @file lake/data_structures/stack_allocator.h 
+/** @file lake/data_structures/stack.h 
  *  @brief TODO docs 
  */
 #include <lake/bedrock/bedrock.h>
@@ -23,11 +23,11 @@ typedef struct lake_stack_cursor {
     bool                        is_free;
 } lake_stack_cursor;
 
-typedef struct lake_stack_allocator {
+typedef struct lake_stack {
     lake_stack_page            *head;
     lake_stack_page            *tail_page;
     lake_stack_cursor          *tail_cursor;
-} lake_stack_allocator;
+} lake_stack;
 
 #ifdef __cplusplus
 }

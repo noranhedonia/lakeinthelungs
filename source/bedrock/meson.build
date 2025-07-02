@@ -1,5 +1,6 @@
 engine_sources += files(
     'bedrock.c',
+    'data_structures.c',
     'drifter.c',
     'frame_time.c',
     'job_system.c',

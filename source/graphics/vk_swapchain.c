@@ -7,9 +7,9 @@
 static void partial_swapchain_cleanup(struct moon_swapchain_impl *swapchain)
 {
     LAKE_UNUSED lake_result __ignore;
-    lake_darray_foreach_v(swapchain->images, moon_texture_id, id)
+    lake_darray_foreach_t(&swapchain->images, moon_texture_id, id)
         __ignore = _moon_vulkan_destroy_texture(swapchain->header.device.impl, *id);
-    lake_darray_clear(&swapchain->images.da);
+    lake_darray_reset(&swapchain->images);
 }
 
 static void full_swapchain_cleanup(struct moon_swapchain_impl *swapchain)
@@ -27,19 +27,19 @@ static void full_swapchain_cleanup(struct moon_swapchain_impl *swapchain)
     if (swapchain->header.assembly.native_window != nullptr)
         hadal_window_unref(lake_impl_v(hadal_window, swapchain->header.assembly.native_window));
 
-    lake_darray_foreach_v(swapchain->acquire_semaphores, struct moon_binary_semaphore_impl *, impl) 
+    lake_darray_foreach_t(&swapchain->acquire_semaphores, struct moon_binary_semaphore_impl *, impl) 
         if (impl != nullptr) moon_binary_semaphore_unref_v(*impl);
 
-    lake_darray_foreach_v(swapchain->present_semaphores, struct moon_binary_semaphore_impl *, impl) 
+    lake_darray_foreach_t(&swapchain->present_semaphores, struct moon_binary_semaphore_impl *, impl) 
         if (impl != nullptr) moon_binary_semaphore_unref_v(*impl);
 
     if (swapchain->gpu_timeline != nullptr)
         moon_timeline_semaphore_unref(lake_impl_v(moon_timeline_semaphore, swapchain->gpu_timeline));
 
-    lake_darray_fini(&swapchain->acquire_semaphores.da);
-    lake_darray_fini(&swapchain->present_semaphores.da);
-    lake_darray_fini(&swapchain->supported_present_modes.da);
-    lake_darray_fini(&swapchain->images.da);
+    lake_darray_fini(&swapchain->acquire_semaphores, lake_machina);
+    lake_darray_fini(&swapchain->present_semaphores, lake_machina);
+    lake_darray_fini(&swapchain->supported_present_modes, lake_machina);
+    lake_darray_fini(&swapchain->images, lake_machina);
     *swapchain = (struct moon_swapchain_impl){0};
 
     if (device != nullptr) moon_device_unref(lake_impl_v(moon_device, device));
@@ -121,7 +121,7 @@ static lake_result recreate_swapchain(struct moon_swapchain_impl *swapchain)
     if (vk_result != VK_SUCCESS)
         return vk_result_translate(vk_result);
 
-    VkImage *images = lake_drift_n(VkImage, image_count);
+    VkImage *images = lake_drift_allocate_n(VkImage, image_count);
     vk_result = device->vkGetSwapchainImagesKHR(
             device->vk_device,
             swapchain->vk_swapchain,
@@ -130,7 +130,7 @@ static lake_result recreate_swapchain(struct moon_swapchain_impl *swapchain)
     if (vk_result != VK_SUCCESS)
         return vk_result_translate(vk_result);
 
-    lake_darray_resize_t(&swapchain->images.da, moon_texture_id, image_count);
+    lake_darray_resize_t(&swapchain->images, moon_texture_id, image_count, lake_machina);
     for (u32 i = 0; i < image_count; i++) {
         moon_texture_assembly texture_assembly = {
             .format = (moon_format)swapchain->vk_surface_format.format,
@@ -149,7 +149,7 @@ static lake_result recreate_swapchain(struct moon_swapchain_impl *swapchain)
                 i, usage, &texture_assembly, &id);
         if (result != LAKE_SUCCESS)
             return result;
-        lake_darray_append_t(&swapchain->images.da, moon_texture_id, &id);
+        lake_darray_append_t(&swapchain->images, moon_texture_id, 1, &id, lake_machina);
     }
 #ifndef LAKE_NDEBUG
     if (device->vkSetDebugUtilsObjectNameEXT != nullptr) {
@@ -205,12 +205,12 @@ FN_MOON_SWAPCHAIN_ASSEMBLY(vulkan)
     if (vk_result != VK_SUCCESS) 
         { lake_defer_return vk_result_translate(vk_result); }
 
-    lake_darray_resize_t(&swapchain.supported_present_modes.da, VkPresentModeKHR, present_mode_count);
+    lake_darray_resize_t(&swapchain.supported_present_modes, VkPresentModeKHR, present_mode_count, lake_machina);
     vk_result = moon->vkGetPhysicalDeviceSurfacePresentModesKHR(
             vk_physical_device, 
             swapchain.vk_surface, 
             &present_mode_count, 
-            lake_darray_first_v(swapchain.supported_present_modes));
+            lake_darray_first_t(&swapchain.supported_present_modes, VkPresentModeKHR));
     if (vk_result != VK_SUCCESS) 
         { lake_defer_return vk_result_translate(vk_result); }
 
@@ -226,13 +226,13 @@ FN_MOON_SWAPCHAIN_ASSEMBLY(vulkan)
     else if (format_count == 0)
         { lake_defer_return LAKE_ERROR_FORMAT_NOT_SUPPORTED; }
 
-    lake_darray_t(VkSurfaceFormatKHR) surface_formats;
-    lake_darray_init_t(&surface_formats.da, VkSurfaceFormatKHR, format_count);
+    lake_darray surface_formats;
+    lake_darray_init_t(&surface_formats, VkSurfaceFormatKHR, format_count, lake_drifter);
     vk_result = moon->vkGetPhysicalDeviceSurfaceFormatsKHR(
             vk_physical_device,
             swapchain.vk_surface,
             &format_count,
-            lake_darray_first_v(surface_formats));
+            lake_darray_first_t(&surface_formats, VkSurfaceFormatKHR));
     if (vk_result != VK_SUCCESS) 
         { lake_defer_return vk_result_translate(vk_result); }
 
@@ -241,7 +241,7 @@ FN_MOON_SWAPCHAIN_ASSEMBLY(vulkan)
     s32 best_format = swapchain.header.assembly.surface_format_selector(format_count, (moon_format const *)surface_formats.v);
     if (best_format < 0) { lake_defer_return LAKE_ERROR_FORMAT_NOT_SUPPORTED; }
 
-    swapchain.vk_surface_format = *lake_darray_elem_v(surface_formats, lake_min(lake_darray_size(&surface_formats.da), best_format));
+    swapchain.vk_surface_format = *lake_darray_at_t(&surface_formats, VkSurfaceFormatKHR, lake_min(lake_darray_len(&surface_formats) - 1, best_format));
 
     /* most of the swapchain creation work comes from here :D */
     result = recreate_swapchain(&swapchain);
@@ -256,19 +256,18 @@ FN_MOON_SWAPCHAIN_ASSEMBLY(vulkan)
         result = _moon_vulkan_binary_semaphore_assembly(device, &sem_assembly, &sem);
         if (result != LAKE_SUCCESS)
             { lake_defer_return result; }
-        lake_darray_append_t(&swapchain.acquire_semaphores.da, struct moon_binary_semaphore_impl *, &sem);
+        lake_darray_append_t(&swapchain.acquire_semaphores, struct moon_binary_semaphore_impl *, 1, &sem, lake_machina);
     }
 
     /* a present semaphore for each swapchain image */
-    for (s32 i = 0; i < lake_darray_size(&swapchain.images.da); i++) {
+    for (s32 i = 0; i < lake_darray_len(&swapchain.images); i++) {
         struct moon_binary_semaphore_impl *sem;
         moon_binary_semaphore_assembly const sem_assembly = {0};
         result = _moon_vulkan_binary_semaphore_assembly(device, &sem_assembly, &sem);
         if (result != LAKE_SUCCESS)
             { lake_defer_return result; }
-        lake_darray_append_t(&swapchain.present_semaphores.da, struct moon_binary_semaphore_impl *, &sem);
+        lake_darray_append_t(&swapchain.present_semaphores, struct moon_binary_semaphore_impl *, 1, &sem, lake_machina);
     }
-
     moon_timeline_semaphore_assembly tsem_assembly = {
         .initial_value = 0,
         .name = assembly->name,
@@ -312,8 +311,9 @@ FN_MOON_SWAPCHAIN_ACQUIRE_NEXT_IMAGE(vulkan)
     if (result != LAKE_SUCCESS)
         return result;
 
+    /* TODO make the darray work on structures instead of handles to semaphores. */
     swapchain->acquire_semaphore_idx = (swapchain->cpu_timeline + 1) % swapchain->header.assembly.max_allowed_frames_in_flight;
-    struct moon_binary_semaphore_impl *acquire_sem = swapchain->acquire_semaphores.v[swapchain->acquire_semaphore_idx];
+    struct moon_binary_semaphore_impl *acquire_sem = *lake_darray_at_t(&swapchain->acquire_semaphores, struct moon_binary_semaphore_impl *, swapchain->acquire_semaphore_idx);
     result = vk_result_translate(
         device->vkAcquireNextImageKHR(
             device->vk_device,
@@ -325,19 +325,21 @@ FN_MOON_SWAPCHAIN_ACQUIRE_NEXT_IMAGE(vulkan)
     /* only bump the cpu timeline, when the acquire succeeds */
     if (result == LAKE_SUCCESS) {
         swapchain->cpu_timeline++;
-        *out_texture = swapchain->images.v[swapchain->current_image_idx];
+        *out_texture = *lake_darray_at_t(&swapchain->images, moon_texture_id, swapchain->current_image_idx);
     }
     return result;
 }
 
 FN_MOON_SWAPCHAIN_CURRENT_ACQUIRE_SEMAPHORE(vulkan)
 {
-    return swapchain->acquire_semaphores.v[swapchain->acquire_semaphore_idx];
+    /* TODO make the darray work on structures instead of handles to semaphores. */
+    return *lake_darray_at_t(&swapchain->acquire_semaphores, struct moon_binary_semaphore_impl *, swapchain->acquire_semaphore_idx);
 }
 
 FN_MOON_SWAPCHAIN_CURRENT_PRESENT_SEMAPHORE(vulkan)
 {
-    return swapchain->present_semaphores.v[swapchain->current_image_idx];
+    /* TODO make the darray work on structures instead of handles to semaphores. */
+    return *lake_darray_at_t(&swapchain->present_semaphores, struct moon_binary_semaphore_impl *, swapchain->current_image_idx);
 }
 
 FN_MOON_SWAPCHAIN_CURRENT_CPU_TIMELINE_VALUE(vulkan)

@@ -46,10 +46,12 @@ void *LAKECALL __lake_realloc(void *ptr, usize size, usize align);
 #define __lake_realloc_n(ptr, T, n) __lake_realloc(ptr, sizeof(T) * (n), alignof(T))
 
 /** Frees memory allocated from `__lake_malloc()`. */
-LAKEAPI LAKE_HOT_FN 
+LAKEAPI LAKE_HOT_FN
 void LAKECALL __lake_free(void *ptr);
 
-/* TODO machina */
+/** Expected to be used in macro allocator expansions.
+ * TODO machina, replace malloc and free */
+#define lake_machina __lake_malloc, __lake_free
 
 #ifdef __cplusplus
 }

@@ -66,7 +66,7 @@ static void LAKECALL destroy_compute_pipeline_assembly_shader_modules(
 struct populate_work_graph_pipeline_work {
     struct moon_work_graph_pipeline_impl    impl;
     VkExecutionGraphPipelineCreateInfoAMDX *vk_create_info;
-    lake_darray_t(VkShaderModule)           vk_shader_modules;
+    lake_darray                             vk_shader_modules; /**< darray<VkShaderModule> */
     VkResult                                vk_result;
 };
 
@@ -85,10 +85,10 @@ static void LAKECALL destroy_work_graph_pipeline_assembly_shader_modules(
     struct populate_work_graph_pipeline_work *work)
 {
     for (u32 i = 0; i < count; i++) {
-        lake_darray_foreach_v(work[i].vk_shader_modules, VkShaderModule, module) {
+        lake_darray_foreach_t(&work[i].vk_shader_modules, VkShaderModule, module) {
             if (*module != VK_NULL_HANDLE) device->vkDestroyShaderModule(device->vk_device, *module, device->vk_allocator);
         }
-        lake_darray_fini(&work[i].vk_shader_modules.da);
+        lake_darray_fini(&work[i].vk_shader_modules, lake_drifter);
     }
 }
 
@@ -136,12 +136,12 @@ FN_MOON_WORK_GRAPH_PIPELINE_SCRATCH_SIZE(vulkan)
 }
 
 struct populate_ray_tracing_pipeline_work {
-    struct moon_ray_tracing_pipeline_impl               impl;
-    VkRayTracingPipelineCreateInfoKHR                  *vk_create_info;
-    lake_darray_t(VkShaderModule)                       vk_shader_modules;
-    lake_darray_t(VkPipelineShaderStageCreateInfo)      vk_stages;
-    lake_darray_t(VkRayTracingShaderGroupCreateInfoKHR) vk_groups;
-    VkResult                                            vk_result;
+    struct moon_ray_tracing_pipeline_impl   impl;
+    VkRayTracingPipelineCreateInfoKHR      *vk_create_info;
+    lake_darray                             vk_shader_modules; /**< darray<VkShaderModule> */
+    lake_darray                             vk_stages;         /**< darray<VkPipelineShaderStageCreateInfo> */
+    lake_darray                             vk_groups;         /**< darray<VkRayTracingShaderGroupCreateInfoKHR> */
+    VkResult                                vk_result;
 };
 
 static FN_LAKE_WORK(populate_ray_tracing_pipeline, struct populate_ray_tracing_pipeline_work *work)
@@ -150,15 +150,15 @@ static FN_LAKE_WORK(populate_ray_tracing_pipeline, struct populate_ray_tracing_p
     struct moon_device_impl const *device = impl->header.device.impl;
     moon_device_ray_tracing_pipeline_details const *details = &device->header.details->ray_tracing_pipeline_details;
 
-    impl->shader_group_count = lake_darray_size(&impl->header.assembly.shader_groups.da);
+    impl->shader_group_count = impl->header.assembly.shader_group_count;
     /* TODO */
 
-    u32 const raygen_count = lake_darray_size(&impl->header.assembly.ray_gen_stages.da);
-    u32 const intersection_count = lake_darray_size(&impl->header.assembly.intersection_stages.da);
-    u32 const any_hit_count = lake_darray_size(&impl->header.assembly.any_hit_stages.da);
-    u32 const callable_count = lake_darray_size(&impl->header.assembly.callable_stages.da);
-    u32 const closest_hit_count = lake_darray_size(&impl->header.assembly.closest_hit_stages.da);
-    u32 const miss_hit_count = lake_darray_size(&impl->header.assembly.miss_stages.da);
+    u32 const raygen_count = impl->header.assembly.ray_gen_stage_count;
+    u32 const intersection_count = impl->header.assembly.intersection_stage_count;
+    u32 const any_hit_count = impl->header.assembly.any_hit_stage_count;
+    u32 const callable_count = impl->header.assembly.callable_stage_count;
+    u32 const closest_hit_count = impl->header.assembly.closest_hit_stage_count;
+    u32 const miss_hit_count = impl->header.assembly.miss_stage_count;
     u32 const all_stages_count = 
         raygen_count +
         intersection_count +
@@ -175,6 +175,8 @@ static FN_LAKE_WORK(populate_ray_tracing_pipeline, struct populate_ray_tracing_p
     if (work->vk_result != VK_SUCCESS)
         return;
     impl->vk_pipeline_layout = device->gpu_sr_table.pipeline_layouts[(impl->header.assembly.push_constant_size + 3) >> 2];
+
+    /* TODO DO THE WORK */
 
     *work->vk_create_info = (VkRayTracingPipelineCreateInfoKHR){
         .sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR,
@@ -200,10 +202,10 @@ static void LAKECALL destroy_ray_tracing_pipeline_assembly_shader_modules(
     struct populate_ray_tracing_pipeline_work *work)
 {
     for (u32 i = 0; i < count; i++) {
-        lake_darray_foreach_v(work[i].vk_shader_modules, VkShaderModule, module) {
+        lake_darray_foreach_t(&work[i].vk_shader_modules, VkShaderModule, module) {
             if (*module != VK_NULL_HANDLE) device->vkDestroyShaderModule(device->vk_device, *module, device->vk_allocator);
         }
-        lake_darray_fini(&work[i].vk_shader_modules.da);
+        lake_darray_fini(&work[i].vk_shader_modules, lake_drifter);
     }
 }
 
@@ -213,12 +215,12 @@ FN_MOON_RAY_TRACING_PIPELINE_CREATE_DEFAULT_SBT(vulkan)
     struct moon_device_impl *device = pipeline->header.device.impl;
     moon_device_ray_tracing_pipeline_details const *rt_details = &device->header.details->ray_tracing_pipeline_details;
 
-    u32 const raygen_count = lake_darray_size(&assembly->ray_gen_stages.da);
-    u32 const intersection_count = lake_darray_size(&assembly->intersection_stages.da);
-    u32 const any_hit_count = lake_darray_size(&assembly->any_hit_stages.da);
-    u32 const callable_hit_count = lake_darray_size(&assembly->callable_stages.da);
-    u32 const closest_hit_count = lake_darray_size(&assembly->closest_hit_stages.da);
-    u32 const miss_hit_count = lake_darray_size(&assembly->miss_stages.da);
+    u32 const raygen_count = assembly->ray_gen_stage_count;
+    u32 const intersection_count = assembly->intersection_stage_count;
+    u32 const any_hit_count = assembly->any_hit_stage_count;
+    u32 const callable_hit_count = assembly->callable_stage_count;
+    u32 const closest_hit_count = assembly->closest_hit_stage_count;
+    u32 const miss_hit_count = assembly->miss_stage_count;
 
     /* Because the shaders are provided in order, we can calculate the 
      * start and end range of shader indices that fall into each group. */
@@ -769,7 +771,7 @@ static void LAKECALL destroy_raster_pipeline_assembly_shader_modules(
                 work_details_bytes; \
             \
             usize o = 0; \
-            raw = (u8 *)__lake_malloc(total_bytes, 16); \
+            raw = (u8 *)lake_drift_allocate(total_bytes, 16); \
             \
             vk_create_infos = (vk_ci *)&raw[o]; \
             o += vk_create_infos_bytes; \
@@ -826,7 +828,6 @@ static void LAKECALL destroy_raster_pipeline_assembly_shader_modules(
             for (u32 i = 0; i < count; i++) \
                 if (vk_pipelines[i] != VK_NULL_HANDLE) \
                     device->vkDestroyPipeline(device->vk_device, vk_pipelines[i], device->vk_allocator); \
-            __lake_free(raw); \
             return vk_result_translate(vk_result); \
         } \
         /* write our pipelines to handles */ \
@@ -839,7 +840,6 @@ static void LAKECALL destroy_raster_pipeline_assembly_shader_modules(
             lake_inc_refcnt(&out->header.refcnt); \
             out_pipelines[i] = out; \
         } \
-        __lake_free(raw); \
         return LAKE_SUCCESS; \
     } \
     \
@@ -852,7 +852,7 @@ static void LAKECALL destroy_raster_pipeline_assembly_shader_modules(
             .second = { .vk_pipeline = pipeline->vk_pipeline }, \
         }; \
         lake_spinlock *lock = &device->zombies_locks[zombie_timeline_pipeline_idx]; \
-        lake_deque_unshift_v_locked(device->pipeline_zombies, zombie_timeline_pipeline, submit, lock); \
+        lake_deque_unshift_w_spinlock(&device->pipeline_zombies, zombie_timeline_pipeline, &submit, lock, lake_machina); \
         \
         moon_device_unref(pipeline->header.device); \
         __lake_free(pipeline); \

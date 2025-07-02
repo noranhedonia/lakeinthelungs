@@ -1,10 +1,10 @@
 #include "../test_framework.h"
 
 static struct test_case_details g_tests[] = {
-    //IMPL_TEST_CASE(Graphics_renderer, todo),
+    //IMPL_TEST_CASE(DS_arena, todo),
 };
 
-FN_TEST_SUITE_INIT(Graphics_renderer)
+FN_TEST_SUITE_INIT(DS_arena)
 {
     *out = (struct test_suite_details){
         .count = lake_arraysize(g_tests),
@@ -14,7 +14,7 @@ FN_TEST_SUITE_INIT(Graphics_renderer)
     (void)bedrock;
 }
 
-FN_TEST_SUITE_FINI(Graphics_renderer)
+FN_TEST_SUITE_FINI(DS_arena)
 {
     (void)userdata;
 }

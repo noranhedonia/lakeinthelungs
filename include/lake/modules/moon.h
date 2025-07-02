@@ -1848,14 +1848,18 @@ typedef union moon_work_graph_node {
 } moon_work_graph_node;
 
 typedef struct moon_work_graph_pipeline_assembly {
-    lake_darray_t(moon_shader_assembly const)   stages; /* compute or mesh */
-    lake_darray_t(moon_work_graph_node const)   nodes;
-    u32                                         push_constant_size;
-    lake_small_string                           name;
+    moon_shader_assembly const     *stages; /* compute or mesh */
+    moon_work_graph_node const     *nodes;
+    u32                             stage_count;
+    u32                             node_count;
+    u32                             push_constant_size;
+    lake_small_string               name;
 } moon_work_graph_pipeline_assembly;
 static constexpr moon_work_graph_pipeline_assembly MOON_WORK_GRAPH_PIPELINE_ASSEMBLY_INIT = {
-    .stages = { .da = lake_darray_new() },
-    .nodes = { .da = lake_darray_new() },
+    .stages = nullptr,
+    .nodes = nullptr,
+    .stage_count = 0,
+    .node_count = 0,
     .push_constant_size = MOON_MAX_PUSH_CONSTANT_BYTE_SIZE,
     .name = {},
 };
@@ -1905,25 +1909,39 @@ static constexpr moon_ray_tracing_shader_group MOON_RAY_TRACING_SHADER_GROUP_INI
 };
 
 typedef struct moon_ray_tracing_pipeline_assembly {
-    lake_darray_t(moon_shader_assembly const)   ray_gen_stages;
-    lake_darray_t(moon_shader_assembly const)   miss_stages;
-    lake_darray_t(moon_shader_assembly const)   callable_stages;
-    lake_darray_t(moon_shader_assembly const)   intersection_stages;
-    lake_darray_t(moon_shader_assembly const)   closest_hit_stages;
-    lake_darray_t(moon_shader_assembly const)   any_hit_stages;
-    lake_darray_t(moon_shader_assembly const)   shader_groups;
-    u32                                         max_ray_recursion_depth;
-    u32                                         push_constant_size;
-    lake_small_string                           name;
+    moon_shader_assembly const     *ray_gen_stages;
+    moon_shader_assembly const     *miss_stages;
+    moon_shader_assembly const     *callable_stages;
+    moon_shader_assembly const     *intersection_stages;
+    moon_shader_assembly const     *closest_hit_stages;
+    moon_shader_assembly const     *any_hit_stages;
+    moon_shader_assembly const     *shader_groups;
+    u32                             ray_gen_stage_count;
+    u32                             miss_stage_count;
+    u32                             callable_stage_count;
+    u32                             intersection_stage_count;
+    u32                             closest_hit_stage_count;
+    u32                             any_hit_stage_count;
+    u32                             shader_group_count;
+    u32                             max_ray_recursion_depth;
+    u32                             push_constant_size;
+    lake_small_string               name;
 } moon_ray_tracing_pipeline_assembly;
 static constexpr moon_ray_tracing_pipeline_assembly MOON_RAY_TRACING_PIPELINE_ASSEMBLY_INIT = {
-    .ray_gen_stages = { .da = lake_darray_new() },
-    .miss_stages = { .da = lake_darray_new() },
-    .callable_stages = { .da = lake_darray_new() },
-    .intersection_stages = { .da = lake_darray_new() },
-    .closest_hit_stages = { .da = lake_darray_new() },
-    .any_hit_stages = { .da = lake_darray_new() },
-    .shader_groups = { .da = lake_darray_new() },
+    .ray_gen_stages = nullptr,
+    .miss_stages = nullptr,
+    .callable_stages = nullptr,
+    .intersection_stages = nullptr,
+    .closest_hit_stages = nullptr,
+    .any_hit_stages = nullptr,
+    .shader_groups = nullptr,
+    .ray_gen_stage_count = 0,
+    .miss_stage_count = 0,
+    .callable_stage_count = 0,
+    .intersection_stage_count = 0,
+    .closest_hit_stage_count = 0,
+    .any_hit_stage_count = 0,
+    .shader_group_count = 0,
     .max_ray_recursion_depth = 0,
     .push_constant_size = MOON_MAX_PUSH_CONSTANT_BYTE_SIZE,
     .name = {},
@@ -3153,6 +3171,28 @@ moon_queue_type_to_string(
 
 /** Used as a suplementary for the swapchain surface selector, if no custom one was given. */
 LAKEAPI FN_MOON_SURFACE_FORMAT_SELECTOR(moon_default_surface_format_selector);
+
+/** Per-device GPU submition, acquired from the results of rendering. 
+ *  Every per-command queue submit may refer to a specific render graph frequency. */
+typedef struct moon_device_gpu_work {
+    union {
+        struct {
+            moon_device_submit      main; /**< One per frame, MOON_QUEUE_MAIN */
+            moon_device_submit      compute[MOON_MAX_COMPUTE_QUEUE_COUNT];
+            moon_device_submit      transfer[MOON_MAX_TRANSFER_QUEUE_COUNT];
+            moon_device_submit      sparse[MOON_MAX_SPARSE_BINDING_QUEUE_COUNT];
+            moon_device_submit      decode[MOON_MAX_VIDEO_DECODE_QUEUE_COUNT];
+            moon_device_submit      encode[MOON_MAX_VIDEO_ENCODE_QUEUE_COUNT];
+        };
+        moon_device_submit          queue[MOON_QUEUE_INDEX_COUNT]; 
+    } command;
+    /** Bitmask constructed from (1u << MOON_QUEUE_INDEX) bits to access submitions
+     *  defined above, for specific command queues. A quick popcnt calculates total 
+     *  submits and distributes this work between independent jobs during GPUexec. */
+    u32                             bitmask;
+} moon_device_gpu_work;
+
+/* TODO moon_device_work helper function */
 
 #ifdef __cplusplus
 }

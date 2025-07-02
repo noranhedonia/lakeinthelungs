@@ -667,7 +667,7 @@ typedef lake_result (LAKECALL *PFN_hadal_vulkan_create_surface)(struct hadal_win
 /** Interface of the display backend. */
 struct hadal_interface_impl {
     lake_interface_header                   header;
-    lake_darray_t(hadal_display)            displays;
+    lake_darray                             displays; /**< darray<hadal_display_impl> */
 #ifdef MOON_VULKAN
     PFN_hadal_vulkan_connect_instance       vulkan_connect_instance;
     PFN_hadal_vulkan_presentation_support   vulkan_presentation_support;

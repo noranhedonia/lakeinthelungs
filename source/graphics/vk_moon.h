@@ -3,7 +3,7 @@
 #include <lake/modules/moon.h>
 #include <lake/data_structures/darray.h>
 #include <lake/data_structures/deque.h>
-#include <lake/data_structures/mpmc_ring.h>
+#include <lake/data_structures/mpmc.h>
 #ifdef MOON_VULKAN
 
 FN_MOON_CONNECT_TO_HADAL(vulkan);
@@ -355,12 +355,12 @@ struct pipeline_zombie {
 struct command_recorder_zombie { 
     moon_queue_type                         queue_type;
     VkCommandPool                           vk_cmd_pool;
-    lake_darray_t(VkCommandBuffer)          allocated_command_buffers;
+    lake_darray                             allocated_command_buffers;  /**< darray<VkCommandBuffer> */
 };
 
 struct submit_zombie {
-    lake_darray_t(moon_binary_semaphore)    binary_semaphores;
-    lake_darray_t(moon_timeline_semaphore)  timeline_semaphores;
+    lake_darray                             binary_semaphores;          /**< darray<moon_binary_semaphore> */
+    lake_darray                             timeline_semaphores;        /**< darray<moon_timeline_semaphore> */
 };
 
 struct buffer_impl_slot {
@@ -420,57 +420,57 @@ static constexpr usize GPU_SR_POOL_PAGE_MASK = (GPU_SR_POOL_PAGE_SIZE - 1u);
 static constexpr usize GPU_SR_POOL_PAGE_COUNT = (GPU_SR_POOL_MAX_RESOURCE_COUNT / GPU_SR_POOL_PAGE_SIZE);
 static constexpr usize GPU_SR_POOL_VERSION_ZOMBIE_BIT = (1ull << 63ull);
 static constexpr usize GPU_SR_POOL_VERSION_COUNT_MASK = ~(GPU_SR_POOL_VERSION_ZOMBIE_BIT);
-#define GPU_SR_POOL_TEMPLATE(T)                                             \
-    struct T##_impl_slot_page {                                             \
-        struct T##_impl_slot    slots[GPU_SR_POOL_PAGE_SIZE];               \
-        atomic_u64              version_and_refcnt[GPU_SR_POOL_PAGE_SIZE];  \
-    };                                                                      \
-    struct T##_gpu_sr_pool {                                                \
-        struct T##_impl_slot_page          *pages[GPU_SR_POOL_PAGE_COUNT];  \
-        lake_mpmc_ring_t(lake_mpmc_node_v)  free_indices;                   \
-        atomic_ssize                        lifetime_sync;                  \
-        atomic_ssize                        next_idx;                       \
-        atomic_ssize                        valid_page_count;               \
-        s32                                 max_resources;                  \
-        s32                                 page_alloc_size;                \
-        lake_spinlock                       page_alloc_lock;                \
-    };                                                                      \
-    /** Get version of resource using an index. */                          \
-    LAKE_NONNULL_ALL LAKE_HOT_FN LAKE_PURE_FN                               \
-    extern u64 LAKECALL T##_gpu_sr_pool__version_of_slot(                   \
-            struct T##_gpu_sr_pool *pool,                                   \
-            s32                     idx);                                   \
-                                                                            \
-    /** Checks if an id refers to a valid resource. */                      \
-    LAKE_NONNULL_ALL LAKE_HOT_FN LAKE_PURE_FN                               \
-    extern bool LAKECALL T##_gpu_sr_pool__is_id_valid(                      \
-            struct T##_gpu_sr_pool *pool,                                   \
-            moon_##T##_id           id);                                    \
-                                                                            \
-    /** Checks if an id refers to a valid resource, may return a            \
-     *  random slot if the id is invalid. */                                \
-    LAKE_NONNULL_ALL LAKE_HOT_FN LAKE_PURE_FN                               \
-    extern struct T##_impl_slot *LAKECALL T##_gpu_sr_pool__unsafe_get(      \
-            struct T##_gpu_sr_pool *pool,                                   \
-            moon_##T##_id           id);                                    \
-                                                                            \
-    /** Destroys a slot. After calling this, the id of the slot will be     \
-     *  forever invalid. Index may be recycled, but index + version pairs   \
-     *  are ALWAYS unique. Calling this with a non-zombie ID will result    \
-     *  in undefined behaviour. */                                          \
-    extern void LAKECALL T##_gpu_sr_pool__unsafe_destroy_zombie_slot(       \
-            struct T##_gpu_sr_pool *pool,                                   \
-            moon_##T##_id           id);                                    \
-                                                                            \
-    /** Try to zombify a resource. */                                       \
-    extern bool LAKECALL T##_gpu_sr_pool__try_zombify(                      \
-            struct T##_gpu_sr_pool *pool,                                   \
-            moon_##T##_id           id);                                    \
-                                                                            \
-    /** Create a slot for a resource in the pool. Returned slots may be     \
-     *  recycled but are guaranteed to have an unique index + version. */   \
-    extern struct T##_impl_slot *LAKECALL T##_gpu_sr_pool__try_create_slot( \
-            struct T##_gpu_sr_pool *pool,                                   \
+#define GPU_SR_POOL_TEMPLATE(T)                                                 \
+    struct T##_impl_slot_page {                                                 \
+        struct T##_impl_slot        slots[GPU_SR_POOL_PAGE_SIZE];               \
+        atomic_u64                  version_and_refcnt[GPU_SR_POOL_PAGE_SIZE];  \
+    };                                                                          \
+    struct T##_gpu_sr_pool {                                                    \
+        struct T##_impl_slot_page  *pages[GPU_SR_POOL_PAGE_COUNT];              \
+        lake_mpmc                   free_indices; /**< mpmc<lake_mpmc_node> */  \
+        atomic_ssize                lifetime_sync;                              \
+        atomic_ssize                next_idx;                                   \
+        atomic_ssize                valid_page_count;                           \
+        s32                         max_resources;                              \
+        s32                         page_alloc_size;                            \
+        lake_spinlock               page_alloc_lock;                            \
+    };                                                                          \
+    /** Get version of resource using an index. */                              \
+    LAKE_NONNULL_ALL LAKE_HOT_FN LAKE_PURE_FN                                   \
+    extern u64 LAKECALL T##_gpu_sr_pool__version_of_slot(                       \
+            struct T##_gpu_sr_pool *pool,                                       \
+            s32                     idx);                                       \
+                                                                                \
+    /** Checks if an id refers to a valid resource. */                          \
+    LAKE_NONNULL_ALL LAKE_HOT_FN LAKE_PURE_FN                                   \
+    extern bool LAKECALL T##_gpu_sr_pool__is_id_valid(                          \
+            struct T##_gpu_sr_pool *pool,                                       \
+            moon_##T##_id           id);                                        \
+                                                                                \
+    /** Checks if an id refers to a valid resource, may return a                \
+     *  random slot if the id is invalid. */                                    \
+    LAKE_NONNULL_ALL LAKE_HOT_FN LAKE_PURE_FN                                   \
+    extern struct T##_impl_slot *LAKECALL T##_gpu_sr_pool__unsafe_get(          \
+            struct T##_gpu_sr_pool *pool,                                       \
+            moon_##T##_id           id);                                        \
+                                                                                \
+    /** Destroys a slot. After calling this, the id of the slot will be         \
+     *  forever invalid. Index may be recycled, but index + version pairs       \
+     *  are ALWAYS unique. Calling this with a non-zombie ID will result        \
+     *  in undefined behaviour. */                                              \
+    extern void LAKECALL T##_gpu_sr_pool__unsafe_destroy_zombie_slot(           \
+            struct T##_gpu_sr_pool *pool,                                       \
+            moon_##T##_id           id);                                        \
+                                                                                \
+    /** Try to zombify a resource. */                                           \
+    extern bool LAKECALL T##_gpu_sr_pool__try_zombify(                          \
+            struct T##_gpu_sr_pool *pool,                                       \
+            moon_##T##_id           id);                                        \
+                                                                                \
+    /** Create a slot for a resource in the pool. Returned slots may be         \
+     *  recycled but are guaranteed to have an unique index + version. */       \
+    extern struct T##_impl_slot *LAKECALL T##_gpu_sr_pool__try_create_slot(     \
+            struct T##_gpu_sr_pool *pool,                                       \
             moon_##T##_id          *out_id);
 GPU_SR_POOL_TEMPLATE(buffer)
 GPU_SR_POOL_TEMPLATE(texture)
@@ -585,14 +585,14 @@ struct moon_swapchain_impl {
     VkSurfaceFormatKHR                      vk_surface_format;
     /** The window framebuffer resolution. */
     VkExtent2D                              vk_surface_extent;
-    /** Abstracted presentation modes, acquired from the Vulkan surface. */
-    lake_darray_t(VkPresentModeKHR)         supported_present_modes;
-    /** Swapchain holds strong references to these images, as it owns them. */
-    lake_darray_t(moon_texture_id)          images;
-    /** Signaled in the last submission that uses the swapchain image. */
-    lake_darray_t(struct moon_binary_semaphore_impl *)present_semaphores;
-    /** Signaled when the swapchain image is ready to be used. */
-    lake_darray_t(struct moon_binary_semaphore_impl *)acquire_semaphores;
+    /** darray<VkPresentModeKHR>, abstracted presentation modes, acquired from the Vulkan surface. */
+    lake_darray                             supported_present_modes;
+    /** darray<moon_texture_id>, swapchain holds strong references to these images, as it owns them. */
+    lake_darray                             images;
+    /** darray<struct moon_binary_semaphore_impl *>, signaled in the last submission that uses the swapchain image. */
+    lake_darray                             present_semaphores;
+    /** darray<struct moon_binary_semaphore_impl *>, signaled when the swapchain image is ready to be used. */
+    lake_darray                             acquire_semaphores;
     /** cpu_timeline % frames_in_flight, used to access the acquire semaphore. */
     usize                                   acquire_semaphore_idx;
     /** Monotonically increasing timeline value. */
@@ -615,27 +615,27 @@ static constexpr usize COMMAND_LIST_BARRIER_MAX_BATCH_SIZE = 16;
 static constexpr usize COMMAND_LIST_COLOR_ATTACHMENT_MAX = 16;
 
 struct command_pool_arena {
-    lake_darray_t(VkCommandPool)        pools_and_buffers;
+    lake_darray                         pools_and_buffers;      /**< darray<VkCommandPool> */
     s32                                 queue_family_idx;
     lake_spinlock                       spinlock;
 };
 
 typedef lake_pair(u64, u8) staged_deferred_destructor_pair;
 struct staged_command_list_data {
-    VkCommandBuffer                                 vk_cmd_buffer;
-    lake_darray_t(staged_deferred_destructor_pair)  deferred_destructors;
-    lake_darray_t(moon_buffer_id)                   used_buffers;
-    lake_darray_t(moon_texture_id)                  used_textures;
-    lake_darray_t(moon_texture_view_id)             used_texture_views;
-    lake_darray_t(moon_sampler_id)                  used_samplers;
-    lake_darray_t(moon_tlas_id)                     used_tlass;
-    lake_darray_t(moon_blas_id)                     used_blass;
+    VkCommandBuffer                     vk_cmd_buffer;
+    lake_darray                         deferred_destructors;   /**< darray<staged_deferred_destructor_pair> */
+    lake_darray                         used_buffers;           /**< darray<moon_buffer_id> */
+    lake_darray                         used_textures;          /**< darray<moon_texture_id> */
+    lake_darray                         used_texture_views;     /**< darray<moon_texture_view_id> */
+    lake_darray                         used_samplers;          /**< darray<moon_sampler_id> */
+    lake_darray                         used_tlass;             /**< darray<moon_tlas_id> */
+    lake_darray                         used_blass;             /**< darray<moon_blas_id> */
 };
 
 struct moon_command_recorder_impl {
     moon_command_recorder_header        header;
     VkCommandPool                       vk_cmd_pool;
-    lake_darray_t(VkCommandBuffer)      allocated_command_buffers; 
+    lake_darray                         allocated_command_buffers; /**< darray<VkCommandBuffer> */
     u32                                 memory_barrier_batch_count;
     VkMemoryBarrier2                    memory_barrier_batch[COMMAND_LIST_BARRIER_MAX_BATCH_SIZE];
     u32                                 buffer_barrier_batch_count;
@@ -671,7 +671,7 @@ struct moon_staged_command_list_impl {
 struct moon_impl {
     struct moon_interface_impl              interface;
     /** An array of physical device details, queried once at initialization. */
-    lake_darray_t(struct physical_device)   physical_devices;
+    lake_darray                             physical_devices; /**< darray<struct physical_device> */
     /** An instance makes Vulkan functions available to us. It is used for calls to the driver,
      *  and holds information about the application. Afterwards it is passed to the logical device. */
     VkInstance                              vk_instance;
@@ -734,18 +734,18 @@ struct moon_impl {
     PFN_vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR vkGetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR;
 };
 
-typedef lake_pair(u64, moon_buffer_id)                      zombie_timeline_buffer;
-typedef lake_pair(u64, moon_texture_id)                     zombie_timeline_texture;
-typedef lake_pair(u64, moon_texture_view_id)                zombie_timeline_texture_view;
-typedef lake_pair(u64, moon_sampler_id)                     zombie_timeline_sampler;
-typedef lake_pair(u64, moon_tlas_id)                        zombie_timeline_tlas;
-typedef lake_pair(u64, moon_blas_id)                        zombie_timeline_blas;
-typedef lake_pair(u64, struct event_zombie)                 zombie_timeline_event;
-typedef lake_pair(u64, struct pipeline_zombie)              zombie_timeline_pipeline;
-typedef lake_pair(u64, struct semaphore_zombie)             zombie_timeline_semaphore;
-typedef lake_pair(u64, struct timeline_query_pool_zombie)   zombie_timeline_query_pool;
-typedef lake_pair(u64, struct command_recorder_zombie)      zombie_timeline_command_recorder;
-typedef lake_pair(u64, struct memory_heap_zombie)           zombie_timeline_memory_heap;
+typedef lake_pair(u64, moon_buffer_id)                          zombie_timeline_buffer;
+typedef lake_pair(u64, moon_texture_id)                         zombie_timeline_texture;
+typedef lake_pair(u64, moon_texture_view_id)                    zombie_timeline_texture_view;
+typedef lake_pair(u64, moon_sampler_id)                         zombie_timeline_sampler;
+typedef lake_pair(u64, moon_tlas_id)                            zombie_timeline_tlas;
+typedef lake_pair(u64, moon_blas_id)                            zombie_timeline_blas;
+typedef lake_pair(u64, struct event_zombie)                     zombie_timeline_event;
+typedef lake_pair(u64, struct pipeline_zombie)                  zombie_timeline_pipeline;
+typedef lake_pair(u64, struct semaphore_zombie)                 zombie_timeline_semaphore;
+typedef lake_pair(u64, struct timeline_query_pool_zombie)       zombie_timeline_query_pool;
+typedef lake_pair(u64, struct command_recorder_zombie)          zombie_timeline_command_recorder;
+typedef lake_pair(u64, struct memory_heap_zombie)               zombie_timeline_memory_heap;
 
 enum : s32 {
     zombie_timeline_buffer_idx = 0,
@@ -800,21 +800,21 @@ struct moon_device_impl {
      *  zombies timeline values are compared against submits running in all queues. If the 
      *  zombies global submit index is smaller than the global index of all submits currently 
      *  in flight (on all queues), we can safely clean the resource up. */
-    atomic_u64                                      submit_timeline;
-    lake_spinlock                                   zombies_locks[zombie_timeline_count];
+    atomic_u64                              submit_timeline;
+    lake_spinlock                           zombies_locks[zombie_timeline_count];
     /** Pairs of resource handles or zombies with submit timeline values. */
-    lake_deque_t(zombie_timeline_buffer)            buffer_zombies;
-    lake_deque_t(zombie_timeline_texture)           texture_zombies;
-    lake_deque_t(zombie_timeline_texture_view)      texture_view_zombies;
-    lake_deque_t(zombie_timeline_sampler)           sampler_zombies;
-    lake_deque_t(zombie_timeline_tlas)              tlas_zombies;
-    lake_deque_t(zombie_timeline_blas)              blas_zombies;
-    lake_deque_t(zombie_timeline_event)             event_zombies;
-    lake_deque_t(zombie_timeline_pipeline)          pipeline_zombies;
-    lake_deque_t(zombie_timeline_semaphore)         semaphore_zombies;
-    lake_deque_t(zombie_timeline_query_pool)        query_pool_zombies;
-    lake_deque_t(zombie_timeline_command_recorder)  command_recorder_zombies;
-    lake_deque_t(zombie_timeline_memory_heap)       memory_heap_zombies;
+    lake_deque                              buffer_zombies;             /**< deque<zombie_timeline_buffer> */
+    lake_deque                              texture_zombies;            /**< deque<zombie_timeline_texture> */
+    lake_deque                              texture_view_zombies;       /**< deque<zombie_timeline_texture_view> */
+    lake_deque                              sampler_zombies;            /**< deque<zombie_timeline_sampler> */
+    lake_deque                              tlas_zombies;               /**< deque<zombie_timeline_tlas> */
+    lake_deque                              blas_zombies;               /**< deque<zombie_timeline_blas> */
+    lake_deque                              event_zombies;              /**< deque<zombie_timeline_event> */
+    lake_deque                              pipeline_zombies;           /**< deque<zombie_timeline_pipeline> */
+    lake_deque                              semaphore_zombies;          /**< deque<zombie_timeline_semaphore> */
+    lake_deque                              query_pool_zombies;         /**< deque<zombie_timeline_query_pool> */
+    lake_deque                              command_recorder_zombies;   /**< deque<zombie_timeline_command_recorder> */
+    lake_deque                              memory_heap_zombies;        /**< deque<zombie_timeline_memory_heap> */
 
     /** Command buffer/pool recycling, accessed via `moon_queue_type`. */
     struct command_pool_arena               command_pool_arenas[moon_queue_type_count];
@@ -1194,7 +1194,7 @@ LAKE_FORCE_INLINE void zombify_buffer(struct moon_device_impl *device, moon_buff
         .second = buffer 
     };
     lake_spinlock *lock = &device->zombies_locks[zombie_timeline_buffer_idx];
-    lake_deque_unshift_v_locked(device->buffer_zombies, zombie_timeline_buffer, submit, lock);
+    lake_deque_unshift_w_spinlock(&device->buffer_zombies, zombie_timeline_buffer, &submit, lock, __lake_malloc, __lake_free);
 }
 
 LAKE_FORCE_INLINE void zombify_texture(struct moon_device_impl *device, moon_texture_id texture)
@@ -1208,7 +1208,7 @@ LAKE_FORCE_INLINE void zombify_texture(struct moon_device_impl *device, moon_tex
         .second = texture
     };
     lake_spinlock *lock = &device->zombies_locks[zombie_timeline_texture_idx];
-    lake_deque_unshift_v_locked(device->texture_zombies, zombie_timeline_texture, submit, lock);
+    lake_deque_unshift_w_spinlock(&device->texture_zombies, zombie_timeline_texture, &submit, lock, __lake_malloc, __lake_free);
 }
 
 LAKE_FORCE_INLINE void zombify_texture_view(struct moon_device_impl *device, moon_texture_view_id texture_view)
@@ -1218,7 +1218,7 @@ LAKE_FORCE_INLINE void zombify_texture_view(struct moon_device_impl *device, moo
         .second = texture_view
     };
     lake_spinlock *lock = &device->zombies_locks[zombie_timeline_texture_view_idx];
-    lake_deque_unshift_v_locked(device->texture_view_zombies, zombie_timeline_texture_view, submit, lock);
+    lake_deque_unshift_w_spinlock(&device->texture_view_zombies, zombie_timeline_texture_view, &submit, lock, __lake_malloc, __lake_free);
 }
 
 LAKE_FORCE_INLINE void zombify_sampler(struct moon_device_impl *device, moon_sampler_id sampler)
@@ -1228,7 +1228,7 @@ LAKE_FORCE_INLINE void zombify_sampler(struct moon_device_impl *device, moon_sam
         .second = sampler
     };
     lake_spinlock *lock = &device->zombies_locks[zombie_timeline_sampler_idx];
-    lake_deque_unshift_v_locked(device->sampler_zombies, zombie_timeline_sampler, submit, lock);
+    lake_deque_unshift_w_spinlock(&device->sampler_zombies, zombie_timeline_sampler, &submit, lock, __lake_malloc, __lake_free);
 }
 
 LAKE_FORCE_INLINE void zombify_tlas(struct moon_device_impl *device, moon_tlas_id tlas)
@@ -1242,7 +1242,7 @@ LAKE_FORCE_INLINE void zombify_tlas(struct moon_device_impl *device, moon_tlas_i
         .second = tlas 
     };
     lake_spinlock *lock = &device->zombies_locks[zombie_timeline_tlas_idx];
-    lake_deque_unshift_v_locked(device->tlas_zombies, zombie_timeline_tlas, submit, lock);
+    lake_deque_unshift_w_spinlock(&device->tlas_zombies, zombie_timeline_tlas, &submit, lock, lake_machina);
 }
 
 LAKE_FORCE_INLINE void zombify_blas(struct moon_device_impl *device, moon_blas_id blas)
@@ -1256,7 +1256,7 @@ LAKE_FORCE_INLINE void zombify_blas(struct moon_device_impl *device, moon_blas_i
         .second = blas 
     };
     lake_spinlock *lock = &device->zombies_locks[zombie_timeline_blas_idx];
-    lake_deque_unshift_v_locked(device->blas_zombies, zombie_timeline_blas, submit, lock);
+    lake_deque_unshift_w_spinlock(&device->blas_zombies, zombie_timeline_blas, &submit, lock, __lake_malloc, __lake_free);
 }
 
 LAKE_FORCE_INLINE void buffer_destructor(struct moon_device_impl *device, moon_buffer_id buffer)
@@ -1421,10 +1421,10 @@ extern void LAKECALL populate_vk_image_create_info_from_assembly(
     VkImageCreateInfo              *out_vk_create_info);
 
 struct acceleratrion_structure_build {
-    lake_darray_t(VkAccelerationStructureBuildGeometryInfoKHR) vk_build_geometry_infos;
-    lake_darray_t(VkAccelerationStructureGeometryKHR)          vk_geometry_infos;
-    lake_darray_t(u32)                                         primitive_counts;
-    lake_darray_t(u32 const *)                                 primitive_counts_ptrs;
+    lake_darray                             vk_build_geometry_infos; /**< darray<VkAccelerationStructureBuildGeometryInfoKHR> */
+    lake_darray                             vk_geometry_infos;       /**< darray<VkAccelerationStructureGeometryKHR> */
+    lake_darray                             primitive_counts;        /**< darray<u32> */
+    lake_darray                             primitive_counts_ptrs;   /**< darray<u32 const *> */
 };
 
 LAKE_NONNULL(1)

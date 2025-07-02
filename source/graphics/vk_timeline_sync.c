@@ -58,7 +58,7 @@ FN_MOON_TIMELINE_QUERY_POOL_ZERO_REFCNT(vulkan)
         .second = { .vk_query_pool = timeline_query_pool->vk_query_pool }, 
     };
     lake_spinlock *lock = &device->zombies_locks[zombie_timeline_query_pool_idx];
-    lake_deque_unshift_v_locked(device->query_pool_zombies, zombie_timeline_query_pool, submit, lock);
+    lake_deque_unshift_w_spinlock(&device->query_pool_zombies, zombie_timeline_query_pool, &submit, lock, lake_machina);
 
     moon_device_unref(timeline_query_pool->header.device);
     __lake_free(timeline_query_pool);
@@ -725,7 +725,7 @@ FN_MOON_TIMELINE_SEMAPHORE_ZERO_REFCNT(vulkan)
         .second = { .vk_semaphore = timeline_semaphore->vk_semaphore }, 
     };
     lake_spinlock *lock = &device->zombies_locks[zombie_timeline_semaphore_idx];
-    lake_deque_unshift_v_locked(device->semaphore_zombies, zombie_timeline_semaphore, submit, lock);
+    lake_deque_unshift_w_spinlock(&device->semaphore_zombies, zombie_timeline_semaphore, &submit, lock, lake_machina);
 
     moon_device_unref(timeline_semaphore->header.device);
     __lake_free(timeline_semaphore);
@@ -818,7 +818,7 @@ FN_MOON_BINARY_SEMAPHORE_ZERO_REFCNT(vulkan)
         .second = { .vk_semaphore = binary_semaphore->vk_semaphore }, 
     };
     lake_spinlock *lock = &device->zombies_locks[zombie_timeline_semaphore_idx];
-    lake_deque_unshift_v_locked(device->semaphore_zombies, zombie_timeline_semaphore, submit, lock);
+    lake_deque_unshift_w_spinlock(&device->semaphore_zombies, zombie_timeline_semaphore, &submit, lock, lake_machina);
 
     moon_device_unref(binary_semaphore->header.device);
     __lake_free(binary_semaphore);
@@ -875,7 +875,7 @@ FN_MOON_EVENT_ZERO_REFCNT(vulkan)
         .second = { .vk_event = event->vk_event }, 
     };
     lake_spinlock *lock = &device->zombies_locks[zombie_timeline_event_idx];
-    lake_deque_unshift_v_locked(device->event_zombies, zombie_timeline_event, submit, lock);
+    lake_deque_unshift_w_spinlock(&device->event_zombies, zombie_timeline_event, &submit, lock, lake_machina);
 
     moon_device_unref(event->header.device);
     __lake_free(event);

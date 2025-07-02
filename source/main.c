@@ -62,21 +62,27 @@ static constexpr struct primitive g_scene_primitive_data[] = {
     {{ 1.0f, 0.0f,  0.0f, 0.0f}, {0.95f, 0.85f, 0.05f, 1.0f}},
 };
 
+FN_SORCERESS_INVOKE_MOVEMENTS(lungs)
+{
+    (void)sorceress;
+    (void)control;
+}
+
 FN_SORCERESS_ACQUIRE_WORK(lungs)
 {
     u32 const work_count = MAX_FRAMES_IN_FLIGHT;
     u32 const render_device_count = sorceress->renderer.device_count;
-    struct sorceress_work_impl *work = lake_drift_n(struct sorceress_work_impl, work_count);
-    lake_render_submit *submits = lake_drift_n(lake_render_submit, work_count * render_device_count);
+    struct sorceress_work_impl *work = lake_drift_allocate_n(struct sorceress_work_impl, work_count);
+    moon_device_gpu_work *gpu_work = lake_drift_allocate_n(moon_device_gpu_work, work_count * render_device_count);
 
     lake_memset(work, 0, sizeof(struct sorceress_work_impl) * work_count);
-    lake_memset(submits, 0, sizeof(lake_render_submit) * work_count * render_device_count);
+    lake_memset(gpu_work, 0, sizeof(moon_device_gpu_work) * work_count * render_device_count);
 
     for (u32 i = 0; i < work_count; i ++) {
         work[i].header.sorceress.impl = sorceress;
         work[i].header.last_work = &work[(i + (work_count-2)) & (work_count-1)];
         work[i].header.next_work = &work[(i + work_count) & (work_count-1)];
-        work[i].submits = &submits[work_count * render_device_count];
+        work[i].mgpu_work = &gpu_work[work_count * render_device_count];
     }
     *out_work_count = work_count;
     *out_work = work;
@@ -91,6 +97,18 @@ FN_SORCERESS_RELEASE_WORK(lungs)
     for (u32 i = 0; i < work_count; i++) {
         (void)sorceress;
     }
+}
+
+FN_SORCERESS_BEGIN_OF_PIPE(lungs)
+{
+    (void)work;
+    return 0;
+}
+
+FN_SORCERESS_END_OF_PIPE(lungs)
+{
+    (void)work;
+    return 0;
 }
 
 static FN_LAKE_WORK(_sorceress_lungs_zero_refcnt, struct sorceress_impl *sorceress)
@@ -113,8 +131,11 @@ static FN_LAKE_INTERFACE_IMPL(sorceress, lungs)
     sorceress->interface.header.name.len = lake_strlen(name);
     lake_memcpy(sorceress->interface.header.name.str, name, sorceress->interface.header.name.len);
 
+    sorceress->interface.invoke_movements = _sorceress_lungs_invoke_movements;
     sorceress->interface.acquire_work = _sorceress_lungs_acquire_work;
     sorceress->interface.release_work = _sorceress_lungs_release_work;
+    sorceress->interface.begin_of_pipe = _sorceress_lungs_begin_of_pipe;
+    sorceress->interface.end_of_pipe = _sorceress_lungs_end_of_pipe;
     sorceress->interface.stage_gameplay = _sorceress_lungs_stage_gameplay;
     sorceress->interface.stage_rendering = _sorceress_lungs_stage_rendering;
     sorceress->interface.stage_gpuexec = _sorceress_lungs_stage_gpuexec;

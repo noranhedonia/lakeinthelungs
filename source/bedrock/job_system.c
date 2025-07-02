@@ -99,7 +99,7 @@ static usize acquire_next_fiber(void)
     }
     if (fiber_idx == FIBER_INVALID) {
         struct work data;
-        if (lake_mpmc_dequeue_t(&g_bedrock->work_queue.ring, work_queue_node, &data)) {
+        if (lake_mpmc_dequeue_t(&g_bedrock->work_queue, work_queue_node, &data)) {
             while (fiber_idx == FIBER_INVALID)
                 fiber_idx = get_free_fiber();
 
@@ -215,10 +215,7 @@ static LAKE_NORETURN void LAKECALL the_work(sptr raw_tls)
             lake_dbg_assert(last > 0, LAKE_PANIC, nullptr);
 
             /* try to reuse the fiber */
-            if (last > 1 && lake_mpmc_dequeue_t(
-                    &g_bedrock->work_queue.ring, 
-                    work_queue_node, 
-                    &fiber->work)) 
+            if (last > 1 && lake_mpmc_dequeue_t(&g_bedrock->work_queue, work_queue_node, &fiber->work)) 
                 continue;
         }
         fiber->drifter.tail_cursor = fiber->cursor.prev;
@@ -279,7 +276,7 @@ void lake_submit_work(
     for (u32 i = 0; i < work_count; i++) {
         struct work submit = { .details = work[i], .work_left = to_use };
 
-        while (!lake_mpmc_enqueue_t(&g_bedrock->work_queue.ring, work_queue_node, &submit)) {
+        while (!lake_mpmc_enqueue_t(&g_bedrock->work_queue, work_queue_node, &submit)) {
             lake_dbg_assert(false, LAKE_ERROR_OUT_OF_RANGE, 
                 "Failed to submit work into the work queue at: %u/%u.", i, work_count);
         }

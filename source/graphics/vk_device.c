@@ -8,10 +8,10 @@ FN_MOON_DEVICE_ASSEMBLY(vulkan)
     lake_result result = LAKE_SUCCESS;
 
     s32 pd_idx = assembly->device_idx;
-    if (pd_idx >= moon->physical_devices.da.size)
+    if (pd_idx >= lake_darray_len(&moon->physical_devices))
         return LAKE_ERROR_INVALID_DEVICE_INDEX;
 
-    struct physical_device const *pd = lake_darray_elem_v(moon->physical_devices, pd_idx);
+    struct physical_device const *pd = lake_darray_at_t(&moon->physical_devices, struct physical_device, pd_idx);
     moon_device_details const *details = &pd->details; 
 
     /* check features */
@@ -207,274 +207,272 @@ deferred_null_cleanup:
         device->vkDestroyDevice(device->vk_device, device->vk_allocator);
         __lake_free(device);
         return result;
+    } 
+    /* create null resources */
+    u8 const buffer_data[4] = { 0xff, 0x00, 0xff, 0xff };
+    VmaAllocationInfo vma_allocation_info = {0};
 
-    } else { /* create null resources */
-        u8 const buffer_data[4] = { 0xff, 0x00, 0xff, 0xff };
-        VmaAllocationInfo vma_allocation_info = {0};
-
-        VkBufferCreateInfo const null_buffer_create_info = {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .pNext = nullptr,
-            .flags = 0,
-            .size = sizeof(u8) * 4,
-            .usage = get_buffer_usage_flags(device),
-            .sharingMode = VK_SHARING_MODE_CONCURRENT,
-            .queueFamilyIndexCount = pd->unique_queue_family_count,
-            .pQueueFamilyIndices = pd->unique_queue_family_indices,
-        };
-        VmaAllocationCreateFlags vma_allocation_flags = 
-            VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT |
-            VMA_ALLOCATION_CREATE_MAPPED_BIT |
-            VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
-        VmaAllocationCreateInfo const null_buffer_allocation_create_info = {
-            .flags = vma_allocation_flags,
-            .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-            .requiredFlags = 0,
-            .preferredFlags = 0,
-            .memoryTypeBits = UINT32_MAX,
-            .pool = nullptr,
-            .pUserData = nullptr,
-            .priority = 0.5f,
-        };
-        result = vk_result_translate(
-            vmaCreateBuffer(device->vma_allocator, 
-                &null_buffer_create_info, 
-                &null_buffer_allocation_create_info,
-                &device->vk_null_buffer,
-                &device->vk_null_buffer_allocation,
-                &vma_allocation_info));
-        if (result != LAKE_SUCCESS) 
-            goto deferred_null_cleanup;
+    VkBufferCreateInfo const null_buffer_create_info = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .size = sizeof(u8) * 4,
+        .usage = get_buffer_usage_flags(device),
+        .sharingMode = VK_SHARING_MODE_CONCURRENT,
+        .queueFamilyIndexCount = pd->unique_queue_family_count,
+        .pQueueFamilyIndices = pd->unique_queue_family_indices,
+    };
+    VmaAllocationCreateFlags vma_allocation_flags = 
+        VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT |
+        VMA_ALLOCATION_CREATE_MAPPED_BIT |
+        VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+    VmaAllocationCreateInfo const null_buffer_allocation_create_info = {
+        .flags = vma_allocation_flags,
+        .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+        .requiredFlags = 0,
+        .preferredFlags = 0,
+        .memoryTypeBits = UINT32_MAX,
+        .pool = nullptr,
+        .pUserData = nullptr,
+        .priority = 0.5f,
+    };
+    result = vk_result_translate(
+        vmaCreateBuffer(device->vma_allocator, 
+            &null_buffer_create_info, 
+            &null_buffer_allocation_create_info,
+            &device->vk_null_buffer,
+            &device->vk_null_buffer_allocation,
+            &vma_allocation_info));
+    if (result != LAKE_SUCCESS) 
+        goto deferred_null_cleanup;
 #ifndef LAKE_NDEBUG
-        if (moon->vk_debug_messenger != VK_NULL_HANDLE) {
-            VkDebugUtilsObjectNameInfoEXT const debug_buffer_name_info = {
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .pNext = nullptr,
-                .objectType = VK_OBJECT_TYPE_BUFFER,
-                .objectHandle = (u64)(uptr)device->vk_null_buffer,
-                .pObjectName = "moon null_buffer",
-            };
-            device->vkSetDebugUtilsObjectNameEXT(device->vk_device, &debug_buffer_name_info);
-        }
-#endif /* LAKE_NDEBUG */
-        lake_dbg_assert(vma_allocation_info.pMappedData != nullptr, LAKE_ERROR_MEMORY_MAP_FAILED, nullptr);
-        u8 *mapped = (u8 *)vma_allocation_info.pMappedData;
-        for (u32 i = 0; i < lake_arraysize(buffer_data); i++)
-            mapped[i] = buffer_data[i];
-
-        moon_texture_assembly const texture_assembly = {
-            .dimensions = 2,
-            .format = moon_format_r8g8b8a8_unorm,
-            .extent = { 1, 1, 1 },
-            .mip_level_count = 1,
-            .array_layer_count = 1,
-            .sample_count = moon_sample_count_1,
-            .usage = moon_texture_usage_shader_sampled | moon_texture_usage_shader_storage | moon_texture_usage_transfer_dst,
-            .sharing_mode = moon_sharing_mode_concurrent,
-            .memory_flags = moon_memory_flag_dedicated_memory,
-        };
-        VmaAllocationCreateInfo const null_image_allocation_create_info = {
-            .flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-            .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-            .requiredFlags = 0,
-            .preferredFlags = 0,
-            .memoryTypeBits = UINT32_MAX,
-            .pool = nullptr,
-            .pUserData = nullptr,
-            .priority = 0.5f,
-        };
-        VkImageCreateInfo vk_image_create_info;
-        populate_vk_image_create_info_from_assembly(device, &texture_assembly, &vk_image_create_info);
-
-        result = vk_result_translate(
-            vmaCreateImage(device->vma_allocator,
-                &vk_image_create_info,
-                &null_image_allocation_create_info,
-                &device->vk_null_image,
-                &device->vk_null_image_allocation,
-                nullptr));
-        if (result != LAKE_SUCCESS) 
-            goto deferred_null_cleanup;
-#ifndef LAKE_NDEBUG
-        if (moon->vk_debug_messenger != VK_NULL_HANDLE) {
-            VkDebugUtilsObjectNameInfoEXT const debug_image_name_info = {
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .pNext = nullptr,
-                .objectType = VK_OBJECT_TYPE_IMAGE,
-                .objectHandle = (u64)(uptr)device->vk_null_image,
-                .pObjectName = "moon null_texture",
-            };
-            device->vkSetDebugUtilsObjectNameEXT(device->vk_device, &debug_image_name_info);
-        }
-#endif /* LAKE_NDEBUG */
-        VkImageViewCreateInfo const vk_image_view_create_info = {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+    if (moon->vk_debug_messenger != VK_NULL_HANDLE) {
+        VkDebugUtilsObjectNameInfoEXT const debug_buffer_name_info = {
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
             .pNext = nullptr,
-            .flags = 0,
-            .image = device->vk_null_image,
-            .viewType = VK_IMAGE_VIEW_TYPE_2D,
-            .format = vk_image_create_info.format,
-            .components = (VkComponentMapping){
-                .r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                .a = VK_COMPONENT_SWIZZLE_IDENTITY,
-            },
-            .subresourceRange = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseMipLevel = 0,
-                .levelCount = vk_image_create_info.mipLevels,
-                .baseArrayLayer = 0,
-                .layerCount = vk_image_create_info.arrayLayers,
-            },
+            .objectType = VK_OBJECT_TYPE_BUFFER,
+            .objectHandle = (u64)(uptr)device->vk_null_buffer,
+            .pObjectName = "moon null_buffer",
         };
-
-        result = vk_result_translate(
-            device->vkCreateImageView(
-                device->vk_device, 
-                &vk_image_view_create_info,
-                device->vk_allocator,
-                &device->vk_null_image_view));
-        if (result != LAKE_SUCCESS) 
-            goto deferred_null_cleanup;
-#ifndef LAKE_NDEBUG
-        if (moon->vk_debug_messenger != VK_NULL_HANDLE) {
-            VkDebugUtilsObjectNameInfoEXT const debug_image_view_name_info = {
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .pNext = nullptr,
-                .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
-                .objectHandle = (u64)(uptr)device->vk_null_image_view,
-                .pObjectName = "moon null_texture_view",
-            };
-            device->vkSetDebugUtilsObjectNameEXT(device->vk_device, &debug_image_view_name_info);
-        }
-#endif /* LAKE_NDEBUG */
-
-        VkImageMemoryBarrier vk_image_mem_barrier = {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .pNext = nullptr,
-            .srcAccessMask = VK_ACCESS_HOST_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .oldLayout = 0,
-            .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = device->vk_null_image,
-            .subresourceRange = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseMipLevel = 0,
-                .levelCount = 1,
-                .baseArrayLayer = 0,
-                .layerCount = 1,
-            },
-        };
-        device->vkCmdPipelineBarrier(
-            init_cmd_buffer, VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, 1, &vk_image_mem_barrier);
-
-        VkBufferImageCopy const vk_buffer_image_copy = {
-            .bufferOffset = 0u,
-            .bufferRowLength = 0u,
-            .bufferImageHeight = 0u,
-            .imageSubresource = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .mipLevel = 0,
-                .baseArrayLayer = 0,
-                .layerCount = 1,
-            },
-            .imageOffset = { 0, 0, 0 },
-            .imageExtent = { 1, 1, 1 },
-        };
-        device->vkCmdCopyBufferToImage(
-            init_cmd_buffer, device->vk_null_buffer, device->vk_null_image,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vk_buffer_image_copy);
-        vk_image_mem_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        vk_image_mem_barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
-        vk_image_mem_barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        vk_image_mem_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-        vk_image_mem_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        vk_image_mem_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        device->vkCmdPipelineBarrier(
-            init_cmd_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, 1, &vk_image_mem_barrier);
-
-        VkSamplerCreateInfo const vk_sampler_create_info = {
-            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-            .pNext = nullptr,
-            .flags = 0,
-            .magFilter = VK_FILTER_LINEAR,
-            .minFilter = VK_FILTER_LINEAR,
-            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-            .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-            .mipLodBias = 0.0f,
-            .anisotropyEnable = VK_FALSE,
-            .maxAnisotropy = 0,
-            .compareEnable = VK_FALSE,
-            .compareOp = VK_COMPARE_OP_ALWAYS,
-            .minLod = 0,
-            .maxLod = 0,
-            .borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK,
-            .unnormalizedCoordinates = VK_FALSE,
-        };
-
-        result = vk_result_translate(device->vkCreateSampler(device->vk_device, &vk_sampler_create_info, device->vk_allocator, &device->vk_null_sampler));
-        if (result != LAKE_SUCCESS) 
-            goto deferred_null_cleanup;
-#ifndef LAKE_NDEBUG
-        if (moon->vk_debug_messenger != VK_NULL_HANDLE) {
-            VkDebugUtilsObjectNameInfoEXT const debug_sampler_name_info = {
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .pNext = nullptr,
-                .objectType = VK_OBJECT_TYPE_SAMPLER,
-                .objectHandle = (u64)(uptr)device->vk_null_sampler,
-                .pObjectName = "moon null_sampler",
-            };
-            device->vkSetDebugUtilsObjectNameEXT(device->vk_device, &debug_sampler_name_info);
-        }
-#endif /* LAKE_NDEBUG */
-        VkBufferUsageFlags const da_buffer_usage_flags = 
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-        VkBufferCreateInfo const da_buffer_create_info = {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .pNext = nullptr,
-            .flags = 0,
-            .size = device->header.assembly.max_allowed_buffers * sizeof(u64),
-            .usage = da_buffer_usage_flags,
-            .sharingMode = VK_SHARING_MODE_CONCURRENT, /* TODO buffers are shared across all queues for now */
-            .queueFamilyIndexCount = pd->unique_queue_family_count, /* TODO buffers are shared across all queues for now */
-            .pQueueFamilyIndices = pd->unique_queue_family_indices,
-        };
-        VmaAllocationCreateInfo const da_allocation_create_info = {
-            .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-            .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-            .requiredFlags = 0,
-            .preferredFlags = 0,
-            .memoryTypeBits = UINT32_MAX,
-            .pool = nullptr,
-            .pUserData = nullptr,
-            .priority = 0.5f,
-        };
-
-        result = vk_result_translate(
-            vmaCreateBuffer(device->vma_allocator,
-                &da_buffer_create_info,
-                &da_allocation_create_info,
-                &device->device_address_buffer,
-                &device->device_address_buffer_allocation,
-                nullptr));
-        if (result != LAKE_SUCCESS) 
-            goto deferred_null_cleanup;
-
-        result = vk_result_translate(
-            vmaMapMemory(device->vma_allocator,
-                device->device_address_buffer_allocation,
-                (void **)&device->device_address_buffer_host));
-        if (result != LAKE_SUCCESS) 
-            goto deferred_null_cleanup;
+        device->vkSetDebugUtilsObjectNameEXT(device->vk_device, &debug_buffer_name_info);
     }
-    lake_san_assert(result == LAKE_SUCCESS, LAKE_PANIC, nullptr);
+#endif /* LAKE_NDEBUG */
+    lake_dbg_assert(vma_allocation_info.pMappedData != nullptr, LAKE_ERROR_MEMORY_MAP_FAILED, nullptr);
+    u8 *mapped = (u8 *)vma_allocation_info.pMappedData;
+    for (u32 i = 0; i < lake_arraysize(buffer_data); i++)
+        mapped[i] = buffer_data[i];
+
+    moon_texture_assembly const texture_assembly = {
+        .dimensions = 2,
+        .format = moon_format_r8g8b8a8_unorm,
+        .extent = { 1, 1, 1 },
+        .mip_level_count = 1,
+        .array_layer_count = 1,
+        .sample_count = moon_sample_count_1,
+        .usage = moon_texture_usage_shader_sampled | moon_texture_usage_shader_storage | moon_texture_usage_transfer_dst,
+        .sharing_mode = moon_sharing_mode_concurrent,
+        .memory_flags = moon_memory_flag_dedicated_memory,
+    };
+    VmaAllocationCreateInfo const null_image_allocation_create_info = {
+        .flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+        .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+        .requiredFlags = 0,
+        .preferredFlags = 0,
+        .memoryTypeBits = UINT32_MAX,
+        .pool = nullptr,
+        .pUserData = nullptr,
+        .priority = 0.5f,
+    };
+    VkImageCreateInfo vk_image_create_info;
+    populate_vk_image_create_info_from_assembly(device, &texture_assembly, &vk_image_create_info);
+
+    result = vk_result_translate(
+        vmaCreateImage(device->vma_allocator,
+            &vk_image_create_info,
+            &null_image_allocation_create_info,
+            &device->vk_null_image,
+            &device->vk_null_image_allocation,
+            nullptr));
+    if (result != LAKE_SUCCESS) 
+        goto deferred_null_cleanup;
+#ifndef LAKE_NDEBUG
+    if (moon->vk_debug_messenger != VK_NULL_HANDLE) {
+        VkDebugUtilsObjectNameInfoEXT const debug_image_name_info = {
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .pNext = nullptr,
+            .objectType = VK_OBJECT_TYPE_IMAGE,
+            .objectHandle = (u64)(uptr)device->vk_null_image,
+            .pObjectName = "moon null_texture",
+        };
+        device->vkSetDebugUtilsObjectNameEXT(device->vk_device, &debug_image_name_info);
+    }
+#endif /* LAKE_NDEBUG */
+    VkImageViewCreateInfo const vk_image_view_create_info = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .image = device->vk_null_image,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = vk_image_create_info.format,
+        .components = (VkComponentMapping){
+            .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+        },
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = vk_image_create_info.mipLevels,
+            .baseArrayLayer = 0,
+            .layerCount = vk_image_create_info.arrayLayers,
+        },
+    };
+
+    result = vk_result_translate(
+        device->vkCreateImageView(
+            device->vk_device, 
+            &vk_image_view_create_info,
+            device->vk_allocator,
+            &device->vk_null_image_view));
+    if (result != LAKE_SUCCESS) 
+        goto deferred_null_cleanup;
+#ifndef LAKE_NDEBUG
+    if (moon->vk_debug_messenger != VK_NULL_HANDLE) {
+        VkDebugUtilsObjectNameInfoEXT const debug_image_view_name_info = {
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .pNext = nullptr,
+            .objectType = VK_OBJECT_TYPE_IMAGE_VIEW,
+            .objectHandle = (u64)(uptr)device->vk_null_image_view,
+            .pObjectName = "moon null_texture_view",
+        };
+        device->vkSetDebugUtilsObjectNameEXT(device->vk_device, &debug_image_view_name_info);
+    }
+#endif /* LAKE_NDEBUG */
+
+    VkImageMemoryBarrier vk_image_mem_barrier = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .pNext = nullptr,
+        .srcAccessMask = VK_ACCESS_HOST_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .oldLayout = 0,
+        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = device->vk_null_image,
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
+    };
+    device->vkCmdPipelineBarrier(
+        init_cmd_buffer, VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, 1, &vk_image_mem_barrier);
+
+    VkBufferImageCopy const vk_buffer_image_copy = {
+        .bufferOffset = 0u,
+        .bufferRowLength = 0u,
+        .bufferImageHeight = 0u,
+        .imageSubresource = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .mipLevel = 0,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
+        .imageOffset = { 0, 0, 0 },
+        .imageExtent = { 1, 1, 1 },
+    };
+    device->vkCmdCopyBufferToImage(
+        init_cmd_buffer, device->vk_null_buffer, device->vk_null_image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &vk_buffer_image_copy);
+    vk_image_mem_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    vk_image_mem_barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
+    vk_image_mem_barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    vk_image_mem_barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    vk_image_mem_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    vk_image_mem_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    device->vkCmdPipelineBarrier(
+        init_cmd_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, 1, &vk_image_mem_barrier);
+
+    VkSamplerCreateInfo const vk_sampler_create_info = {
+        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .magFilter = VK_FILTER_LINEAR,
+        .minFilter = VK_FILTER_LINEAR,
+        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .mipLodBias = 0.0f,
+        .anisotropyEnable = VK_FALSE,
+        .maxAnisotropy = 0,
+        .compareEnable = VK_FALSE,
+        .compareOp = VK_COMPARE_OP_ALWAYS,
+        .minLod = 0,
+        .maxLod = 0,
+        .borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK,
+        .unnormalizedCoordinates = VK_FALSE,
+    };
+
+    result = vk_result_translate(device->vkCreateSampler(device->vk_device, &vk_sampler_create_info, device->vk_allocator, &device->vk_null_sampler));
+    if (result != LAKE_SUCCESS) 
+        goto deferred_null_cleanup;
+#ifndef LAKE_NDEBUG
+    if (moon->vk_debug_messenger != VK_NULL_HANDLE) {
+        VkDebugUtilsObjectNameInfoEXT const debug_sampler_name_info = {
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .pNext = nullptr,
+            .objectType = VK_OBJECT_TYPE_SAMPLER,
+            .objectHandle = (u64)(uptr)device->vk_null_sampler,
+            .pObjectName = "moon null_sampler",
+        };
+        device->vkSetDebugUtilsObjectNameEXT(device->vk_device, &debug_sampler_name_info);
+    }
+#endif /* LAKE_NDEBUG */
+    VkBufferUsageFlags const da_buffer_usage_flags = 
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    VkBufferCreateInfo const da_buffer_create_info = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .size = device->header.assembly.max_allowed_buffers * sizeof(u64),
+        .usage = da_buffer_usage_flags,
+        .sharingMode = VK_SHARING_MODE_CONCURRENT, /* TODO buffers are shared across all queues for now */
+        .queueFamilyIndexCount = pd->unique_queue_family_count, /* TODO buffers are shared across all queues for now */
+        .pQueueFamilyIndices = pd->unique_queue_family_indices,
+    };
+    VmaAllocationCreateInfo const da_allocation_create_info = {
+        .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+        .usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+        .requiredFlags = 0,
+        .preferredFlags = 0,
+        .memoryTypeBits = UINT32_MAX,
+        .pool = nullptr,
+        .pUserData = nullptr,
+        .priority = 0.5f,
+    };
+
+    result = vk_result_translate(
+        vmaCreateBuffer(device->vma_allocator,
+            &da_buffer_create_info,
+            &da_allocation_create_info,
+            &device->device_address_buffer,
+            &device->device_address_buffer_allocation,
+            nullptr));
+    if (result != LAKE_SUCCESS) 
+        goto deferred_null_cleanup;
+
+    result = vk_result_translate(
+        vmaMapMemory(device->vma_allocator,
+            device->device_address_buffer_allocation,
+            (void **)&device->device_address_buffer_host));
+    if (result != LAKE_SUCCESS) 
+        goto deferred_null_cleanup;
 
     /* set debug names */
 #ifndef LAKE_NDEBUG
@@ -582,9 +580,9 @@ FN_MOON_DEVICE_ZERO_REFCNT(vulkan)
     for (s32 i = 0; i < moon_queue_type_count; i++) {
         struct command_pool_arena *arena = &device->command_pool_arenas[i];
         if (arena != nullptr) {
-            lake_darray_foreach_v(arena->pools_and_buffers, VkCommandPool, vk_cmd_pool)
+            lake_darray_foreach_t(&arena->pools_and_buffers, VkCommandPool, vk_cmd_pool)
                 device->vkDestroyCommandPool(device->vk_device, *vk_cmd_pool, device->vk_allocator);
-            lake_darray_fini(&arena->pools_and_buffers.da);
+            lake_darray_fini(&arena->pools_and_buffers, lake_machina);
         }
     }
     vmaUnmapMemory(device->vma_allocator, device->device_address_buffer_allocation);
@@ -665,19 +663,19 @@ FN_MOON_DEVICE_SUBMIT_COMMANDS(vulkan)
         if (cmd_list->header.cmd.header->assembly.queue_type != submit->queue.type)
             return LAKE_ERROR_QUEUE_SCHEDULING_TYPE_MISMATCH;
 
-        lake_darray_foreach_v(cmd_list->data.used_buffers, moon_buffer_id, id)
+        lake_darray_foreach_t(&cmd_list->data.used_buffers, moon_buffer_id, id)
             if (!_moon_vulkan_is_buffer_valid(device, *id)) 
                 return LAKE_ERROR_INVALID_BUFFER_ID;
 
-        lake_darray_foreach_v(cmd_list->data.used_textures, moon_texture_id, id)
+        lake_darray_foreach_t(&cmd_list->data.used_textures, moon_texture_id, id)
             if (!_moon_vulkan_is_texture_valid(device, *id))
                 return LAKE_ERROR_INVALID_TEXTURE_ID;
 
-        lake_darray_foreach_v(cmd_list->data.used_texture_views, moon_texture_view_id, id)
+        lake_darray_foreach_t(&cmd_list->data.used_texture_views, moon_texture_view_id, id)
             if (!_moon_vulkan_is_texture_view_valid(device, *id))
                 return LAKE_ERROR_INVALID_TEXTURE_VIEW_ID;
 
-        lake_darray_foreach_v(cmd_list->data.used_samplers, moon_sampler_id, id)
+        lake_darray_foreach_t(&cmd_list->data.used_samplers, moon_sampler_id, id)
             if (!_moon_vulkan_is_sampler_valid(device, *id))
                 return LAKE_ERROR_INVALID_SAMPLER_ID;
     }
@@ -872,14 +870,14 @@ FN_MOON_DEVICE_COMMIT_DEFERRED_DESTRUCTORS(vulkan)
     zombie_lock = &device->zombies_locks[zombie_timeline_##T##_idx]; \
     lake_spinlock_acquire(zombie_lock); \
     \
-    while (!lake_deque_empty_v(device->T##_zombies)) { \
+    while (!lake_deque_empty(&device->T##_zombies)) { \
         zombie_timeline_##T zombie = {0}; \
-        lake_deque_pop_v(device->T##_zombies, zombie_timeline_##T, &zombie); \
+        lake_deque_pop_t(&device->T##_zombies, zombie_timeline_##T, &zombie, lake_drifter); \
         \
         /* Zombies are sorted. When we see a single zombie that is too young, 
          * we can dismiss the rest as they are the same age or younger. */ \
         if (zombie.first >= min_pending_timeline_value) { \
-            lake_deque_op_t(&device->buffer_zombies.deq, zombie_timeline_##T, lake_deque_op_push); \
+            lake_deque_push_t(&device->buffer_zombies, zombie_timeline_##T, &zombie, lake_machina); \
             break; \
         } \
         __VA_ARGS__ \
@@ -900,13 +898,14 @@ FN_MOON_DEVICE_COMMIT_DEFERRED_DESTRUCTORS(vulkan)
     COMMIT_DESTRUCTORS(command_recorder, 
             struct command_pool_arena *arena = &device->command_pool_arenas[zombie.second.queue_type];
             device->vkFreeCommandBuffers(device->vk_device, zombie.second.vk_cmd_pool,
-                (u32)zombie.second.allocated_command_buffers.da.size, 
+                (u32)lake_darray_len(&zombie.second.allocated_command_buffers), 
                 zombie.second.allocated_command_buffers.v);
             VERIFY_VK_ERROR(device->vkResetCommandPool(device->vk_device, zombie.second.vk_cmd_pool, 0));
-            lake_darray_append_v_locked(arena->pools_and_buffers, VkCommandPool, &zombie.second.vk_cmd_pool, 1, &arena->spinlock);
+            lake_darray_append_w_spinlock(&arena->pools_and_buffers, VkCommandPool, 1, &zombie.second.vk_cmd_pool, &arena->spinlock, lake_machina);
     );
     lake_spinlock_release(lifetime_lock);
 #undef COMMIT_DESTRUCTORS
+
     return LAKE_SUCCESS;
 }
 
@@ -1218,7 +1217,7 @@ FN_MOON_MEMORY_HEAP_ZERO_REFCNT(vulkan)
         .second = { .vma_allocation = heap->vma_allocation },
     };
     lake_spinlock *lock = &device->zombies_locks[zombie_timeline_memory_heap_idx];
-    lake_deque_unshift_v_locked(device->memory_heap_zombies, zombie_timeline_memory_heap, submit, lock);
+    lake_deque_unshift_w_spinlock(&device->memory_heap_zombies, zombie_timeline_memory_heap, &submit, lock, lake_machina);
 
     moon_device_unref(heap->header.device);
     __lake_free(heap);

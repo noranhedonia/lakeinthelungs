@@ -1,7 +1,7 @@
 #pragma once
 
 #include <lake/bedrock/bedrock.h>
-#include <lake/data_structures/mpmc_ring.h>
+#include <lake/data_structures/mpmc.h>
 #include <lake/data_structures/strbuf.h>
 
 #define FIBER_INVALID (SIZE_MAX)
@@ -40,7 +40,7 @@ struct work {
     lake_work_details       details;
     atomic_usize           *work_left;
 };
-typedef lake_mpmc_node_t(struct work) work_queue_node;
+typedef lake_mpmc_t(struct work) work_queue_node;
 
 struct region {
     usize           v;
@@ -92,7 +92,7 @@ struct fiber {
 };
 
 struct bedrock {
-    lake_mpmc_ring_t(work_queue_node) work_queue;
+    lake_mpmc                   work_queue;
     struct tls                 *tls;
     atomic_usize                tls_sync;
     lake_work_details          *ends;

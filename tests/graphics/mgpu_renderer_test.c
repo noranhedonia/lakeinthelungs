@@ -1,10 +1,10 @@
 #include "../test_framework.h"
 
 static struct test_case_details g_tests[] = {
-    //IMPL_TEST_CASE(DS_block_allocator, todo),
+    //IMPL_TEST_CASE(Graphics_mgpu_renderer, todo),
 };
 
-FN_TEST_SUITE_INIT(DS_block_allocator)
+FN_TEST_SUITE_INIT(Graphics_mgpu_renderer)
 {
     *out = (struct test_suite_details){
         .count = lake_arraysize(g_tests),
@@ -14,7 +14,7 @@ FN_TEST_SUITE_INIT(DS_block_allocator)
     (void)bedrock;
 }
 
-FN_TEST_SUITE_FINI(DS_block_allocator)
+FN_TEST_SUITE_FINI(Graphics_mgpu_renderer)
 {
     (void)userdata;
 }

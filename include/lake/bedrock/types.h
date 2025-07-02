@@ -143,7 +143,7 @@ typedef vec3                        mat4x3[4];
 #define lake_offset(o, offset) lake_reinterpret_cast(void *, lake_reinterpret_cast(uptr, o) + offset)
 #define lake_offset_t(o, T) lake_offset(o, sizeof(T))
 
-#define lake_elem(ptr, size, index) lake_offset(ptr, (size) * (index))
+#define lake_elem(ptr, stride, index) lake_offset(ptr, (stride) * (index))
 #define lake_elem_t(o, T, index) lake_elem(o, sizeof(T), index)
 
 #define lake_arraysize(a)       (sizeof(a) / sizeof(a[0]))
@@ -154,6 +154,9 @@ typedef vec3                        mat4x3[4];
 #define lake_max(x,y)           (((x) > (y)) ? (x) : (y))
 #define lake_clamp(x,a,b)       (((x) < (a)) ? (a) : (((x) > (b)) ? (b) : (x)))
 #define lake_clamp_zo(x)        (lake_clamp(x, 0, 1))
+
+/** Callback to malloc() from bedrock allocators. */
+typedef void *(LAKECALL *PFN_lake_alloc)(usize size, usize align);
 
 /** Callback used for sorting values. */
 typedef s32 (LAKECALL *PFN_lake_compare_op)(const void *ptr1, const void *ptr2);

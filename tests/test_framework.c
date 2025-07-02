@@ -1,5 +1,5 @@
 #define LAKE_IN_THE_LUNGS_MAIN
-#include "test_suites.h"
+#include "test_framework.h"
 
 char const *LAKECALL construct_fiber_name(char const *suite, char const *test)
 {
@@ -7,7 +7,7 @@ char const *LAKECALL construct_fiber_name(char const *suite, char const *test)
     usize const n1 = lake_strlen(test);
     usize const sum = n0 + n1 + 2;
 
-    char *buf = lake_drift_n(char, sum + 1);
+    char *buf = lake_drift_allocate_n(char, sum + 1);
     lake_memcpy(buf, suite, n0);
     for (s32 i = 0; i < 2; buf[n0 + i++] = ':');
     lake_memcpy(&buf[n0 + 2], test, n1);
@@ -22,6 +22,11 @@ extern void LAKECALL _test_log_context(char const *file, s32 line)
     lake_log(-5, "        #[blue]@%s#[normal] from #[magenta]%d:%s#[normal]:", fiber_name, line, file);
 }
 
+#define DECL_TEST_SUITE(NAME) \
+    FN_TEST_SUITE_INIT(NAME); \
+    FN_TEST_SUITE_FINI(NAME);
+#include "test_suites.h"
+
 struct test_suite_entry {
     char const                 *name;
     PFN_test_suite_init         init;
@@ -32,162 +37,15 @@ struct test_suite_entry {
     atomic_u32                  status_fail;
 };
 
-#define TEST_SUITE_ENTRY(SUITE) \
+#define DECL_TEST_SUITE(SUITE) \
     (struct test_suite_entry){ \
         .name = #SUITE, \
         .init = SUITE##_test_suite_init, \
         .fini = SUITE##_test_suite_fini, \
         .details = {0}, \
-    }
+    },
 static struct test_suite_entry g_test_suites[] = {
-    /* bedrock */
-    TEST_SUITE_ENTRY(Bedrock_defer),
-    TEST_SUITE_ENTRY(Bedrock_drifter),
-    TEST_SUITE_ENTRY(Bedrock_file_system),
-    TEST_SUITE_ENTRY(Bedrock_job_system),
-    TEST_SUITE_ENTRY(Bedrock_machina),
-    TEST_SUITE_ENTRY(Bedrock_network),
-    TEST_SUITE_ENTRY(Bedrock_tagged_heap),
-    TEST_SUITE_ENTRY(Bedrock_truetype),
-
-    /* data structures */
-    TEST_SUITE_ENTRY(DS_arena_allocator),
-    TEST_SUITE_ENTRY(DS_bitset),
-    TEST_SUITE_ENTRY(DS_block_allocator),
-    TEST_SUITE_ENTRY(DS_dagraph),
-    TEST_SUITE_ENTRY(DS_darray),
-    TEST_SUITE_ENTRY(DS_deque),
-    TEST_SUITE_ENTRY(DS_hashmap),
-    TEST_SUITE_ENTRY(DS_map),
-    TEST_SUITE_ENTRY(DS_mpmc_ring),
-    TEST_SUITE_ENTRY(DS_sparse_set),
-    TEST_SUITE_ENTRY(DS_stack_allocator),
-    TEST_SUITE_ENTRY(DS_strbuf),
-    TEST_SUITE_ENTRY(DS_switch_list),
-
-    /* math */
-    TEST_SUITE_ENTRY(Math_bits),
-    TEST_SUITE_ENTRY(Math_camera),
-    TEST_SUITE_ENTRY(Math_matrix),
-    TEST_SUITE_ENTRY(Math_quaternion),
-    TEST_SUITE_ENTRY(Math_simd),
-    TEST_SUITE_ENTRY(Math_trigonometry),
-    TEST_SUITE_ENTRY(Math_vector),
-
-/* display backend implementations */
-#ifdef HADAL_WIN32
-    TEST_SUITE_ENTRY(HadalImpl_win32),
-#endif /* HADAL_WIN32 */
-#ifdef HADAL_COCOA
-    TEST_SUITE_ENTRY(HadalImpl_cocoa),
-#endif /* HADAL_COCOA */
-#ifdef HADAL_UIKIT
-    TEST_SUITE_ENTRY(HadalImpl_uikit),
-#endif /* HADAL_UIKIT */
-#ifdef HADAL_ANDROID
-    TEST_SUITE_ENTRY(HadalImpl_android),
-#endif /* HADAL_ANDROID */
-#ifdef HADAL_HAIKU
-    TEST_SUITE_ENTRY(HadalImpl_haiku),
-#endif /* HADAL_HAIKU */
-#ifdef HADAL_HTML5
-    TEST_SUITE_ENTRY(HadalImpl_html5),
-#endif /* HADAL_HTML5 */
-#ifdef HADAL_WAYLAND
-    TEST_SUITE_ENTRY(HadalImpl_wayland),
-#endif /* HADAL_WAYLAND */
-#ifdef HADAL_XCB
-    TEST_SUITE_ENTRY(HadalImpl_xcb),
-#endif /* HADAL_XCB */
-#ifdef HADAL_KMS
-    TEST_SUITE_ENTRY(HadalImpl_kms),
-#endif /* HADAL_KMS */
-    TEST_SUITE_ENTRY(HadalImpl_headless),
-
-/* XR backend implementations */
-#ifdef HADAL_OPENXR
-    TEST_SUITE_ENTRY(HadeanImpl_openxr),
-#endif /* HADAL_OPENXR */
-    TEST_SUITE_ENTRY(HadeanImpl_headless),
-
-/* rendering backend implementations */
-#ifdef MOON_D3D12
-    TEST_SUITE_ENTRY(MoonImpl_d3d12),
-#endif /* MOON_D3D12 */
-#ifdef MOON_METAL
-    TEST_SUITE_ENTRY(MoonImpl_metal),
-#endif /* MOON_METAL */
-#ifdef MOON_WEBGPU
-    TEST_SUITE_ENTRY(MoonImpl_webgpu),
-#endif /* MOON_WEBGPU */
-#ifdef MOON_VULKAN
-    TEST_SUITE_ENTRY(MoonImpl_vulkan),
-#endif /* MOON_VULKAN */
-    TEST_SUITE_ENTRY(MoonImpl_mock),
-
-/* audio backend implementations */
-#ifdef SOMA_ASIO
-    TEST_SUITE_ENTRY(SomaImpl_asio),
-#endif /* SOMA_ASIO */
-#ifdef SOMA_WASAPI
-    TEST_SUITE_ENTRY(SomaImpl_wasapi),
-#endif /* SOMA_WASAPI */
-#ifdef SOMA_XAUDIO2
-    TEST_SUITE_ENTRY(SomaImpl_xaudio2),
-#endif /* SOMA_XAUDIO2 */
-#ifdef SOMA_COREAUDIO
-    TEST_SUITE_ENTRY(SomaImpl_coreaudio),
-#endif /* SOMA_COREAUDIO */
-#ifdef SOMA_AAUDIO
-    TEST_SUITE_ENTRY(SomaImpl_aaudio),
-#endif /* SOMA_AAUDIO */
-#ifdef SOMA_WEBAUDIO
-    TEST_SUITE_ENTRY(SomaImpl_webaudio),
-#endif /* SOMA_WEBAUDIO */
-#ifdef SOMA_PIPEWIRE
-    TEST_SUITE_ENTRY(SomaImpl_pipewire),
-#endif /* SOMA_PIPEWIRE */
-#ifdef SOMA_PULSEAUDIO
-    TEST_SUITE_ENTRY(SomaImpl_pulseaudio),
-#endif /* SOMA_PULSEAUDIO */
-#ifdef SOMA_JACK
-    TEST_SUITE_ENTRY(SomaImpl_jack),
-#endif /* SOMA_JACK */
-#ifdef SOMA_ALSA
-    TEST_SUITE_ENTRY(SomaImpl_alsa),
-#endif /* SOMA_ALSA */
-    TEST_SUITE_ENTRY(SomaImpl_dummy),
-
-    /* entity-component-system */
-    TEST_SUITE_ENTRY(Riven_core),
-    TEST_SUITE_ENTRY(Riven_entity),
-    TEST_SUITE_ENTRY(Riven_component),
-    TEST_SUITE_ENTRY(Riven_system),
-    TEST_SUITE_ENTRY(Riven_archetype),
-    TEST_SUITE_ENTRY(Riven_query),
-
-    /* physics */
-    TEST_SUITE_ENTRY(Volta_todo),
-
-    /* animation */
-    TEST_SUITE_ENTRY(Ipomoea_todo),
-
-    /* ui */
-    TEST_SUITE_ENTRY(Lovage_todo),
-
-    /* framework */
-    TEST_SUITE_ENTRY(Sorceress_todo),
-
-    /* audio */
-    TEST_SUITE_ENTRY(Audio_dsp),
-    TEST_SUITE_ENTRY(Audio_mixer),
-    TEST_SUITE_ENTRY(Audio_spatial),
-    TEST_SUITE_ENTRY(Audio_synth),
-
-    /* graphics */
-    TEST_SUITE_ENTRY(Graphics_pipeline_builder),
-    TEST_SUITE_ENTRY(Graphics_render_graph),
-    TEST_SUITE_ENTRY(Graphics_renderer),
+#include "test_suites.h"
 };
 char const *g_run_target = nullptr;
 
@@ -249,8 +107,8 @@ static s32 LAKECALL run_test_suite(
     lake_log(-6, "\nTest suite #[blue]%s#[normal] runs #[cyan]%u#[normal] test cases:", suite->name, suite->details.count);
     u32 const test_count = suite->details.count;
 
-    runs = lake_drift_n(struct run_test_work, test_count);
-    work = lake_drift_n(lake_work_details, test_count);
+    runs = lake_drift_allocate_n(struct run_test_work, test_count);
+    work = lake_drift_allocate_n(lake_work_details, test_count);
 
     for (u32 i = 0; i < test_count; i++) {
         runs[i].details     = suite->details.tests[i];

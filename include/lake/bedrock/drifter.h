@@ -29,12 +29,15 @@ extern "C" {
  *  these allocations, they are stupidly fast, free from memory leaks (on correct use), 
  *  they form a hierarchy of lifetime scope, are lockless and completely thread safe. */
 LAKEAPI LAKE_HOT_FN LAKE_MALLOC
-void *LAKECALL lake_drift(usize size, usize align);
+void *LAKECALL lake_drift_allocate(usize size, usize align);
 
-#define lake_drift_t(T) \
-    lake_reinterpret_cast(T *, lake_drift(sizeof(T), alignof(T)))
-#define lake_drift_n(T, n) \
-    lake_reinterpret_cast(T *, lake_drift(sizeof(T) * (n), alignof(T)))
+#define lake_drift_allocate_t(T) \
+    lake_reinterpret_cast(T *, lake_drift_allocate(sizeof(T), alignof(T)))
+#define lake_drift_allocate_n(T, n) \
+    lake_reinterpret_cast(T *, lake_drift_allocate(sizeof(T) * (n), alignof(T)))
+
+/** Expected to be used in macro allocator expansions. */
+#define lake_drifter lake_drift_allocate, (void)
 
 /** An alias will not append to the drifters offset. This call will be similar to 
  *  calling push, drift and pop in sequence. It's generally unsafe if for the lifetime 
@@ -44,8 +47,8 @@ LAKEAPI LAKE_HOT_FN
 void *LAKECALL lake_drift_alias(usize size, usize align);
 
 enum : s32 {
-    __lake_drift_scratch_push__ = 0,
-    __lake_drift_scratch_pop__,
+    _lake_drift_scratch_push = 0,
+    _lake_drift_scratch_pop,
 };
 
 /** Enter or leave the current drift scope. Drift allocations are only valid inside the 
@@ -54,13 +57,13 @@ enum : s32 {
  *  only thread safe if a matching number of entries and leaves was called from within 
  *  the work function, before the fiber returns to it's home context. Yields are safe. */
 LAKEAPI LAKE_HOT_FN 
-void LAKECALL lake_drift_scratch(s32 op);
+void LAKECALL _lake_drift_scratch(s32 op);
 
 /** Nest a new scope. */
-#define lake_drift_push() lake_drift_scratch(__lake_drift_scratch_push__)
+#define lake_drift_push() _lake_drift_scratch(_lake_drift_scratch_push)
 
 /** Leave the current scope. */
-#define lake_drift_pop() lake_drift_scratch(__lake_drift_scratch_pop__)
+#define lake_drift_pop() _lake_drift_scratch(_lake_drift_scratch_pop)
 
 #ifdef __cplusplus
 }

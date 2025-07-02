@@ -111,8 +111,8 @@ typedef struct lovage_font_glyph {
 
 /** Font runtime data and rendering. */
 typedef struct lovage_font {
-    /** An array of glyphs in the loaded font. */
-    lake_darray_t(lovage_font_glyph)    glyphs;
+    /** darray<lovage_font_glyph>, an array of glyphs in the loaded font. */
+    lake_darray                 glyphs;
     /** The glyph obtained from lovage_font::fallback_char lookup. */
     lovage_font_glyph          *fallback_glyph;
     /** Horizontal advance of the fallback_glyph. */
@@ -153,10 +153,10 @@ typedef struct lovage_font_atlas {
     vec2                        texture_uv_scale;
     /** Texture coordinates to a white pixel. */
     vec2                        texture_uv_white_pixel;
-    /** Holds all fonts added to the atlas, fonts[0] is the default font. */
-    lake_darray_t(lovage_font)          fonts;
-    /** Holds configurations for the fonts. */
-    lake_darray_t(lovage_font_source)   sources;
+    /** darray<lovage_font>, holds all fonts added to the atlas, fonts[0] is the default font. */
+    lake_darray                 fonts;
+    /** darray<lovage_font_source>, holds configurations for the fonts. */
+    lake_darray                 sources;
 } lovage_font_atlas;
 
 #ifdef __cplusplus

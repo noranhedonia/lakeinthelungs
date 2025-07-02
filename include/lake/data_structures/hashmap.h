@@ -12,8 +12,8 @@ extern "C" {
 #endif /* __cplusplus */
 
 typedef struct lake_hashmap_bucket {
-    lake_darray_t(lake_map_key)     keys;
-    lake_darray_t(lake_map_value)   values;
+    lake_darray                     keys;       /**< darray<lake_map_key> */
+    lake_darray                     values;     /**< darray<lake_map_value> */
 } lake_hashmap_bucket;
 
 typedef struct lake_hashmap {

@@ -1,6 +1,7 @@
 #include "vk_moon.h"
 #ifdef MOON_VULKAN
 
+#include <lake/data_structures/strbuf.h>
 #include <lake/math/bits.h>
 #include <stdio.h> /* snprintf */
 
@@ -87,14 +88,14 @@ void populate_vk_acceleration_structure_build_details(
     moon_blas_build_details const          *blas_build_details,
     struct acceleratrion_structure_build   *out_build)
 {
-    lake_darray *vk_build_geometry_infos = &out_build->vk_build_geometry_infos.da;
-    lake_darray *vk_geometry_infos = &out_build->vk_geometry_infos.da;
-    lake_darray *primitive_counts = &out_build->primitive_counts.da;
-    lake_darray *primitive_counts_ptrs = &out_build->primitive_counts_ptrs.da;
+    lake_darray *vk_build_geometry_infos = &out_build->vk_build_geometry_infos;
+    lake_darray *vk_geometry_infos = &out_build->vk_geometry_infos;
+    lake_darray *primitive_counts = &out_build->primitive_counts;
+    lake_darray *primitive_counts_ptrs = &out_build->primitive_counts_ptrs;
     u32 const acceleration_structure_count = tlas_build_count + blas_build_count;
 
-    lake_darray_resize_t(vk_build_geometry_infos, VkAccelerationStructureBuildGeometryInfoKHR, acceleration_structure_count);
-    lake_darray_resize_t(primitive_counts_ptrs, u32, acceleration_structure_count);
+    lake_darray_resize_t(vk_build_geometry_infos, VkAccelerationStructureBuildGeometryInfoKHR, acceleration_structure_count, lake_drifter);
+    lake_darray_resize_t(primitive_counts_ptrs, u32, acceleration_structure_count, lake_drifter);
 
     usize geometry_infos_count = 0;
     for (u32 tlas = 0; tlas < tlas_build_count; tlas++)
@@ -103,8 +104,8 @@ void populate_vk_acceleration_structure_build_details(
      * read one of the variants here */
     for (u32 blas = 0; blas < blas_build_count; blas++)
         geometry_infos_count += blas_build_details[blas].geometries.triangle.count;
-    lake_darray_resize_t(vk_geometry_infos, VkAccelerationStructureGeometryKHR, geometry_infos_count);
-    lake_darray_resize_t(primitive_counts, u32, geometry_infos_count);
+    lake_darray_resize_t(vk_geometry_infos, VkAccelerationStructureGeometryKHR, geometry_infos_count, lake_drifter);
+    lake_darray_resize_t(primitive_counts, u32, geometry_infos_count, lake_drifter);
 
     /* top-level acceleration structures */
     for (u32 tlas = 0; tlas < tlas_build_count; tlas++) {
@@ -130,8 +131,8 @@ void populate_vk_acceleration_structure_build_details(
                 },
                 .flags = (VkGeometryFlagsKHR)inst_detail->geometry_flags,
             };
-            lake_darray_append_t(vk_geometry_infos, VkAccelerationStructureGeometryKHR, &vk_geometry);
-            lake_darray_append_t(primitive_counts, u32, &inst_detail->count);
+            lake_darray_append_t(vk_geometry_infos, VkAccelerationStructureGeometryKHR, 1, &vk_geometry, lake_drifter);
+            lake_darray_append_t(primitive_counts, u32, 1, &inst_detail->count, lake_drifter);
         }
         VkAccelerationStructureBuildGeometryInfoKHR const vk_build_geometry = {
             .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
@@ -149,8 +150,8 @@ void populate_vk_acceleration_structure_build_details(
             .ppGeometries = nullptr,
             .scratchData = (VkDeviceOrHostAddressKHR)details->scratch_data,
         };
-        lake_darray_append_t(vk_build_geometry_infos, VkAccelerationStructureBuildGeometryInfoKHR, &vk_build_geometry);
-        lake_darray_append_t(primitive_counts_ptrs, u32 const *, primitive_counts_ptr);
+        lake_darray_append_t(vk_build_geometry_infos, VkAccelerationStructureBuildGeometryInfoKHR, 1, &vk_build_geometry, lake_drifter);
+        lake_darray_append_t(primitive_counts_ptrs, u32 const *, 1, primitive_counts_ptr, lake_drifter);
     }
 
     /* bottom-level acceleration structures */
@@ -181,7 +182,7 @@ void populate_vk_acceleration_structure_build_details(
                     .indexData = (VkDeviceOrHostAddressConstKHR)details->geometries.triangle.span[geo].index_data,
                     .transformData = (VkDeviceOrHostAddressConstKHR)details->geometries.triangle.span[geo].transform_data,
                 };
-                lake_darray_append_t(primitive_counts, u32, &details->geometries.triangle.span[geo].count);
+                lake_darray_append_t(primitive_counts, u32, 1, &details->geometries.triangle.span[geo].count, lake_drifter);
             } else { /* aabbs */
                 vk_geometry.geometryType = VK_GEOMETRY_TYPE_AABBS_KHR;
                 vk_geometry.flags = (VkGeometryTypeKHR)details->geometries.aabb.span[geo].geometry_flags;
@@ -191,9 +192,9 @@ void populate_vk_acceleration_structure_build_details(
                     .data = (VkDeviceOrHostAddressConstKHR)details->geometries.aabb.span[geo].data,
                     .stride = details->geometries.aabb.span[geo].stride,
                 };
-                lake_darray_append_t(primitive_counts, u32, &details->geometries.aabb.span[geo].count);
+                lake_darray_append_t(primitive_counts, u32, 1, &details->geometries.aabb.span[geo].count, lake_drifter);
             }
-            lake_darray_append_t(vk_geometry_infos, VkAccelerationStructureGeometryKHR, &vk_geometry);
+            lake_darray_append_t(vk_geometry_infos, VkAccelerationStructureGeometryKHR, 1, &vk_geometry, lake_drifter);
         }
         VkAccelerationStructureBuildGeometryInfoKHR const vk_build_geometry = {
             .sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
@@ -211,8 +212,8 @@ void populate_vk_acceleration_structure_build_details(
             .ppGeometries = nullptr,
             .scratchData = (VkDeviceOrHostAddressKHR)details->scratch_data,
         };
-        lake_darray_append_t(vk_build_geometry_infos, VkAccelerationStructureBuildGeometryInfoKHR, &vk_build_geometry);
-        lake_darray_append_t(primitive_counts_ptrs, u32 const *, primitive_counts_ptr);
+        lake_darray_append_t(vk_build_geometry_infos, VkAccelerationStructureBuildGeometryInfoKHR, 1, &vk_build_geometry, lake_drifter);
+        lake_darray_append_t(primitive_counts_ptrs, u32 const *, 1, primitive_counts_ptr, lake_drifter);
     }
 }
 
@@ -262,7 +263,7 @@ void populate_vk_acceleration_structure_build_details(
         pool->pages[page]->slots[offset] = (struct T##_impl_slot){0}; \
         /* this is the maximum value a version is allowed to reach */ \
         if (version != MOON_ID_INDEX_MASK) \
-            lake_mpmc_enqueue_t(&pool->free_indices.ring, lake_mpmc_node_v, &idx); \
+            lake_mpmc_enqueue_t(&pool->free_indices, lake_mpmc_node, &idx); \
         lake_atomic_sub_explicit(&pool->lifetime_sync, 1, lake_memory_model_release); \
     } \
     \
@@ -285,7 +286,7 @@ void populate_vk_acceleration_structure_build_details(
     struct T##_impl_slot *T##_gpu_sr_pool__try_create_slot(struct T##_gpu_sr_pool *pool, moon_##T##_id *out_id) \
     { \
         ssize idx; \
-        if (!lake_mpmc_dequeue_t(&pool->free_indices.ring, lake_mpmc_node_v, &idx)) { \
+        if (!lake_mpmc_dequeue_t(&pool->free_indices, lake_mpmc_node, &idx)) { \
             idx = lake_atomic_add_explicit(&pool->next_idx, 1, lake_memory_model_release); \
             if (idx >= pool->max_resources || idx >= (ssize)GPU_SR_POOL_MAX_RESOURCE_COUNT) \
                 return nullptr; \
@@ -585,12 +586,12 @@ lake_result init_gpu_sr_table(struct moon_device_impl *device)
 #define GPU_SR_TABLE__IMPL_NODES(T, allowed) \
     do { \
         ssize node_count = lake_bits_next_pow2(allowed); \
-        lake_mpmc_node_v *nodes = __lake_malloc_n(lake_mpmc_node_v, node_count); \
-        lake_mpmc_init_t(&device->gpu_sr_table.T##_slots.free_indices.ring, lake_mpmc_node_v, node_count, nodes); \
+        lake_mpmc_node *nodes = __lake_malloc_n(lake_mpmc_node, node_count); \
+        lake_mpmc_init_t(&device->gpu_sr_table.T##_slots.free_indices, lake_mpmc_node, node_count, nodes); \
     } while(0)
 
 #define GPU_SR_TABLE__IMPL_ZOMBIES(T, len) \
-    lake_deque_init_t(&device->T##_zombies.deq, zombie_timeline_##T, len, next_pow2_size, lake_deque_shrink_if_empty);
+    lake_deque_init_t(&device->T##_zombies, zombie_timeline_##T, len, next_pow2_size, LAKE_DEQUE_SHRINK_IF_EMPTY, __lake_malloc, __lake_free);
 
 #define GPU_SR_TABLE__IMPL_NODES_AND_ZOMBIES(T, allowed) \
     GPU_SR_TABLE__IMPL_NODES(T, allowed); \
@@ -624,25 +625,24 @@ lake_result init_gpu_sr_table(struct moon_device_impl *device)
 #define GPU_SR_TABLE__DEBUG_PRINT(T, vk_name) \
     static char *LAKECALL debug_print_remaining_##T(struct T##_gpu_sr_pool const *pool, s32 valid_page_count) \
     { \
-      /* TODO STRBUF ?? */ \
-        constexpr s32 limit = 16384; \
-        char *ret = lake_drift(limit, 1); \
-        ssize o = 0lu; \
+        lake_strbuf buf = lake_strbuf_init; \
+        buf.alloc = 16384; \
+        buf.v = lake_drift_allocate(buf.alloc, 1); \
         \
-        for (s32 i = 0; i < valid_page_count && o < limit-32; i++) { \
+        for (s32 i = 0; i < valid_page_count && buf.len < buf.alloc-32; i++) { \
             struct T##_impl_slot_page const *page = pool->pages[i]; \
             \
             for (s32 j = 0; j < (s32)GPU_SR_POOL_PAGE_SIZE; j++) { \
                 struct T##_impl_slot const *slot = &page->slots[j]; \
                 \
                 if (slot->vk_name != VK_NULL_HANDLE) \
-                    o += snprintf(ret + o, slot->assembly.name.len, "\n  dbg name : \"%s\"", slot->assembly.name.str); \
+                    buf.len += snprintf(buf.v + buf.len, slot->assembly.name.len, "\n  dbg name : \"%s\"", slot->assembly.name.str); \
             } \
         } \
-        if (o >= limit-32) \
-            o += snprintf(ret + o, 4, "..."); \
-        ret[o] = '\0'; \
-        return ret; \
+        if (buf.len >= buf.alloc-32) \
+            buf.len += snprintf(buf.v + buf.len, 4, "..."); \
+        buf.v[buf.len] = '\0'; \
+        return buf.v; \
     }
 GPU_SR_TABLE__DEBUG_PRINT(buffer, vk_buffer)
 GPU_SR_TABLE__DEBUG_PRINT(texture, vk_image)
@@ -672,8 +672,8 @@ void fini_gpu_sr_table(struct moon_device_impl *device)
         dbg \
         for (s32 i = 0; i < valid_page_count; i++) \
             __lake_free(T##_pool->pages[i]); \
-        if (T##_pool->free_indices.ring.buffer != nullptr) \
-            __lake_free(T##_pool->free_indices.ring.buffer); \
+        if (T##_pool->free_indices.buffer != nullptr) \
+            __lake_free(T##_pool->free_indices.buffer); \
     } while(0);
 
     GPU_SR_TABLE__RELEASE_SLOTS_MEMORY(buffer, GPU_SR_TABLE__RELEASE_SLOTS_MEMORY_W_DBG(buffer))
@@ -687,18 +687,18 @@ void fini_gpu_sr_table(struct moon_device_impl *device)
 #undef GPU_SR_TABLE__RELEASE_SLOTS_MEMORY_W_DBG
 #undef GPU_SR_TABLE__RELEASE_SLOTS_MEMORY
 
-    lake_deque_fini(&device->buffer_zombies.deq);
-    lake_deque_fini(&device->texture_zombies.deq);
-    lake_deque_fini(&device->texture_view_zombies.deq);
-    lake_deque_fini(&device->sampler_zombies.deq);
-    lake_deque_fini(&device->tlas_zombies.deq);
-    lake_deque_fini(&device->blas_zombies.deq);
-    lake_deque_fini(&device->event_zombies.deq);
-    lake_deque_fini(&device->pipeline_zombies.deq);
-    lake_deque_fini(&device->semaphore_zombies.deq);
-    lake_deque_fini(&device->query_pool_zombies.deq);
-    lake_deque_fini(&device->command_recorder_zombies.deq);
-    lake_deque_fini(&device->memory_heap_zombies.deq);
+    lake_deque_fini(&device->buffer_zombies, lake_machina);
+    lake_deque_fini(&device->texture_zombies, lake_machina);
+    lake_deque_fini(&device->texture_view_zombies, lake_machina);
+    lake_deque_fini(&device->sampler_zombies, lake_machina);
+    lake_deque_fini(&device->tlas_zombies, lake_machina);
+    lake_deque_fini(&device->blas_zombies, lake_machina);
+    lake_deque_fini(&device->event_zombies, lake_machina);
+    lake_deque_fini(&device->pipeline_zombies, lake_machina);
+    lake_deque_fini(&device->semaphore_zombies, lake_machina);
+    lake_deque_fini(&device->query_pool_zombies, lake_machina);
+    lake_deque_fini(&device->command_recorder_zombies, lake_machina);
+    lake_deque_fini(&device->memory_heap_zombies, lake_machina);
 
     for (u32 i = 0; i < MOON_PIPELINE_LAYOUT_COUNT; i++)
         device->vkDestroyPipelineLayout(device->vk_device, device->gpu_sr_table.pipeline_layouts[i], device->vk_allocator);

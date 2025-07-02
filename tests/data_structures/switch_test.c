@@ -1,10 +1,10 @@
 #include "../test_framework.h"
 
 static struct test_case_details g_tests[] = {
-    //IMPL_TEST_CASE(DS_switch_list, todo),
+    //IMPL_TEST_CASE(DS_switch, todo),
 };
 
-FN_TEST_SUITE_INIT(DS_switch_list)
+FN_TEST_SUITE_INIT(DS_switch)
 {
     *out = (struct test_suite_details){
         .count = lake_arraysize(g_tests),
@@ -14,7 +14,7 @@ FN_TEST_SUITE_INIT(DS_switch_list)
     (void)bedrock;
 }
 
-FN_TEST_SUITE_FINI(DS_switch_list)
+FN_TEST_SUITE_FINI(DS_switch)
 {
     (void)userdata;
 }

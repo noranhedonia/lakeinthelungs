@@ -13,7 +13,7 @@ static bool interface_impl_is_valid(struct soma_interface_impl *impl)
     /* if any procedure is missing we would like to log this */
     bool is_valid = true;
     lake_drift_push();
-    lake_strbuf buf = { .v = lake_drift(2048, 1), .len = 0, .alloc = 4096 };
+    lake_strbuf buf = { .v = lake_drift_allocate(2048, 1), .len = 0, .alloc = 2048 };
     char const *whitespace = "\n            ";
 
 #define VALIDATE_PROC(FN) \
